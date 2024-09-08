@@ -75,6 +75,10 @@ class App extends HTMLElement {
             this.querySelector(".webcam .time span:first-child").textContent = `${hours}:${minutes}:${seconds}`;
             this.querySelector(".webcam .time span:nth-child(2)").textContent = date.getHours() >= 12 ? "PM" : "AM";
         });
+
+        window.addEventListener('obsSceneChanged', function (event) {
+            document.body.dataset.scene = event.detail.name;
+        });
     }
 }
 

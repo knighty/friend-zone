@@ -70,7 +70,7 @@ fastifyApp.setErrorHandler(errorHandler);
 Dependencies
 */
 serverLog.info("Creating dependencies");
-const wordOfTheHour = new WordOfTheHour("knighty33");
+const wordOfTheHour = new WordOfTheHour(config.twitch.channel);
 const webcam = new Webcam();
 
 /*
@@ -86,7 +86,7 @@ Routes
 */
 serverLog.info("Adding routes");
 
-// Request level dependencies
+// Request level dependencies 
 fastifyApp.addHook("onRequest", (req, res, done) => {
     req.dependencies = {
 
