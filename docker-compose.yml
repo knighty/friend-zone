@@ -1,0 +1,28 @@
+# docker-compose.yml
+
+services:
+  site:
+    build:
+      context: .
+      dockerfile: dev.Dockerfile
+    env_file: ".env"
+    environment:
+      NODE_ENV: development
+    volumes:
+      - ./server/src:/opt/app/server/src
+      - ./public/dist:/opt/app/public/dist
+      - ./public/src:/opt/app/public/src
+
+  webserver:
+    build:
+      context: ./
+      dockerfile: ./docker/webserver/Dockerfile
+    volumes:
+      - ./docker/webserver/nginx.conf:/etc/nginx/nginx.conf
+      - ./docker/webserver/default.conf:/etc/nginx/conf.d/default.conf
+      - ./docker/webserver/dev.conf:/etc/nginx/conf.d/site.conf
+    ports:
+      - "5010:80"
+
+volumes:
+  dbdata:

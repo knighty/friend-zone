@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta charset='utf-8'>
+	<meta http-equiv='X-UA-Compatible' content='IE=edge'>
+	<title>Page Title</title>
+	<meta name='viewport' content='width=device-width, initial-scale=1'>
+	<link rel='stylesheet' type='text/css' media='screen' href='<%= style %>'>
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=Lilita+One&display=swap" rel="stylesheet">
+	<link href="https://fonts.googleapis.com/css2?family=Rubik+Mono+One&display=swap" rel="stylesheet">
+</head>
+
+<body>
+	<x-app>
+		<section class="word-of-the-hour">
+			<div class="word-container">
+				<label>Word <span>Of The</span> Hour</label>
+				<span class="word"></span>
+			</div>
+			<ul>
+				<% for(let person of people) { %>
+				<li data-person="<%= person.id %>">
+					<span class="name"><%= person.name %></span>
+					<span class="count">0</span>
+				</li>
+				<% } %>
+			</ul>
+		</section>
+		<section class="webcam">
+			<div class="time"><span>0:00</span><span>am</span></div>
+			<div class="video-shadow">
+				<div class="video">
+					<video id="video">Video stream not available.</video>
+				</div>
+			</div>
+			<button>Start webcam</button>
+		</section>
+	</x-app>
+	<script src='<%= scripts %>'></script>
+
+</body>
+
+</html>

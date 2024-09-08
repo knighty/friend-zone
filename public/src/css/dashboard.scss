@@ -1,0 +1,78 @@
+@import "clear";
+
+html {
+    --accent-color: #43c7bd;
+    --account-highlight: #4de7dc;
+
+    height: 100%;
+    font-family: "Open Sans", sans-serif;
+    font-weight: 400;
+    font-style: normal;
+}
+
+body {
+    height: 100%;
+    background-color: #fff;
+    overflow: hidden;
+    max-width: 80em;
+    padding: 0 1em;
+    margin: auto;
+}
+
+h1 {
+    font-weight: bold;
+    font-size: 1.6em;
+    margin: 1em 0;
+}
+
+h2 {
+    font-weight: bold;
+    font-size: 1.4em;
+    margin: 1em 0;
+}
+
+p {
+    margin: 1em 0;
+}
+
+ul {
+    margin: 1em 0;
+}
+
+button {
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 0.5em;
+    color: #333;
+
+    &:hover {
+        background: #eee;
+    }
+}
+
+x-dashboard {
+    display: block;
+}
+
+.webcam-positions {
+    display: grid;
+    grid-template-columns: 3em 3em 3em;
+    grid-template-rows: 3em 3em 3em;
+    gap: 0.5em;
+
+    li {
+        display: block;
+        width: 100%;
+        height: 100%;
+
+        button {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+            font-size: 1.5em;
+            font-weight: bold;
+        }
+    }
+}

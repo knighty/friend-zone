@@ -1,0 +1,32 @@
+{
+    "name": "server",
+    "version": "1.0.0",
+    "description": "",
+    "main": "index.ts",
+    "scripts": {
+        "dev": "nodemon src/index.ts"
+    },
+    "author": "",
+    "license": "ISC",
+    "dependencies": {
+        "@fastify/caching": "^8.4.0",
+        "@fastify/cookie": "^9.3.1",
+        "@fastify/formbody": "^7.4.0",
+        "@fastify/multipart": "^8.3.0",
+        "@fastify/static": "^7.0.4",
+        "@fastify/view": "^9.1.0",
+        "@fastify/websocket": "^10.0.1",
+        "ejs": "^3.1.10",
+        "fastify": "^4.28.1",
+        "fastify-tsconfig": "^2.0.0",
+        "kolorist": "^1.8.0",
+        "nodemon": "^3.1.4",
+        "qs": "^6.13.0",
+        "tmi.js": "^1.8.5"
+    },
+    "devDependencies": {
+        "@types/node": "^22.5.4",
+        "@types/qs": "^6.9.15",
+        "@types/tmi.js": "^1.8.6"
+    }
+}

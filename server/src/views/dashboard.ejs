@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta charset='utf-8'>
+	<meta http-equiv='X-UA-Compatible' content='IE=edge'>
+	<title>Page Title</title>
+	<meta name='viewport' content='width=device-width, initial-scale=1'>
+	<link rel='stylesheet' type='text/css' media='screen' href='<%= style %>'>
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=Lilita+One&display=swap" rel="stylesheet">
+	<link href="https://fonts.googleapis.com/css2?family=Rubik+Mono+One&display=swap" rel="stylesheet">
+</head>
+
+<body>
+	<x-dashboard>
+		<h1>Webcam</h1>
+		<h2>Position</h2>
+		<ul class="webcam-positions">
+			<li><button data-action="setWebcamPosition" value="0,0">↖</button></li>
+			<li><button data-action="setWebcamPosition" value="0.5,0">↑</button></li>
+			<li><button data-action="setWebcamPosition" value="1,0">↗</button></li>
+			<li><button data-action="setWebcamPosition" value="0,0.5">←</button></li>
+			<li><button data-action="setWebcamPosition" value="0.5,0.5">·</button></li>
+			<li><button data-action="setWebcamPosition" value="1,0.5">→</button></li>
+			<li><button data-action="setWebcamPosition" value="0,1">↙</button></li>
+			<li><button data-action="setWebcamPosition" value="0.5,1">↓</button></li>
+			<li><button data-action="setWebcamPosition" value="1,1">↘</button></li>
+		</ul>
+	</x-dashboard>
+	<script src='<%= scripts %>'></script>
+
+</body>
+
+</html>

@@ -1,0 +1,127 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    -ms-box-sizing: border-box;
+    -o-box-sizing: border-box;
+}
+
+html,
+body,
+div,
+span,
+applet,
+object,
+iframe,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+blockquote,
+pre,
+a,
+abbr,
+acronym,
+address,
+big,
+cite,
+code,
+del,
+dfn,
+em,
+font,
+img,
+ins,
+kbd,
+q,
+s,
+samp,
+small,
+strike,
+strong,
+sub,
+sup,
+tt,
+var,
+dd,
+dl,
+dt,
+fieldset,
+form,
+label,
+legend,
+table,
+caption,
+tbody,
+tfoot,
+thead,
+tr,
+th,
+td,
+article,
+aside,
+bdi,
+details,
+dialog,
+figcaption,
+figure,
+footer,
+header,
+main,
+mark,
+nav,
+section,
+summary,
+time,
+wbr {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    font-weight: inherit;
+    font-style: inherit;
+    font-size: 100%;
+    font-family: inherit;
+}
+
+table {
+    border-collapse: collapse;
+}
+
+ul {
+    list-style: none;
+}
+
+ol {
+    padding-left: 16px;
+}
+
+// IE is too stupid to declare this, so we have to.
+article,
+aside,
+dialog,
+figure,
+footer,
+header,
+main,
+nav,
+section {
+    display: block;
+}
+
+input,
+select,
+textarea {
+    outline: none;
+}
+
+code {
+    font-family: monospace;
+}
+
+hr {
+    overflow: visible;
+}
