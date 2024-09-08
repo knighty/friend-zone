@@ -137,8 +137,11 @@ fastifyApp.get("/", async (req, res) => {
         person("Dan"),
         person("Leth"),
     ]
+
     return res.viewAsync("app", {
         people: people,
+        webcam: config.video.webcam,
+        vdoNinjaUrl: config.video.vdoNinjaUrl,
         style: await getManifestPath("main.css"),
         scripts: await getManifestPath("main.js"),
     })

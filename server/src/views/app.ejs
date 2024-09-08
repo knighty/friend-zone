@@ -33,7 +33,11 @@
 			<div class="time"><span>0:00</span><span>am</span></div>
 			<div class="video-shadow">
 				<div class="video">
+					<% if (webcam) { %>
 					<video id="video">Video stream not available.</video>
+					<% } else { %>
+					<iframe src="<%= vdoNinjaUrl %>"></iframe>
+					<% } %>
 				</div>
 			</div>
 			<div class="weigh-in">
@@ -41,7 +45,9 @@
 				<span class="numbers"><span style="--number:1"></span><span style="--number:8"></span><span style="--number:4"></span></span>
 				<span>Weigh-In</span>
 			</div>
+			<% if (webcam) { %>
 			<button>Start webcam</button>
+			<% } %>
 		</section>
 	</x-app>
 	<script src='<%= scripts %>'></script>

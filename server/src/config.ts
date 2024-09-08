@@ -29,6 +29,10 @@ export default {
             database: 'site'
         }
     },
+    video: {
+        webcam: process.env.WEBCAM == "true" || false,
+        vdoNinjaUrl: process.env.VDO_NINJA_URL || null
+    },
     twitch: {
         log: process.env.TWITCH_LOG == "true" || false,
         channel: process.env.TWITCH_CHANNEL,

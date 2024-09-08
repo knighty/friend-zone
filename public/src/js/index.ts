@@ -51,21 +51,23 @@ class App extends HTMLElement {
         });
 
         const button = this.querySelector("button");
-        fromEvent(button, "click").subscribe(() => {
-            const video = document.getElementById('video') as HTMLVideoElement;
-            button.remove();
-            if (video) {
-                navigator.mediaDevices
-                    .getUserMedia({ video: true, audio: false })
-                    .then((stream) => {
-                        video.srcObject = stream;
-                        video.play();
-                    })
-                    .catch((err) => {
-                        console.error(`An error occurred: ${err}`);
-                    });
-            }
-        })
+        if (button) {
+            fromEvent(button, "click").subscribe(() => {
+                const video = document.getElementById('video') as HTMLVideoElement;
+                button.remove();
+                if (video) {
+                    navigator.mediaDevices
+                        .getUserMedia({ video: true, audio: false })
+                        .then((stream) => {
+                            video.srcObject = stream;
+                            video.play();
+                        })
+                        .catch((err) => {
+                            console.error(`An error occurred: ${err}`);
+                        });
+                }
+            });
+        }
 
         interval(1000).subscribe(() => {
             const date = new Date();
