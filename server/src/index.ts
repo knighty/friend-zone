@@ -13,6 +13,7 @@ import qs from "qs";
 import { map, startWith } from 'rxjs';
 import config from "./config";
 import DiscordVoiceState from './data/discord-voice-state';
+import { ExternalFeeds } from './data/external-feeds';
 import Subtitles from './data/subtitles';
 import { getUsers } from './data/users';
 import Webcam from './data/webcam';
@@ -85,6 +86,24 @@ const discordVoiceState = new DiscordVoiceState("407280611469033482");
 //discordVoiceState.mock(users);
 const webcam = new Webcam();
 const subtitles = new Subtitles();
+
+const feeds = new ExternalFeeds();
+/*feeds.addFeed({ active: true, focused: null, url: "http://vdo.ninja", user: "knighty" });
+feeds.addFeed({ active: true, focused: null, url: "http://vdo.ninja", user: "PHN" });
+feeds.addFeed({ active: true, focused: null, url: "http://vdo.ninja", user: "leth" });
+feeds.addFeed({ active: true, focused: null, url: "http://vdo.ninja", user: "Dan" });
+interval(8000).subscribe(e => {
+    feeds.removeFeed("Dan");
+})
+interval(12000).subscribe(e => {
+    feeds.focusFeed("knighty", true);
+})
+interval(25000).subscribe(e => {
+    feeds.focusFeed("knighty", false);
+})*/
+feeds.focusedFeed$.subscribe(feed => {
+    console.log(feed);
+});
 
 /*
 Logging
@@ -207,7 +226,7 @@ const subtitles$ = subtitles.stream$.pipe(
 )
 
 fastifyApp.register(socket([woth$, webcam$, voiceState$, subtitles$]));
-fastifyApp.register(remoteControlSocket(subtitles));
+fastifyApp.register(remoteControlSocket(subtitles, feeds));
 
 serverLog.info("Listen...");
 const server = fastifyApp.listen({ port: config.port, host: "0.0.0.0" }, function (err, address) {

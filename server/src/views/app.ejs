@@ -15,12 +15,15 @@
 
 <body>
 	<x-app>
-		<section class="word-of-the-hour">
-			<div class="word-container">
-				<label>Word <span>Of The</span> Hour</label>
-				<span class="word"></span>
-			</div>
-			<ul>
+		<section class="friends">
+			<section class="feed">
+				<div class="video-shadow"></div>
+				<div class="video">
+					<iframe src="<%= vdoNinjaUrl %>&speakermute"></iframe>
+				</div>
+				<span class="name">knighty</span>
+			</section>
+			<ul class="friend-list">
 				<% for(let user in users) { %>
 				<li data-person="<%= user %>" data-discord-id="<%= users[user].discordId %>">
 					<div class="subtitles"></div>
@@ -31,6 +34,12 @@
 				<% } %>
 			</ul>
 		</section>
+		<section class="word-of-the-hour">
+			<div class="word-container">
+				<label>Word <span>Of The</span> Hour</label>
+				<span class="word"></span>
+			</div>
+		</section>
 		<section class="webcam">
 			<div class="time"><span>0:00</span><span>am</span></div>
 			<div class="video-shadow">
@@ -38,7 +47,7 @@
 					<% if (webcam) { %>
 					<video id="video">Video stream not available.</video>
 					<% } else { %>
-					<iframe src="<%= vdoNinjaUrl %>"></iframe>
+					<iframe src="<%= vdoNinjaUrl %>&speakermute"></iframe>
 					<% } %>
 				</div>
 			</div>

@@ -1,4 +1,4 @@
-import { debounceTime, distinctUntilChanged, exhaustMap, filter, fromEvent, interval, map, Observable, scan, startWith, Subject, switchMap, takeWhile, tap } from "rxjs";
+import { debounceTime, distinctUntilChanged, endWith, exhaustMap, filter, fromEvent, interval, map, Observable, scan, startWith, Subject, switchMap, takeWhile, tap } from "rxjs";
 import { observeScopedEvent } from "./utils";
 
 type SubtitleMessage = {
@@ -8,7 +8,7 @@ type SubtitleMessage = {
 
 class App extends HTMLElement {
     getPersonElement(id: string): HTMLElement {
-        const e = this.querySelector(`[data-person=${id}]`);
+        const e = document.querySelector(`.friend-list [data-person=${id}]`);
         if (e)
             return e as HTMLElement;
         throw new Error();
@@ -18,7 +18,7 @@ class App extends HTMLElement {
         const ws = new WebSocket(`${document.location.protocol == "https:" ? "wss:" : "ws:"}//${document.location.host}/websocket`);
 
         const subtitles$: Record<string, Subject<SubtitleMessage>> = {};
-        for (let el of this.querySelectorAll<HTMLElement>("[data-person]")) {
+        for (let el of document.querySelectorAll<HTMLElement>(".friend-list [data-person]")) {
             const subtitlesElement = el.querySelector(".subtitles");
             subtitles$[el.dataset.person] = new Subject<SubtitleMessage>();
             subtitles$[el.dataset.person].pipe(
@@ -39,7 +39,8 @@ class App extends HTMLElement {
                                 return interval(30).pipe(
                                     tap(() => cursor++),
                                     takeWhile(c => cursor <= text.length),
-                                    map(() => text.substring(0, cursor))
+                                    endWith(1),
+                                    map(() => text.substring(0, cursor)),
                                 )
                             })
                         );
@@ -97,7 +98,7 @@ class App extends HTMLElement {
                 webcam.style.setProperty("--top", message.data.position[1]);
             }
             if (message.type == "voice") {
-                for (let el of this.querySelectorAll<HTMLElement>("[data-person]")) {
+                for (let el of document.querySelectorAll<HTMLElement>(".friend-list [data-person]")) {
                     el.classList.toggle("speaking", !!message.data.users[el.dataset.discordId]);
                 }
             }

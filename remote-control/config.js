@@ -6,5 +6,10 @@ module.exports = {
     url: "http://255.255.255.255:3000",
     vdoNinjaUrl: "https://vdo.ninja/?v=RFSePdfC",
     user: "knighty",
-    socket: "ws://127.0.0.1:3000/remote-control/websocket"
+    socket: "ws://127.0.0.1:3000/remote-control/websocket",
+    whisper: {
+        model: "small",
+        phrase_timeout: 3,
+        energy_threshold: 500,
+    }
 }
