@@ -13,6 +13,7 @@ WORKDIR /opt/app/public
 RUN npm install
 WORKDIR /opt/app/server
 RUN npm install
+COPY server/src/hacked.ipc.js /opt/app/server/node_modules/discord-rpc/src/transports/ipc.js
 
 # Copy Source
 WORKDIR /opt/app

@@ -12,6 +12,9 @@ services:
       - ./server/src:/opt/app/server/src
       - ./public/dist:/opt/app/public/dist
       - ./public/src:/opt/app/public/src
+      - ./server/src/hacked.ipc.js:/opt/app/server/node_modules/discord-rpc/src/transports/ipc.js
+    ports:
+      - "6463:6463"
 
   webserver:
     build:

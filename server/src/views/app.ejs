@@ -21,9 +21,11 @@
 				<span class="word"></span>
 			</div>
 			<ul>
-				<% for(let person of people) { %>
-				<li data-person="<%= person.id %>">
-					<span class="name"><%= person.name %></span>
+				<% for(let user in users) { %>
+				<li data-person="<%= user %>" data-discord-id="<%= users[user].discordId %>">
+					<div class="subtitles"></div>
+					<div class="speaker"></div>
+					<span class="name"><%= users[user].name %></span>
 					<span class="count">0</span>
 				</li>
 				<% } %>

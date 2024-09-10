@@ -118,7 +118,7 @@ const config: any = {
         extensions: ['.tsx', '.ts', '.jsx', '.js', '...'],
         fallback: {
             "fs": false,
-            "path": require.resolve("path-browserify")
+            "path": require.resolve("path-browserify"),
         }
     },
 };

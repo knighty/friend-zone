@@ -1,5 +1,6 @@
 import { FastifyInstance } from "fastify";
 import { fromEvent, ignoreElements, interval, merge, Observable, takeUntil, tap } from "rxjs";
+import Subtitles from "../data/subtitles";
 import { log } from "../lib/logger";
 
 type WebsocketMessageStream = Observable<{
@@ -7,8 +8,9 @@ type WebsocketMessageStream = Observable<{
     data: object | string
 }>
 
-export const socket = (streams: WebsocketMessageStream[]) => async (fastify: FastifyInstance, options: {}) => {
-    fastify.get('/websocket', { websocket: true }, (socket, req) => {
+export const remoteControlSocket = (subtitles: Subtitles) => async (fastify: FastifyInstance, options: {}) => {
+    fastify.get('/remote-control/websocket', { websocket: true }, (socket, req) => {
+        let userId: string | undefined;
         function send(type: string, data: object | string) {
             socket.send(JSON.stringify({
                 type: type,
@@ -16,20 +18,27 @@ export const socket = (streams: WebsocketMessageStream[]) => async (fastify: Fas
             }));
         }
 
-        log.info("Opening web socket", "websocket");
+        socket.on("message", (raw: any) => {
+            const message = JSON.parse(raw);
+            const data = message.data;
+            switch (message.type) {
+                case "user": {
+                    userId = data.id
+                } break;
+                case "subtitles": {
+                    subtitles.handle(userId, data.id, data.type, data.text);
+                } break;
+            }
+            //console.log(message);
+        })
 
-        const streams$ = merge(...streams).pipe(
-            tap(o => {
-                send(o.type, o.data);
-            })
-        )
+        log.info("Opening web socket", "websocket");
 
         const ping$ = interval(30 * 1000).pipe(
             tap(i => socket.ping()),
         );
 
         merge(
-            streams$,
             ping$
         ).pipe(
             ignoreElements(),

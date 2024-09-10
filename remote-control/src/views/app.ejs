@@ -1,0 +1,82 @@
+<button id="button" onclick="toggleStartStop()"></button>
+<div style="border:dotted;padding:10px">
+	<span id="final_span"></span>
+	<span id="interim_span" style="color:grey"></span>
+</div>
+
+<script type="text/javascript">
+	let lastId = 0;
+	let actualId = 0;
+	let lastMessage = "";
+	var recognizing;
+	var recognition = new window.webkitSpeechRecognition();
+	recognition.continuous = true;
+	recognition.interimResults = true;
+	reset();
+	recognition.onend = () => {
+		console.log("restarting");
+		lastId = 0;
+		recognition.start();
+	}
+
+	const ws = new WebSocket(`${document.location.protocol == "https:" ? "wss:" : "ws:"}//${document.location.host}/websocket`);
+
+	recognition.onresult = function(event) {
+		const result = event.results[lastId];
+		if (result) {
+			if (result.isFinal) {
+				ws.send(JSON.stringify({
+					type: "final",
+					id: actualId,
+					text: result[0].transcript
+				}))
+				lastId++;
+				actualId++;
+			} else {
+				let interim_transcript = "";
+				for (var i = event.resultIndex; i < event.results.length; ++i) {
+					if (event.results[i].isFinal) {} else {
+						interim_transcript += event.results[i][0].transcript;
+					}
+				}
+
+				if (interim_transcript != lastMessage) {
+					ws.send(JSON.stringify({
+						type: "interim",
+						id: actualId,
+						text: interim_transcript
+					}))
+					console.log(interim_transcript);
+					lastMessage = interim_transcript;
+				}
+			}
+		}
+	}
+
+	function reset() {
+		recognizing = false;
+		button.innerHTML = "Click to Speak";
+	}
+
+	function toggleStartStop() {
+		if (recognizing) {
+			recognition.stop();
+			reset();
+		} else {
+			recognition.start();
+			recognizing = true;
+			button.innerHTML = "Click to Stop";
+			final_span.innerHTML = "";
+			interim_span.innerHTML = "";
+		}
+	}
+
+	// Connection opened
+	ws.addEventListener("open", (event) => {
+		ws.send("Hello Server!");
+	});
+
+	ws.addEventListener("close", (event) => {
+		console.log("Socket closed");
+	});
+</script>

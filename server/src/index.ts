@@ -4,12 +4,17 @@ import multipart from "@fastify/multipart";
 import fastifyStatic from '@fastify/static';
 import fastifyView from "@fastify/view";
 import websocket from "@fastify/websocket";
+import 'dotenv/config';
 import Fastify, { FastifyRequest } from "fastify";
 import { green } from 'kolorist';
 import path from "path";
 import process from "process";
 import qs from "qs";
+import { map, startWith } from 'rxjs';
 import config from "./config";
+import DiscordVoiceState from './data/discord-voice-state';
+import Subtitles from './data/subtitles';
+import { getUsers } from './data/users';
 import Webcam from './data/webcam';
 import { WordOfTheHour } from './data/word-of-the-hour';
 import { MissingError } from './errors';
@@ -17,8 +22,12 @@ import { logger } from './lib/logger';
 import { errorHandler } from './plugins/errors';
 import { fastifyFavicon } from "./plugins/favicon";
 import { fastifyLogger } from './plugins/logger';
+import { remoteControlSocket } from './plugins/remote-control-socket';
 import { socket } from './plugins/socket';
 import { getManifestPath } from './utils';
+
+//const RPC = require("discord-rpc");
+
 
 const publicDir = path.join(__dirname, `/../../public`);
 
@@ -70,8 +79,12 @@ fastifyApp.setErrorHandler(errorHandler);
 Dependencies
 */
 serverLog.info("Creating dependencies");
-const wordOfTheHour = new WordOfTheHour(config.twitch.channel);
+const users = getUsers();
+const wordOfTheHour = new WordOfTheHour(config.twitch.channel, users);
+const discordVoiceState = new DiscordVoiceState("407280611469033482");
+//discordVoiceState.mock(users);
 const webcam = new Webcam();
+const subtitles = new Subtitles();
 
 /*
 Logging
@@ -120,26 +133,9 @@ fastifyApp.get("/test", (req, res) => {
     res.send("Hello World");
 })
 
-type Person = {
-    id: string;
-    name: string;
-}
-function person(id: string, name?: string): Person {
-    return {
-        id: id.toLowerCase(),
-        name: name ?? id
-    }
-}
 fastifyApp.get("/", async (req, res) => {
-    const people: Person[] = [
-        person("PHN"),
-        person("knighty"),
-        person("Dan"),
-        person("Leth"),
-    ]
-
     return res.viewAsync("app", {
-        people: people,
+        users: Object.fromEntries(users),
         webcam: config.video.webcam,
         vdoNinjaUrl: config.video.vdoNinjaUrl,
         style: await getManifestPath("main.css"),
@@ -172,7 +168,46 @@ fastifyApp.all("/*", async (req, res) => {
 });
 
 fastifyApp.register(websocket);
-fastifyApp.register(socket(wordOfTheHour, webcam));
+
+const woth$ = wordOfTheHour.update$.pipe(
+    startWith(null),
+    map(() => ({
+        type: "woth",
+        data: {
+            word: wordOfTheHour.word,
+            users: Object.fromEntries(wordOfTheHour.users)
+        }
+    }))
+);
+
+const webcam$ = webcam.update$.pipe(
+    startWith(webcam),
+    map(webcam => ({
+        type: "webcam",
+        data: {
+            position: [webcam.left, webcam.top]
+        }
+    }))
+)
+
+const voiceState$ = discordVoiceState.speaking$.pipe(
+    map(map => ({
+        type: "voice",
+        data: {
+            users: Object.fromEntries(map)
+        }
+    }))
+)
+
+const subtitles$ = subtitles.stream$.pipe(
+    map(event => ({
+        type: "subtitles",
+        data: event
+    }))
+)
+
+fastifyApp.register(socket([woth$, webcam$, voiceState$, subtitles$]));
+fastifyApp.register(remoteControlSocket(subtitles));
 
 serverLog.info("Listen...");
 const server = fastifyApp.listen({ port: config.port, host: "0.0.0.0" }, function (err, address) {
@@ -189,19 +224,4 @@ process.on('SIGTERM', () => {
     fastifyApp.close();
     serverLog.info("Closing database")
     serverLog.info('HTTP server closed')
-})
-
-/*
-const client = new tmi.Client({
-    connection: {
-        secure: true,
-        reconnect: true
-    },
-    channels: ['miredmedia']
 });
-
-client.connect();
-
-client.on('message', (channel, tags, message, self) => {
-    console.log(`${tags['display-name']}: ${message}`);
-});*/

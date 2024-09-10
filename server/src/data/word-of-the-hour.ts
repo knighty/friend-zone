@@ -1,33 +1,17 @@
 import { Subject } from "rxjs";
 import tmi from "tmi.js";
 import { logger } from "../lib/logger";
-
-type Person = {
-    id: string;
-    name: string;
-    count: number;
-}
-
-function person(id: string, name?: string): Person {
-    return {
-        id: id.toLowerCase(),
-        name: name ?? id,
-        count: 0
-    }
-}
+import { Person } from "./users";
 
 const log = logger("woth");
 export class WordOfTheHour {
-    people: Record<string, Person> = {
-        phn: person("PHN"),
-        knighty: person("knighty"),
-        dan: person("Dan"),
-        leth: person("Leth"),
-    };
     word: string | null = null;
+    users: Map<string, Person>;
     update$ = new Subject<void>();
 
-    constructor(twitchChannel: string) {
+    constructor(twitchChannel: string, users: Map<string, Person>) {
+        this.users = users;
+        console.log(this.users);
         const client = new tmi.Client({
             connection: {
                 secure: true,
@@ -47,11 +31,9 @@ export class WordOfTheHour {
 
             const isAdmin = chatName && isUserAdmin(chatName);
             const isCommand = message.startsWith('!');
-            console.log(`admin: ${isAdmin}, command: ${isCommand}`);
 
             if (isCommand && isAdmin) {
                 const args = message.slice(1).split(' ');
-                console.log(args);
                 const command = args[0];
                 switch (command) {
                     case "woth":
@@ -59,8 +41,8 @@ export class WordOfTheHour {
                             const name = args[1];
                             switch (name) {
                                 case "reset": {
-                                    for (let person in this.people) {
-                                        this.people[person].count = 0;
+                                    for (let person in users) {
+                                        users.get(person).count = 0;
                                     }
                                     log.info(`Reset all counts"`);
                                     this.update$.next();
@@ -74,7 +56,7 @@ export class WordOfTheHour {
 
                                 default: {
                                     const amount = Number(args[2]);
-                                    const person = this.people[name];
+                                    const person = users.get(name);
                                     if (person) {
                                         if (!isNaN(amount)) {
                                             person.count = Number(amount);
