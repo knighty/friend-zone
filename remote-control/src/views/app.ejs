@@ -1,82 +1,43 @@
-<button id="button" onclick="toggleStartStop()"></button>
-<div style="border:dotted;padding:10px">
-	<span id="final_span"></span>
-	<span id="interim_span" style="color:grey"></span>
-</div>
+<!DOCTYPE html>
+<html>
 
-<script type="text/javascript">
-	let lastId = 0;
-	let actualId = 0;
-	let lastMessage = "";
-	var recognizing;
-	var recognition = new window.webkitSpeechRecognition();
-	recognition.continuous = true;
-	recognition.interimResults = true;
-	reset();
-	recognition.onend = () => {
-		console.log("restarting");
-		lastId = 0;
-		recognition.start();
-	}
+<head>
+	<meta charset='utf-8'>
+	<meta http-equiv='X-UA-Compatible' content='IE=edge'>
+	<title>Page Title</title>
+	<meta name='viewport' content='width=device-width, initial-scale=1'>
+	<link rel='stylesheet' type='text/css' media='screen' href='<%= style %>'>
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=Lilita+One&display=swap" rel="stylesheet">
+	<link href="https://fonts.googleapis.com/css2?family=Rubik+Mono+One&display=swap" rel="stylesheet">
+</head>
 
-	const ws = new WebSocket(`${document.location.protocol == "https:" ? "wss:" : "ws:"}//${document.location.host}/websocket`);
+<body>
+	<main>
+		<div class="connection-status">
+		</div>
 
-	recognition.onresult = function(event) {
-		const result = event.results[lastId];
-		if (result) {
-			if (result.isFinal) {
-				ws.send(JSON.stringify({
-					type: "final",
-					id: actualId,
-					text: result[0].transcript
-				}))
-				lastId++;
-				actualId++;
-			} else {
-				let interim_transcript = "";
-				for (var i = event.resultIndex; i < event.results.length; ++i) {
-					if (event.results[i].isFinal) {} else {
-						interim_transcript += event.results[i][0].transcript;
-					}
-				}
+		<fieldset>
+			<legend>Feed Status</legend>
+			<label>Active <input type="checkbox" id="feedActive" data-config="feedActive" /></label>
+		</fieldset>
 
-				if (interim_transcript != lastMessage) {
-					ws.send(JSON.stringify({
-						type: "interim",
-						id: actualId,
-						text: interim_transcript
-					}))
-					console.log(interim_transcript);
-					lastMessage = interim_transcript;
-				}
-			}
-		}
-	}
+		<fieldset>
+			<legend>Feed URL</legend>
+			<label>URL <input type="text" id="feedUrl" /></label>
+			<label>Aspect Ratio <input text="text" id="feedAspectRatio" value="16/9" /></label>
+			<button id="updateFeedButton">Update Feed</button>
+		</fieldset>
 
-	function reset() {
-		recognizing = false;
-		button.innerHTML = "Click to Speak";
-	}
-
-	function toggleStartStop() {
-		if (recognizing) {
-			recognition.stop();
-			reset();
-		} else {
-			recognition.start();
-			recognizing = true;
-			button.innerHTML = "Click to Stop";
-			final_span.innerHTML = "";
-			interim_span.innerHTML = "";
-		}
-	}
-
-	// Connection opened
-	ws.addEventListener("open", (event) => {
-		ws.send("Hello Server!");
-	});
-
-	ws.addEventListener("close", (event) => {
-		console.log("Socket closed");
-	});
-</script>
+		<fieldset>
+			<legend>Subtitles</legend>
+			<button id="button" onclick="toggleStartStop()"></button>
+			<div style="border:dotted;padding:10px">
+				<span id="final_span"></span>
+				<span id="interim_span" style="color:grey"></span>
+			</div>
+		</fieldset>
+	</main>
+	<script src='<%= scripts %>'></script>
+</body>

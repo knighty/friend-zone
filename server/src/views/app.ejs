@@ -16,13 +16,13 @@
 <body>
 	<x-app>
 		<section class="friends">
-			<section class="feed">
+			<x-feed class="feed">
 				<div class="video-shadow"></div>
 				<div class="video">
-					<iframe src="<%= vdoNinjaUrl %>&speakermute"></iframe>
+					<iframe src="about:blank" allow="autoplay;"></iframe>
 				</div>
 				<span class="name">knighty</span>
-			</section>
+			</x-feed>
 			<ul class="friend-list">
 				<% for(let user in users) { %>
 				<li data-person="<%= user %>" data-discord-id="<%= users[user].discordId %>">
@@ -47,7 +47,7 @@
 					<% if (webcam) { %>
 					<video id="video">Video stream not available.</video>
 					<% } else { %>
-					<iframe src="<%= vdoNinjaUrl %>&speakermute"></iframe>
+					<iframe src="<%= vdoNinjaUrl %>"></iframe>
 					<% } %>
 				</div>
 			</div>

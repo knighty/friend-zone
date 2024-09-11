@@ -1,24 +1,39 @@
+import fastifyStatic from '@fastify/static';
 import fastifyView from "@fastify/view";
 import websocket from "@fastify/websocket";
 import Fastify, { FastifyInstance } from "fastify";
-import child_process from "node:child_process";
+import fs from "fs";
 import path from "node:path";
-import { fromEvent, ignoreElements, interval, merge, takeUntil, tap } from "rxjs";
+import { BehaviorSubject, EMPTY, firstValueFrom, fromEvent, ignoreElements, interval, map, merge, Observable, scan, shareReplay, switchMap, takeUntil, tap } from "rxjs";
 import { log } from "../../server/src/lib/logger";
 import { config } from "./config";
 import { hotkey } from "./hotkeys";
 import { initSocket } from "./socket";
+const sound = require("sound-play");
 
+declare module 'fastify' {
+    interface FastifyRequest {
+        dependencies: {
+            [Key: string]: any
+        }
+    }
+}
+
+const publicDir = path.join(__dirname, "../");
 const remoteControl = initSocket(config.socket, config.user);
 
-hotkey(config.hotkeys.focus).subscribe(() => {
-    console.log("Focus mode enabled");
-    remoteControl.feed("focus");
+hotkey(config.hotkeys.focus).pipe(
+    scan((a, c) => !a, false)
+).subscribe(focus => {
+    console.log(`Focus: ${focus}`);
+    remoteControl.feed(focus ? "focus" : "unfocus");
+    sound.play(`C:/windows/media/${focus ? "Speech On.wav" : "Speech Off.wav"}`);
 });
-hotkey(config.hotkeys.endFocus).subscribe(() => {
+/*hotkey(config.hotkeys.endFocus).subscribe(() => {
     console.log("Focus mode disabled");
     remoteControl.feed("unfocus");
-});
+    sound.play("C:/windows/media/Speech Off.wav");
+});*/
 
 const fastifyApp = Fastify();
 fastifyApp.register(fastifyView, {
@@ -32,9 +47,48 @@ fastifyApp.register(fastifyView, {
 });
 fastifyApp.register(websocket);
 
+fastifyApp.register(fastifyStatic, {
+    root: path.join(publicDir, '/dist'),
+    constraints: {},
+    cacheControl: true,
+    maxAge: 3600 * 1000,
+    prefix: "/static",
+});
+
+function dynamicConfig<T>(initial: T) {
+    const subject$ = new BehaviorSubject<T>(initial);
+    return [(value: T) => subject$.next(value), subject$] as const;
+}
+
+type Feed = {
+    url: string,
+    aspectRatio: string,
+}
+
+const [setFeed, feed$] = dynamicConfig<Feed | null>(null);
+const [setFeedActive, feedActive$] = dynamicConfig(false);
+
+remoteControl.isConnected$.pipe(
+    switchMap(isConnected => {
+        if (isConnected) {
+            return merge(
+                feed$.pipe(tap(feed => remoteControl.feed("register", feed))),
+                feedActive$.pipe(tap(isActive => remoteControl.feed("active", { isActive })))
+            );
+        }
+        return EMPTY
+    })
+).subscribe();
+
 fastifyApp.register(async (fastify: FastifyInstance) => {
     fastify.get('/websocket', { websocket: true }, (socket, req) => {
-        console.log("socket");
+        function send(type: string, data?: object | string) {
+            socket.send(JSON.stringify({
+                type,
+                data
+            }));
+        }
+
         const ping$ = interval(30 * 1000).pipe(
             tap(i => socket.ping()),
         );
@@ -42,17 +96,51 @@ fastifyApp.register(async (fastify: FastifyInstance) => {
         socket.on('message', (event: any) => {
             try {
                 const message = JSON.parse(event.toString());
+                /*const message = JSON.parse(event.toString());
                 remoteControl.subtitles(message.id, message.type, message.text);
                 //console.log(`[${message.id}] ${message.text} ${message.type == "final" ? "(final)" : ""}`);
                 if (message.type == "final")
-                    console.log(`[${message.id}] ${message.text}`);
+                    console.log(`[${message.id}] ${message.text}`);*/
+                switch (message.type) {
+                    case "config": {
+                        console.log(`Set "${message.data.key}" to "${message.data.value}"`);
+                        switch (message.data.key) {
+                            case "feed": {
+                                if (message.data.value.url != "") {
+                                    setFeed({
+                                        url: message.data.value.url,
+                                        aspectRatio: message.data.value.aspectRatio,
+                                    });
+                                } else {
+                                    setFeed(null);
+                                }
+                            } break;
+                            case "feedActive": setFeedActive(message.data.value); break;
+                        }
+                    } break;
+                }
             } catch (e) {
 
             }
         });
 
+        const configMessages$ = merge(
+            feed$.pipe(map(url => ({ key: "feedUrl", value: url }))),
+            feedActive$.pipe(map(active => ({ key: "feedActive", value: active }))),
+        ).pipe(
+            tap(message => send("config", message))
+        );
+
+        const connectionStatus$ = remoteControl.isConnected$.pipe(
+            tap(isConnected => {
+                send("connectionStatus", { isConnected })
+            })
+        )
+
         merge(
-            ping$
+            configMessages$,
+            ping$,
+            connectionStatus$
         ).pipe(
             ignoreElements(),
             takeUntil(fromEvent(socket, "close"))
@@ -64,8 +152,29 @@ fastifyApp.register(async (fastify: FastifyInstance) => {
     })
 });
 
-fastifyApp.get("/", (req, rep) => {
-    return rep.view("app");
+type ManifestFile = { [Key: string]: string }
+export const manifest$ = new Observable<ManifestFile>((subscriber) => {
+    const filename = path.join(__dirname, "../dist/manifest.json");
+    const update = () => {
+        log.info("Static manifest file updated", "server");
+        const manifest = JSON.parse(fs.readFileSync(filename).toString());
+        subscriber.next(<ManifestFile>manifest);
+    }
+    update();
+    fs.watchFile(filename, () => update());
+}).pipe(
+    shareReplay(1)
+);
+
+export function getManifestPath(path: string) {
+    return firstValueFrom(manifest$.pipe(map(manifest => manifest[path])));
+}
+
+fastifyApp.get("/", async (req, rep) => {
+    return rep.viewAsync("app", {
+        style: await getManifestPath("main.css"),
+        scripts: await getManifestPath("main.js"),
+    })
 });
 
 const server = fastifyApp.listen({ port: 3010, host: "0.0.0.0" }, function (err, address) {
@@ -77,7 +186,7 @@ const server = fastifyApp.listen({ port: 3010, host: "0.0.0.0" }, function (err,
     }
 });
 
-const pythonProcess = child_process.spawn('python', [
+/*const pythonProcess = child_process.spawn('python', [
     path.join(__dirname, "/../../whisper/transcribe_demo.py"),
     `--model=${config.whisper.model}`,
     `--phrase_timeout=${config.whisper.phrase_timeout}`,
@@ -96,5 +205,5 @@ pythonProcess.stdout.on('data', (data: string) => {
 });
 pythonProcess.stderr.on('data', (data: string) => {
     console.log(data.toString());
-});
+});*/
 //pythonProcess.kill();

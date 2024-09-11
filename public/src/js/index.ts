@@ -1,9 +1,53 @@
-import { debounceTime, distinctUntilChanged, endWith, exhaustMap, filter, fromEvent, interval, map, Observable, scan, startWith, Subject, switchMap, takeWhile, tap } from "rxjs";
-import { observeScopedEvent } from "./utils";
+import { BehaviorSubject, debounceTime, distinctUntilChanged, endWith, exhaustMap, filter, fromEvent, interval, map, Observable, scan, share, startWith, Subject, switchMap, takeWhile, tap } from "rxjs";
+import { observeScopedEvent } from "../../../shared/utils";
 
 type SubtitleMessage = {
     id: number,
     text: string
+}
+type SocketMessage<D> = {
+    type: string,
+    data: D;
+}
+
+namespace SocketMessageData {
+    export type Woth = {
+        users: Record<string, {
+            count: number
+        }>,
+        word: string
+    }
+    export type Webcam = {
+        position: readonly [number, number]
+    }
+    export type Voice = {
+        users: Record<string, boolean>
+    }
+    export type Subtitles = {
+        subtitleId: number,
+        text: string,
+        userId: number
+    }
+    export type FocusedFeed = {
+        user: string,
+        focused: string,
+        active: boolean,
+        url: string,
+        aspectRatio: string
+    }
+}
+
+const ws = new WebSocket(`${document.location.protocol == "https:" ? "wss:" : "ws:"}//${document.location.host}/websocket`);
+const websocketMessages$ = fromEvent<MessageEvent>(ws, "message").pipe(
+    map<MessageEvent, SocketMessage<any>>(event => JSON.parse(event.data)),
+    share()
+);
+
+function socketMessages<D>(type: string): Observable<D> {
+    return websocketMessages$.pipe(
+        filter(message => message.type == type),
+        map<SocketMessage<D>, D>(message => message.data as D)
+    )
 }
 
 class App extends HTMLElement {
@@ -15,8 +59,6 @@ class App extends HTMLElement {
     }
 
     connectedCallback() {
-        const ws = new WebSocket(`${document.location.protocol == "https:" ? "wss:" : "ws:"}//${document.location.host}/websocket`);
-
         const subtitles$: Record<string, Subject<SubtitleMessage>> = {};
         for (let el of document.querySelectorAll<HTMLElement>(".friend-list [data-person]")) {
             const subtitlesElement = el.querySelector(".subtitles");
@@ -61,53 +103,43 @@ class App extends HTMLElement {
             ).subscribe();
         }
 
-        // Connection opened
-        ws.addEventListener("open", (event) => {
-            ws.send("Hello Server!");
-        });
-
-        ws.addEventListener("close", (event) => {
-            console.log("Socket closed");
-        });
-
-        // Listen for messages
-        ws.addEventListener("message", (event) => {
-            const message = JSON.parse(event.data);
-            if (message.type == "woth") {
-                for (let id in message.data.users) {
-                    const person = message.data.users[id];
-                    const element = this.getPersonElement(id);
-                    const countElement = element.querySelector(".count");
-                    if (countElement) {
-                        if (Number(countElement.textContent) !== person.count) {
-                            element.classList.remove("animation");
-                            element.offsetWidth;
-                            element.classList.add("animation");
-                            countElement.textContent = person.count;
-                        }
+        socketMessages<SocketMessageData.Woth>("woth").subscribe(woth => {
+            for (let id in woth.users) {
+                const person = woth.users[id];
+                const element = this.getPersonElement(id);
+                const countElement = element.querySelector(".count");
+                if (countElement) {
+                    if (Number(countElement.textContent) !== person.count) {
+                        element.classList.remove("animation");
+                        element.offsetWidth;
+                        element.classList.add("animation");
+                        countElement.textContent = person.count.toString();
                     }
                 }
-                const wordElement = this.querySelector(".word");
-                if (wordElement) wordElement.textContent = message.data.word;
-                const wothElement = this.querySelector<HTMLElement>(".word-of-the-hour");
-                if (wothElement) wothElement.dataset.state = message.data.word ? "show" : "hidden";
             }
-            if (message.type == "webcam") {
-                const webcam = this.querySelector<HTMLElement>(".webcam");
-                webcam.style.setProperty("--left", message.data.position[0]);
-                webcam.style.setProperty("--top", message.data.position[1]);
+            const wordElement = this.querySelector(".word");
+            if (wordElement) wordElement.textContent = woth.word;
+            const wothElement = this.querySelector<HTMLElement>(".word-of-the-hour");
+            if (wothElement) wothElement.dataset.state = woth.word ? "show" : "hidden";
+        })
+
+        socketMessages<SocketMessageData.Webcam>("webcam").subscribe(cam => {
+            const webcam = this.querySelector<HTMLElement>(".webcam");
+            webcam.style.setProperty("--left", cam.position[0].toString());
+            webcam.style.setProperty("--top", cam.position[1].toString());
+        });
+
+        socketMessages<SocketMessageData.Voice>("voice").subscribe(data => {
+            for (let el of document.querySelectorAll<HTMLElement>(".friend-list [data-person]")) {
+                el.classList.toggle("speaking", data.users[el.dataset.discordId]);
             }
-            if (message.type == "voice") {
-                for (let el of document.querySelectorAll<HTMLElement>(".friend-list [data-person]")) {
-                    el.classList.toggle("speaking", !!message.data.users[el.dataset.discordId]);
-                }
-            }
-            if (message.type == "subtitles") {
-                subtitles$[message.data.userId].next({
-                    id: message.data.subtitleId,
-                    text: message.data.text
-                });
-            }
+        });
+
+        socketMessages<SocketMessageData.Subtitles>("subtitles").subscribe(subtitle => {
+            subtitles$[subtitle.userId].next({
+                id: subtitle.subtitleId,
+                text: subtitle.text
+            });
         });
 
         const button = this.querySelector("button");
@@ -157,5 +189,33 @@ class Dashboard extends HTMLElement {
     }
 }
 
+class Feed extends HTMLElement {
+    connectedCallback() {
+        const url$ = new BehaviorSubject<string | null>(null);
+        socketMessages<SocketMessageData.FocusedFeed>("feed").subscribe(feed => {
+            if (feed) {
+                this.querySelector(".name").textContent = feed.user;
+                url$.next(feed.url);
+                this.style.setProperty("--aspect-ratio", feed.aspectRatio);
+            } else {
+                url$.next(null);
+            }
+        });
+
+        url$.pipe(
+            debounceTime(1000),
+            distinctUntilChanged()
+        ).subscribe(url => {
+            const iframe = this.querySelector<HTMLIFrameElement>("iframe");
+            this.classList.toggle("show", !!url);
+            if (url)
+                iframe.src = url;
+            else
+                iframe.src = "about:blank";
+        })
+    }
+}
+
 customElements.define("x-app", App);
 customElements.define("x-dashboard", Dashboard);
+customElements.define("x-feed", Feed);

@@ -334,7 +334,7 @@ export function removeNode(node: any) {
  * Observe the mouse position
  * @param element Element to calculate the position relative to. Can be empty for global position
  */
-export function observeMousePosition(element?: HTMLElement) {
+export function observeMousePosition(element: HTMLElement | undefined) {
     return fromDomEvent(element ?? document.documentElement, "mousemove").pipe(
         map(e => ({
             x: e.pageX - element?.offsetLeft ?? 0,

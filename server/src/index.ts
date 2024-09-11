@@ -225,7 +225,14 @@ const subtitles$ = subtitles.stream$.pipe(
     }))
 )
 
-fastifyApp.register(socket([woth$, webcam$, voiceState$, subtitles$]));
+const feed$ = feeds.focusedFeed$.pipe(
+    map(feed => ({
+        type: "feed",
+        data: feed
+    }))
+)
+
+fastifyApp.register(socket([woth$, webcam$, voiceState$, subtitles$, feed$]));
 fastifyApp.register(remoteControlSocket(subtitles, feeds));
 
 serverLog.info("Listen...");

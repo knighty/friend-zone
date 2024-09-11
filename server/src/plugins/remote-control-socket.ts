@@ -1,5 +1,5 @@
 import { FastifyInstance } from "fastify";
-import { fromEvent, ignoreElements, interval, merge, Observable, takeUntil, tap } from "rxjs";
+import { BehaviorSubject, catchError, EMPTY, fromEvent, ignoreElements, interval, map, merge, Observable, of, switchMap, takeUntil, tap } from "rxjs";
 import { ExternalFeeds } from "../data/external-feeds";
 import Subtitles from "../data/subtitles";
 import { log } from "../lib/logger";
@@ -19,6 +19,29 @@ export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds) 
             }));
         }
 
+        const feed$ = new BehaviorSubject<{ url: string, aspectRatio: string } | null>(null);
+        const feedActive$ = new BehaviorSubject(false);
+
+        const feedObservable$ = feed$.pipe(
+            switchMap(feed => of(feed).pipe(map(feed => ({ url: new URL(feed.url), aspectRatio: feed.aspectRatio })), catchError(e => EMPTY))),
+            tap(feed => {
+                feeds.addFeed({
+                    user: userId,
+                    focused: null,
+                    active: true,
+                    aspectRatio: feed.aspectRatio,
+                    url: feed.url.href
+                });
+                feeds.updateFeed(userId, {
+                    aspectRatio: feed.aspectRatio,
+                    url: feed.url.href
+                })
+            }),
+            switchMap(url => feedActive$.pipe(
+                tap(active => feeds.activeFeed(userId, active))
+            ))
+        );
+
         socket.on("message", (raw: any) => {
             const message = JSON.parse(raw);
             console.log(message);
@@ -31,21 +54,18 @@ export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds) 
                     subtitles.handle(userId, data.id, data.type, data.text);
                 } break;
                 case "feed/register": {
-                    feeds.addFeed({
-                        user: userId,
-                        focused: null,
-                        active: true,
-                        url: data.url
-                    });
+                    feed$.next(data);
                 } break;
                 case "feed/focus": {
                     feeds.focusFeed(userId, true);
+                } break;
+                case "feed/active": {
+                    feedActive$.next(data.isActive);
                 } break;
                 case "feed/unfocus": {
                     feeds.focusFeed(userId, false);
                 } break;
             }
-            //console.log(message);
         });
 
         socket.on("close", () => {
@@ -59,7 +79,9 @@ export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds) 
         );
 
         merge(
+            feedObservable$,
             ping$
+
         ).pipe(
             ignoreElements(),
             takeUntil(fromEvent(socket, "close"))
