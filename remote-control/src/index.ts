@@ -20,7 +20,7 @@ declare module 'fastify' {
 }
 
 const publicDir = path.join(__dirname, "../");
-const remoteControl = initSocket(config.socket, config.user);
+const remoteControl = initSocket(config.socket, config.user, config.userName, config.discordId);
 
 hotkey(config.hotkeys.focus).pipe(
     scan((a, c) => !a, false)

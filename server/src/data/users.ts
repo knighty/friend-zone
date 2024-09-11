@@ -1,14 +1,36 @@
+import { BehaviorSubject } from "rxjs";
+
 export type Person = {
     name: string;
-    count: number;
     discordId: string;
 }
 
-export function getUsers() {
+export class Users {
+    users = new Map<string, Person>();
+    updated$ = new BehaviorSubject<Users>(this);
+
+    constructor() {
+
+    }
+
+    addPerson(discordId: string, name: string) {
+        this.users.set(name.toLowerCase(), {
+            name: name,
+            discordId: discordId
+        });
+        this.updated$.next(this);
+    }
+
+    removePerson(id: string) {
+        this.users.delete(id);
+        this.updated$.next(this);
+    }
+}
+
+/*export function getUsers() {
     function addPerson(map: Map<string, Person>, discordId: string, name: string) {
         map.set(name.toLowerCase(), {
             name: name,
-            count: 0,
             discordId: discordId
         });
     }
@@ -20,4 +42,4 @@ export function getUsers() {
     addPerson(users, "151145966559428609", "Leth");
 
     return users;
-}
+}*/

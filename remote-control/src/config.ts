@@ -6,6 +6,8 @@ type Config = {
         endFocus: string[],
     },
     user: string,
+    userName: string,
+    discordId: string,
     socket: string,
     whisper: {
         model: string,

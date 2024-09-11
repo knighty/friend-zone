@@ -15,7 +15,7 @@ import config from "./config";
 import DiscordVoiceState from './data/discord-voice-state';
 import { ExternalFeeds } from './data/external-feeds';
 import Subtitles from './data/subtitles';
-import { getUsers } from './data/users';
+import { Users } from './data/users';
 import Webcam from './data/webcam';
 import { WordOfTheHour } from './data/word-of-the-hour';
 import { MissingError } from './errors';
@@ -80,27 +80,13 @@ fastifyApp.setErrorHandler(errorHandler);
 Dependencies
 */
 serverLog.info("Creating dependencies");
-const users = getUsers();
-const wordOfTheHour = new WordOfTheHour(config.twitch.channel, users);
+const users = new Users();
+const wordOfTheHour = new WordOfTheHour(config.twitch.channel);
 const discordVoiceState = new DiscordVoiceState("407280611469033482");
-//discordVoiceState.mock(users);
 const webcam = new Webcam();
 const subtitles = new Subtitles();
 
 const feeds = new ExternalFeeds();
-/*feeds.addFeed({ active: true, focused: null, url: "http://vdo.ninja", user: "knighty" });
-feeds.addFeed({ active: true, focused: null, url: "http://vdo.ninja", user: "PHN" });
-feeds.addFeed({ active: true, focused: null, url: "http://vdo.ninja", user: "leth" });
-feeds.addFeed({ active: true, focused: null, url: "http://vdo.ninja", user: "Dan" });
-interval(8000).subscribe(e => {
-    feeds.removeFeed("Dan");
-})
-interval(12000).subscribe(e => {
-    feeds.focusFeed("knighty", true);
-})
-interval(25000).subscribe(e => {
-    feeds.focusFeed("knighty", false);
-})*/
 feeds.focusedFeed$.subscribe(feed => {
     console.log(feed);
 });
@@ -154,7 +140,6 @@ fastifyApp.get("/test", (req, res) => {
 
 fastifyApp.get("/", async (req, res) => {
     return res.viewAsync("app", {
-        users: Object.fromEntries(users),
         webcam: config.video.webcam,
         vdoNinjaUrl: config.video.vdoNinjaUrl,
         style: await getManifestPath("main.css"),
@@ -194,8 +179,15 @@ const woth$ = wordOfTheHour.update$.pipe(
         type: "woth",
         data: {
             word: wordOfTheHour.word,
-            users: Object.fromEntries(wordOfTheHour.users)
+            counts: Object.fromEntries(wordOfTheHour.counts)
         }
+    }))
+);
+
+const users$ = users.updated$.pipe(
+    map(users => ({
+        type: "users",
+        data: Object.fromEntries(users.users)
     }))
 );
 
@@ -232,8 +224,8 @@ const feed$ = feeds.focusedFeed$.pipe(
     }))
 )
 
-fastifyApp.register(socket([woth$, webcam$, voiceState$, subtitles$, feed$]));
-fastifyApp.register(remoteControlSocket(subtitles, feeds));
+fastifyApp.register(socket([woth$, webcam$, voiceState$, subtitles$, feed$, users$]));
+fastifyApp.register(remoteControlSocket(subtitles, feeds, users));
 
 serverLog.info("Listen...");
 const server = fastifyApp.listen({ port: config.port, host: "0.0.0.0" }, function (err, address) {

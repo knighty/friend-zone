@@ -8,7 +8,7 @@ export default {
     staticCaching: process.env.STATIC_CACHE == "true" || true,
     accessLogging: process.env.ACCESS_LOGGING || process.env.NODE_ENV == "development",
     auth: {
-
+        admins: process.env.ADMINS ? process.env.ADMINS.split(",") : []
     },
     errors: {
         stackTraces: process.env.NODE_ENV == "development"

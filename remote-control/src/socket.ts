@@ -2,7 +2,7 @@
 import { BehaviorSubject, fromEvent, map, merge, Observable, retry, shareReplay, Subject, switchMap, tap, timer } from "rxjs";
 import WebSocket from "ws";
 
-export function initSocket(url: string, userId: string) {
+export function initSocket(url: string, userId: string, userName: string, discordId: string) {
     //let ws: WebSocket;
 
     const send$ = new Subject<string>();
@@ -58,7 +58,7 @@ export function initSocket(url: string, userId: string) {
     };
 
     socket$.pipe(
-        tap(socket => send("user", { id: userId }))
+        tap(socket => send("user", { id: userId, name: userName, discordId: discordId }))
     ).subscribe();
 
     function subtitles(id: number, type: "interim" | "final", text: string) {

@@ -23,16 +23,7 @@
 				</div>
 				<span class="name">knighty</span>
 			</x-feed>
-			<ul class="friend-list">
-				<% for(let user in users) { %>
-				<li data-person="<%= user %>" data-discord-id="<%= users[user].discordId %>">
-					<div class="subtitles"></div>
-					<div class="speaker"></div>
-					<span class="name"><%= users[user].name %></span>
-					<span class="count">0</span>
-				</li>
-				<% } %>
-			</ul>
+			<ul class="friend-list"></ul>
 		</section>
 		<section class="word-of-the-hour">
 			<div class="word-container">

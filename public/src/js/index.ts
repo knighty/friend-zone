@@ -1,4 +1,4 @@
-import { BehaviorSubject, debounceTime, distinctUntilChanged, endWith, exhaustMap, filter, fromEvent, interval, map, Observable, scan, share, startWith, Subject, switchMap, takeWhile, tap } from "rxjs";
+import { BehaviorSubject, combineLatest, debounceTime, distinctUntilChanged, endWith, exhaustMap, filter, fromEvent, interval, map, merge, Observable, scan, share, startWith, Subject, switchMap, takeWhile, tap } from "rxjs";
 import { observeScopedEvent } from "../../../shared/utils";
 
 type SubtitleMessage = {
@@ -12,9 +12,7 @@ type SocketMessage<D> = {
 
 namespace SocketMessageData {
     export type Woth = {
-        users: Record<string, {
-            count: number
-        }>,
+        counts: Record<string, number>,
         word: string
     }
     export type Webcam = {
@@ -28,6 +26,11 @@ namespace SocketMessageData {
         text: string,
         userId: number
     }
+    export type Users = Record<string, {
+        id: string,
+        name: string,
+        discordId: string
+    }>
     export type FocusedFeed = {
         user: string,
         focused: string,
@@ -103,25 +106,39 @@ class App extends HTMLElement {
             ).subscribe();
         }
 
-        socketMessages<SocketMessageData.Woth>("woth").subscribe(woth => {
-            for (let id in woth.users) {
-                const person = woth.users[id];
-                const element = this.getPersonElement(id);
-                const countElement = element.querySelector(".count");
-                if (countElement) {
-                    if (Number(countElement.textContent) !== person.count) {
-                        element.classList.remove("animation");
-                        element.offsetWidth;
-                        element.classList.add("animation");
-                        countElement.textContent = person.count.toString();
+        const usersUpdated$ = new BehaviorSubject<boolean>(true);
+        const wothMessage$ = socketMessages<SocketMessageData.Woth>("woth").pipe(share());
+        const wothCounts$ = wothMessage$.pipe(
+            map(woth => woth.counts)
+        );
+        const wothUpdated$ = wothMessage$.pipe(
+            map(woth => woth.word),
+            tap(word => {
+                const wordElement = this.querySelector(".word");
+                if (wordElement) wordElement.textContent = word;
+                const wothElement = this.querySelector<HTMLElement>(".word-of-the-hour");
+                if (wothElement) wothElement.dataset.state = word ? "show" : "hidden";
+            })
+        )
+        const wothCountUpdates$ = combineLatest([wothCounts$, usersUpdated$]).pipe(
+            map(([counts, i]) => counts),
+            tap(counts => {
+                for (let id in counts) {
+                    const count = counts[id];
+                    const element = this.getPersonElement(id);
+                    const countElement = element.querySelector(".count");
+                    if (countElement) {
+                        if (Number(countElement.textContent) !== count) {
+                            element.classList.remove("animation");
+                            element.offsetWidth;
+                            element.classList.add("animation");
+                            countElement.textContent = count.toString();
+                        }
                     }
                 }
-            }
-            const wordElement = this.querySelector(".word");
-            if (wordElement) wordElement.textContent = woth.word;
-            const wothElement = this.querySelector<HTMLElement>(".word-of-the-hour");
-            if (wothElement) wothElement.dataset.state = woth.word ? "show" : "hidden";
-        })
+            })
+        )
+        merge(wothCountUpdates$, wothUpdated$).subscribe();
 
         socketMessages<SocketMessageData.Webcam>("webcam").subscribe(cam => {
             const webcam = this.querySelector<HTMLElement>(".webcam");
@@ -140,6 +157,34 @@ class App extends HTMLElement {
                 id: subtitle.subtitleId,
                 text: subtitle.text
             });
+        });
+
+        socketMessages<SocketMessageData.Users>("users").subscribe(users => {
+            const friendList = document.querySelector(".friend-list");
+            const elements = Array.from(friendList.querySelectorAll<HTMLElement>(`[data-person]`));
+            for (let userId in users) {
+                let user = users[userId];
+                let element = elements.find(element => element.dataset.person == user.id);
+                if (!element) {
+                    element = document.createElement("li");
+                    element.dataset.discordId = user.discordId;
+                    element.dataset.person = user.id;
+                    element.innerHTML = `<div class="subtitles"></div>
+                     <div class="speaker"></div>
+                     <span class="name">${user.name}</span>
+                     <span class="count">0</span>`
+                    friendList.appendChild(element);
+                } else {
+                    const index = elements.indexOf(element);
+                    if (index !== -1) {
+                        elements.splice(index, 1);
+                    }
+                }
+            }
+            for (let element of elements) {
+                element.remove();
+            }
+            usersUpdated$.next(true);
         });
 
         const button = this.querySelector("button");

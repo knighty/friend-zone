@@ -2,6 +2,7 @@ import { FastifyInstance } from "fastify";
 import { BehaviorSubject, catchError, EMPTY, fromEvent, ignoreElements, interval, map, merge, Observable, of, switchMap, takeUntil, tap } from "rxjs";
 import { ExternalFeeds } from "../data/external-feeds";
 import Subtitles from "../data/subtitles";
+import { Users } from "../data/users";
 import { log } from "../lib/logger";
 
 type WebsocketMessageStream = Observable<{
@@ -9,7 +10,7 @@ type WebsocketMessageStream = Observable<{
     data: object | string
 }>
 
-export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds) => async (fastify: FastifyInstance, options: {}) => {
+export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds, users: Users) => async (fastify: FastifyInstance, options: {}) => {
     fastify.get('/remote-control/websocket', { websocket: true }, (socket, req) => {
         let userId: string | undefined;
         function send(type: string, data: object | string) {
@@ -49,6 +50,7 @@ export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds) 
             switch (message.type) {
                 case "user": {
                     userId = data.id;
+                    users.addPerson(data.discordId, data.name);
                 } break;
                 case "subtitles": {
                     subtitles.handle(userId, data.id, data.type, data.text);
@@ -70,6 +72,7 @@ export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds) 
 
         socket.on("close", () => {
             feeds.removeFeed(userId);
+            users.removePerson(userId);
         })
 
         log.info("Opening web socket", "websocket");

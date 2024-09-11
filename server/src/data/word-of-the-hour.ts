@@ -1,17 +1,15 @@
 import { Subject } from "rxjs";
 import tmi from "tmi.js";
+import config from "../config";
 import { logger } from "../lib/logger";
-import { Person } from "./users";
 
 const log = logger("woth");
 export class WordOfTheHour {
     word: string | null = null;
-    users: Map<string, Person>;
+    counts = new Map<string, number>();
     update$ = new Subject<void>();
 
-    constructor(twitchChannel: string, users: Map<string, Person>) {
-        this.users = users;
-        console.log(this.users);
+    constructor(twitchChannel: string) {
         const client = new tmi.Client({
             connection: {
                 secure: true,
@@ -23,7 +21,9 @@ export class WordOfTheHour {
         client.connect();
 
         function isUserAdmin(name: string): boolean {
-            return !!name.toLowerCase().match(/^(electricyoshi|knighty33|megadanxzero|phn|lethallin)$/);
+            const regex = new RegExp(`^(${config.auth.admins.join("|")})$`);
+            const isAdmin = !!name.toLowerCase().match(regex);
+            return isAdmin;
         }
 
         client.on('message', (channel, tags, message, self) => {
@@ -38,12 +38,10 @@ export class WordOfTheHour {
                 switch (command) {
                     case "woth":
                         {
-                            const name = args[1];
+                            const name = args[1].toLowerCase();
                             switch (name) {
                                 case "reset": {
-                                    for (let person in users) {
-                                        users.get(person).count = 0;
-                                    }
+                                    this.counts = new Map<string, number>();
                                     log.info(`Reset all counts"`);
                                     this.update$.next();
                                 } break;
@@ -56,14 +54,13 @@ export class WordOfTheHour {
 
                                 default: {
                                     const amount = Number(args[2]);
-                                    const person = users.get(name);
-                                    if (person) {
-                                        if (!isNaN(amount)) {
-                                            person.count = Number(amount);
-                                        } else {
-                                            person.count++;
-                                        }
-                                        log.info(`Set ${person.name} to "${person.count}"`);
+                                    const count = this.counts.get(name);
+                                    if (!isNaN(amount)) {
+                                        this.counts.set(name, Number(amount));
+                                        log.info(`Set ${name} to "${Number(amount)}"`);
+                                    } else {
+                                        this.counts.set(name, count + 1);
+                                        log.info(`Set ${name} to "${count + 1}"`);
                                     }
                                     this.update$.next();
                                 }
