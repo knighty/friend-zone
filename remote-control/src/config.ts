@@ -27,5 +27,5 @@ export const config = {
         energy_threshold: 500,
     },
     subtitles: "off",
-    ...require(path.join(__dirname, "../config.js"))
+    ...require(path.join(__dirname, "../../remote-control-config.js"))
 } as Config;
