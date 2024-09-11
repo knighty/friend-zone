@@ -134,6 +134,7 @@ x-app {
     video,
     iframe {
         width: 100%;
+        max-height: 34em;
         clip-path: polygon(12em 0, 100% 0, 100% 100%, 0 100%, 0 100%, 0 var(--cutout-size), 10em var(--cutout-size));
         display: block;
         /*--rotation: 0deg;
