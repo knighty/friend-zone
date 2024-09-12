@@ -55,56 +55,11 @@ function socketMessages<D>(type: string): Observable<D> {
 
 class App extends HTMLElement {
     getPersonElement(id: string): HTMLElement {
-        const e = document.querySelector(`.friend-list [data-person=${id}]`);
-        if (e)
-            return e as HTMLElement;
-        throw new Error();
+        return document.querySelector(`.friend-list [data-person=${id}]`) as HTMLElement;
     }
 
     connectedCallback() {
         const subtitles$: Record<string, Subject<SubtitleMessage>> = {};
-        for (let el of document.querySelectorAll<HTMLElement>(".friend-list [data-person]")) {
-            const subtitlesElement = el.querySelector(".subtitles");
-            subtitles$[el.dataset.person] = new Subject<SubtitleMessage>();
-            subtitles$[el.dataset.person].pipe(
-                filter(e => e.text != ""),
-                scan((a, c) => {
-                    if (a.id == c.id) {
-                        a.updateText(c.text);
-                        return a;
-                    } else {
-                        const subject$ = new Subject<string>();
-                        let cursor = 0;
-                        let text = "";
-                        a.id = c.id;
-                        a.observable = subject$.pipe(
-                            startWith(c.text),
-                            tap(message => text = message),
-                            exhaustMap(() => {
-                                return interval(30).pipe(
-                                    tap(() => cursor++),
-                                    takeWhile(c => cursor <= text.length),
-                                    endWith(1),
-                                    map(() => text.substring(0, cursor)),
-                                )
-                            })
-                        );
-                        a.updateText = (t: string) => subject$.next(t);
-                        return a;
-                    }
-                }, { id: -1, observable: null, updateText: null } as { id: number, observable: Observable<string>, updateText: (text: string) => void }),
-                map(state => state.observable),
-                distinctUntilChanged(),
-                switchMap(observable => observable),
-                tap(message => {
-                    subtitlesElement.textContent = message;
-                    subtitlesElement.scrollTo(0, subtitlesElement.scrollHeight);
-                }),
-                tap(message => subtitlesElement.classList.add("show")),
-                debounceTime(3000),
-                tap(message => subtitlesElement.classList.remove("show")),
-            ).subscribe();
-        }
 
         const usersUpdated$ = new BehaviorSubject<boolean>(true);
         const wothMessage$ = socketMessages<SocketMessageData.Woth>("woth").pipe(share());
@@ -126,8 +81,8 @@ class App extends HTMLElement {
                 for (let id in counts) {
                     const count = counts[id];
                     const element = this.getPersonElement(id);
-                    const countElement = element.querySelector(".count");
-                    if (countElement) {
+                    if (element) {
+                        const countElement = element.querySelector(".count");
                         if (Number(countElement.textContent) !== count) {
                             element.classList.remove("animation");
                             element.offsetWidth;
@@ -168,12 +123,55 @@ class App extends HTMLElement {
                 if (!element) {
                     element = document.createElement("li");
                     element.dataset.discordId = user.discordId;
-                    element.dataset.person = user.id;
-                    element.innerHTML = `<div class="subtitles"></div>
-                     <div class="speaker"></div>
-                     <span class="name">${user.name}</span>
-                     <span class="count">0</span>`
+                    element.dataset.person = userId;
+                    element.innerHTML = `<div class="user">
+                        <span class="name">${user.name}</span>
+                        <span class="count">0</span>
+                    </div>
+                    <div class="speaker"></div>
+                    <div class="subtitles"></div>`
                     friendList.appendChild(element);
+
+                    const subtitlesElement = element.querySelector(".subtitles");
+                    subtitles$[userId] = new Subject<SubtitleMessage>();
+                    subtitles$[userId].pipe(
+                        filter(e => e.text != ""),
+                        scan((a, c) => {
+                            if (a.id == c.id) {
+                                a.updateText(c.text);
+                                return a;
+                            } else {
+                                const subject$ = new Subject<string>();
+                                let cursor = 0;
+                                let text = "";
+                                a.id = c.id;
+                                a.observable = subject$.pipe(
+                                    startWith(c.text),
+                                    tap(message => text = message),
+                                    exhaustMap(() => {
+                                        return interval(30).pipe(
+                                            tap(() => cursor++),
+                                            takeWhile(c => cursor <= text.length),
+                                            endWith(1),
+                                            map(() => text.substring(0, cursor)),
+                                        )
+                                    })
+                                );
+                                a.updateText = (t: string) => subject$.next(t);
+                                return a;
+                            }
+                        }, { id: -1, observable: null, updateText: null } as { id: number, observable: Observable<string>, updateText: (text: string) => void }),
+                        map(state => state.observable),
+                        distinctUntilChanged(),
+                        switchMap(observable => observable),
+                        tap(message => {
+                            subtitlesElement.textContent = message;
+                            subtitlesElement.scrollTo(0, subtitlesElement.scrollHeight);
+                        }),
+                        tap(message => subtitlesElement.classList.add("show")),
+                        debounceTime(3000),
+                        tap(message => subtitlesElement.classList.remove("show")),
+                    ).subscribe();
                 } else {
                     const index = elements.indexOf(element);
                     if (index !== -1) {
@@ -247,16 +245,51 @@ class Feed extends HTMLElement {
             }
         });
 
+        const urlHandlers = [
+            (url: string) => {
+                const matches = url.match(/(?:youtu\.be\/|youtube\.com(?:\/embed\/|\/v\/|\/watch\?v=|\/user\/\S+|\/ytscreeningroom\?v=))([\w\-]{10,12})\b/);
+                const videoID = matches ? matches[1] : null;
+                if (videoID) {
+                    return `https://www.youtube.com/embed/${videoID}?autoplay=1`
+                }
+                return false;
+            },
+            (url: string) => {
+                const urlObj = new URL(url);
+                if (urlObj.hostname == "vdo.ninja") {
+                    const params: Record<string, any> = {
+                        bitrate: 5000,
+                        codec: "av1",
+                        speakermute: true,
+                        ...Object.fromEntries(urlObj.searchParams),
+                    }
+                    for (let key in params) {
+                        urlObj.searchParams.set(key, params[key].toString());
+                    }
+                    return urlObj.href;
+                }
+                return false;
+            },
+        ]
+
         url$.pipe(
             debounceTime(1000),
             distinctUntilChanged()
         ).subscribe(url => {
             const iframe = this.querySelector<HTMLIFrameElement>("iframe");
             this.classList.toggle("show", !!url);
-            if (url)
+            if (url) {
+                for (const handler of urlHandlers) {
+                    const newUrl = handler(url);
+                    if (newUrl) {
+                        url = newUrl;
+                        break;
+                    }
+                }
                 iframe.src = url;
-            else
+            } else {
                 iframe.src = "about:blank";
+            }
         })
     }
 }

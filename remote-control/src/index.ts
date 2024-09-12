@@ -3,9 +3,10 @@ import fastifyView from "@fastify/view";
 import websocket from "@fastify/websocket";
 import Fastify, { FastifyInstance } from "fastify";
 import fs from "fs";
+import child_process from "node:child_process";
 import path from "node:path";
 import { BehaviorSubject, EMPTY, firstValueFrom, fromEvent, ignoreElements, interval, map, merge, Observable, scan, shareReplay, switchMap, takeUntil, tap } from "rxjs";
-import { log } from "../../server/src/lib/logger";
+import { log, logger } from "../../server/src/lib/logger";
 import { config } from "./config";
 import { hotkey } from "./hotkeys";
 import { initSocket } from "./socket";
@@ -186,24 +187,27 @@ const server = fastifyApp.listen({ port: 3010, host: "0.0.0.0" }, function (err,
     }
 });
 
-/*const pythonProcess = child_process.spawn('python', [
-    path.join(__dirname, "/../../whisper/transcribe_demo.py"),
-    `--model=${config.whisper.model}`,
-    `--phrase_timeout=${config.whisper.phrase_timeout}`,
-    `--energy_threshold=${config.whisper.energy_threshold}`
-]);
-pythonProcess.stdout.on('data', (data: string) => {
-    const subtitle = data.toString();
-    console.log(subtitle);
-    const split = subtitle.split(" ");
-    if (split[0] == "subtitle") {
-        const id = split[1];
-        const text = split.slice(2).join(" ");
-        remoteControl.subtitles(Number(id), "final", text);
-    }
-    //console.log(data.toString());
-});
-pythonProcess.stderr.on('data', (data: string) => {
-    console.log(data.toString());
-});*/
+const subtitleLog = logger("subtitles");
+if (config.subtitles == "whisper") {
+    const pythonProcess = child_process.spawn('python', [
+        path.join(__dirname, "/../../whisper/transcribe_demo.py"),
+        `--model=${config.whisper.model}`,
+        `--phrase_timeout=${config.whisper.phrase_timeout}`,
+        `--energy_threshold=${config.whisper.energy_threshold}`
+    ]);
+    pythonProcess.stdout.on('data', (data: string) => {
+        const subtitle = data.toString().replaceAll(/[\r\n]/g, "");;
+        subtitleLog.info(subtitle);
+        const split = subtitle.split(" ");
+        if (split[0] == "subtitle") {
+            const id = split[1];
+            const text = split.slice(2).join(" ");
+            remoteControl.subtitles(Number(id), "final", text);
+        }
+        //console.log(data.toString());
+    });
+    pythonProcess.stderr.on('data', (data: string) => {
+        subtitleLog.error(data.toString());
+    });
+}
 //pythonProcess.kill();

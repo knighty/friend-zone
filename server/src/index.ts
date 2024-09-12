@@ -88,7 +88,6 @@ const subtitles = new Subtitles();
 
 const feeds = new ExternalFeeds();
 feeds.focusedFeed$.subscribe(feed => {
-    console.log(feed);
 });
 
 /*

@@ -13,8 +13,8 @@ export class Users {
 
     }
 
-    addPerson(discordId: string, name: string) {
-        this.users.set(name.toLowerCase(), {
+    addPerson(id: string, discordId: string, name: string) {
+        this.users.set(id, {
             name: name,
             discordId: discordId
         });

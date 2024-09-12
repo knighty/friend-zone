@@ -1,7 +1,9 @@
 
 import { BehaviorSubject, fromEvent, map, merge, Observable, retry, shareReplay, Subject, switchMap, tap, timer } from "rxjs";
 import WebSocket from "ws";
+import { logger } from "../../server/src/lib/logger";
 
+const log = logger("remote-socket");
 export function initSocket(url: string, userId: string, userName: string, discordId: string) {
     //let ws: WebSocket;
 
@@ -9,7 +11,7 @@ export function initSocket(url: string, userId: string, userName: string, discor
     const isConnected$ = new BehaviorSubject<boolean>(false);
 
     let socket$ = new Observable<WebSocket>(subscriber => {
-        console.log(`Socket connecting to "${url}"...`)
+        log.info(`Socket connecting to "${url}"...`)
         isConnected$.next(false);
         const socket = new WebSocket(url);
         const error$ = fromEvent(socket, "error").pipe(
@@ -17,14 +19,14 @@ export function initSocket(url: string, userId: string, userName: string, discor
         );
         const open$ = fromEvent(socket, "open").pipe(
             tap(event => {
-                console.log(`Socket connected to "${url}"`)
+                log.info(`Socket connected to "${url}"`)
                 subscriber.next(socket);
                 isConnected$.next(true);
             })
         );
         const close$ = fromEvent(socket, "close").pipe(
             tap(event => {
-                console.log(`Socket closed`);
+                log.info(`Socket closed`);
                 isConnected$.next(false);
                 subscriber.error();
             })

@@ -54,7 +54,7 @@ export class WordOfTheHour {
 
                                 default: {
                                     const amount = Number(args[2]);
-                                    const count = this.counts.get(name);
+                                    const count = this.counts.get(name) || 0;
                                     if (!isNaN(amount)) {
                                         this.counts.set(name, Number(amount));
                                         log.info(`Set ${name} to "${Number(amount)}"`);

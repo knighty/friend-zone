@@ -1,4 +1,3 @@
-import CopyPlugin from 'copy-webpack-plugin';
 import MiniCssExtractPlugin from "mini-css-extract-plugin";
 import path from "path";
 import { WebpackManifestPlugin } from 'webpack-manifest-plugin';
@@ -89,10 +88,7 @@ const config: any = {
         new MiniCssExtractPlugin({
             filename: "css/[contenthash].css",
             chunkFilename: "[id].css",
-        }),
-        new CopyPlugin({
-            patterns: [path.join(dirs.static, "favicon.ico")],
-        }),
+        })
     ],
     module: {
         rules: [rules.typescript, rules.static, rules.css, rules.ejs],

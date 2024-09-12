@@ -55,7 +55,7 @@ export class ExternalFeeds {
         );
         const focusedTime = (feed: Feed) => feed.focused ? feed.focused.getTime() : 0;
         const focused$ = this.feeds$.pipe(
-            map(feeds => Array.from(feeds.values()).filter(feed => feed.focused).toSorted((a, b) => focusedTime(a) - focusedTime(b))),
+            map(feeds => Array.from(feeds.values()).filter(feed => feed.focused).toSorted((a, b) => focusedTime(b) - focusedTime(a))),
             map(feeds => (feeds.length > 0 ? feeds[0] : null)),
             untilFeedChanged()
         )
