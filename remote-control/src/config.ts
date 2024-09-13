@@ -14,6 +14,7 @@ type Config = {
         model: string,
         phrase_timeout: number,
         energy_threshold: number,
+        min_probability: number
     },
     subtitles: "off" | "whisper" | "browser"
 }
@@ -29,6 +30,7 @@ export const config = {
         model: "small",
         phrase_timeout: 3,
         energy_threshold: 500,
+        min_probability: 0.5,
     },
     subtitles: "off",
     ...require(path.join(__dirname, "../../remote-control-config.js"))

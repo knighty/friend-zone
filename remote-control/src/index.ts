@@ -219,7 +219,8 @@ if (config.subtitles == "whisper") {
         path.join(__dirname, "/../../whisper/transcribe_demo.py"),
         `--model=${config.whisper.model}`,
         `--phrase_timeout=${config.whisper.phrase_timeout}`,
-        `--energy_threshold=${config.whisper.energy_threshold}`
+        `--energy_threshold=${config.whisper.energy_threshold}`,
+        `--min_probability=${config.whisper.min_probability}`
     ]);
     pythonProcess.stdout.on('data', (data: string) => {
         const lines = data.toString().split(/[\r\n]/g);
@@ -235,12 +236,12 @@ if (config.subtitles == "whisper") {
                     probability: number
                 }[];
                 const text = segments
-                    .filter(segment => segment.probability < 0.4)
+                    .filter(segment => segment.probability < config.whisper.min_probability)
                     .map(segment => segment.text)
                     .join("")
                     .trim();
                 const ignored = segments
-                    .filter(segment => segment.probability >= 0.4)
+                    .filter(segment => segment.probability >= config.whisper.min_probability)
                     .map(segment => `${segment.text} (${Math.floor(segment.probability * 100)}%) `)
                     .join("")
                     .trim();
