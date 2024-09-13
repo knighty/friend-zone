@@ -82,7 +82,8 @@ Dependencies
 serverLog.info("Creating dependencies");
 const users = new Users();
 const wordOfTheHour = new WordOfTheHour(config.twitch.channel);
-const discordVoiceState = new DiscordVoiceState("407280611469033482");
+const discordVoiceState = new DiscordVoiceState();
+discordVoiceState.connectToRpc("267039446572990465");
 const webcam = new Webcam();
 const subtitles = new Subtitles();
 
@@ -141,6 +142,7 @@ fastifyApp.get("/", async (req, res) => {
     return res.viewAsync("app", {
         webcam: config.video.webcam,
         vdoNinjaUrl: config.video.vdoNinjaUrl,
+        showWebcam: false,
         style: await getManifestPath("main.css"),
         scripts: await getManifestPath("main.js"),
     })

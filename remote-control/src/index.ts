@@ -1,11 +1,12 @@
 import fastifyStatic from '@fastify/static';
 import fastifyView from "@fastify/view";
 import websocket from "@fastify/websocket";
+import { green, yellow } from "ansi-colors";
 import Fastify, { FastifyInstance } from "fastify";
 import fs from "fs";
 import child_process from "node:child_process";
 import path from "node:path";
-import { BehaviorSubject, EMPTY, firstValueFrom, fromEvent, ignoreElements, interval, map, merge, Observable, scan, shareReplay, switchMap, takeUntil, tap } from "rxjs";
+import { BehaviorSubject, EMPTY, filter, firstValueFrom, fromEvent, ignoreElements, interval, map, merge, Observable, of, scan, share, shareReplay, switchMap, takeUntil, tap } from "rxjs";
 import { log, logger } from "../../server/src/lib/logger";
 import { config } from "./config";
 import { hotkey } from "./hotkeys";
@@ -23,18 +24,29 @@ declare module 'fastify' {
 const publicDir = path.join(__dirname, "../");
 const remoteControl = initSocket(config.socket, config.user, config.userName, config.discordId);
 
-hotkey(config.hotkeys.focus).pipe(
-    scan((a, c) => !a, false)
-).subscribe(focus => {
-    console.log(`Focus: ${focus}`);
-    remoteControl.feed(focus ? "focus" : "unfocus");
-    sound.play(`C:/windows/media/${focus ? "Speech On.wav" : "Speech Off.wav"}`);
-});
-/*hotkey(config.hotkeys.endFocus).subscribe(() => {
-    console.log("Focus mode disabled");
-    remoteControl.feed("unfocus");
-    sound.play("C:/windows/media/Speech Off.wav");
-});*/
+function dynamicConfig<T>(initial: T) {
+    const subject$ = new BehaviorSubject<T>(initial);
+    return [(value: T) => subject$.next(value), subject$] as const;
+}
+
+type Feed = {
+    url: string,
+    aspectRatio: string,
+}
+
+const [setFeed, feed$] = dynamicConfig<Feed | null>(null);
+const [setFeedActive, feedActive$] = dynamicConfig(false);
+
+if (config.hotkeys.enabled) {
+    hotkey(config.hotkeys.focus).pipe(
+        scan((a, c) => !a, false)
+    ).subscribe(focus => {
+        console.log(`Focus: ${focus}`);
+        remoteControl.feed(focus ? "focus" : "unfocus");
+        sound.play(`C:/windows/media/${focus ? "Speech On.wav" : "Speech Off.wav"}`);
+    });
+
+}
 
 const fastifyApp = Fastify();
 fastifyApp.register(fastifyView, {
@@ -56,19 +68,6 @@ fastifyApp.register(fastifyStatic, {
     prefix: "/static",
 });
 
-function dynamicConfig<T>(initial: T) {
-    const subject$ = new BehaviorSubject<T>(initial);
-    return [(value: T) => subject$.next(value), subject$] as const;
-}
-
-type Feed = {
-    url: string,
-    aspectRatio: string,
-}
-
-const [setFeed, feed$] = dynamicConfig<Feed | null>(null);
-const [setFeedActive, feedActive$] = dynamicConfig(false);
-
 remoteControl.isConnected$.pipe(
     switchMap(isConnected => {
         if (isConnected) {
@@ -81,6 +80,12 @@ remoteControl.isConnected$.pipe(
     })
 ).subscribe();
 
+type SocketMessage<D> = {
+    type: string,
+    data: D;
+}
+
+const remoteControlLog = logger("remote-control");
 fastifyApp.register(async (fastify: FastifyInstance) => {
     fastify.get('/websocket', { websocket: true }, (socket, req) => {
         function send(type: string, data?: object | string) {
@@ -94,36 +99,56 @@ fastifyApp.register(async (fastify: FastifyInstance) => {
             tap(i => socket.ping()),
         );
 
-        socket.on('message', (event: any) => {
-            try {
-                const message = JSON.parse(event.toString());
-                /*const message = JSON.parse(event.toString());
-                remoteControl.subtitles(message.id, message.type, message.text);
-                //console.log(`[${message.id}] ${message.text} ${message.type == "final" ? "(final)" : ""}`);
-                if (message.type == "final")
-                    console.log(`[${message.id}] ${message.text}`);*/
-                switch (message.type) {
-                    case "config": {
-                        console.log(`Set "${message.data.key}" to "${message.data.value}"`);
-                        switch (message.data.key) {
-                            case "feed": {
-                                if (message.data.value.url != "") {
-                                    setFeed({
-                                        url: message.data.value.url,
-                                        aspectRatio: message.data.value.aspectRatio,
-                                    });
-                                } else {
-                                    setFeed(null);
-                                }
-                            } break;
-                            case "feedActive": setFeedActive(message.data.value); break;
-                        }
-                    } break;
+        const websocketMessages$ = fromEvent<MessageEvent>(socket, "message").pipe(
+            switchMap<MessageEvent, Observable<SocketMessage<any>>>(event => {
+                try {
+                    const data = JSON.parse(event.data);
+                    return of(data);
+                } catch (e: any) {
+                    remoteControlLog.error(e.message);
+                    return EMPTY;
                 }
-            } catch (e) {
+            }),
+            share()
+        );
 
-            }
-        });
+        function socketMessages<Data>(type: string): Observable<Data> {
+            return websocketMessages$.pipe(
+                filter(message => message.type == type),
+                map<SocketMessage<Data>, Data>(message => message.data as Data)
+            )
+        }
+
+        function configMessage<ConfigValue>(config: string): Observable<ConfigValue> {
+            return socketMessages<{ key: string, value: ConfigValue }>("config").pipe(
+                filter(message => message.key == config),
+                map(message => message.value)
+            )
+        }
+
+        const configSetters$ = merge(
+            configMessage<{
+                url: string,
+                aspectRatio: string
+            }>("feed").pipe(
+                tap(feed => {
+                    if (feed.url != "") {
+                        setFeed({
+                            url: feed.url,
+                            aspectRatio: feed.aspectRatio,
+                        });
+                    } else {
+                        setFeed(null);
+                    }
+                })
+            ),
+
+            configMessage<boolean>("feedActive").pipe(
+                tap(active => {
+                    setFeedActive(active);
+                })
+            )
+        );
 
         const configMessages$ = merge(
             feed$.pipe(map(url => ({ key: "feedUrl", value: url }))),
@@ -136,10 +161,11 @@ fastifyApp.register(async (fastify: FastifyInstance) => {
             tap(isConnected => {
                 send("connectionStatus", { isConnected })
             })
-        )
+        );
 
         merge(
             configMessages$,
+            configSetters$,
             ping$,
             connectionStatus$
         ).pipe(
@@ -196,13 +222,38 @@ if (config.subtitles == "whisper") {
         `--energy_threshold=${config.whisper.energy_threshold}`
     ]);
     pythonProcess.stdout.on('data', (data: string) => {
-        const subtitle = data.toString().replaceAll(/[\r\n]/g, "");;
-        subtitleLog.info(subtitle);
-        const split = subtitle.split(" ");
-        if (split[0] == "subtitle") {
-            const id = split[1];
-            const text = split.slice(2).join(" ");
-            remoteControl.subtitles(Number(id), "final", text);
+        const lines = data.toString().split(/[\r\n]/g);
+        for (let subtitle of lines) {
+            if (subtitle == "")
+                continue;
+            const split = subtitle.split(" ");
+            if (split[0] == "subtitle") {
+                const id = split[1];
+                const json = split.slice(2).join(" ").trim();
+                const segments = JSON.parse(json) as {
+                    text: string,
+                    probability: number
+                }[];
+                const text = segments
+                    .filter(segment => segment.probability < 0.4)
+                    .map(segment => segment.text)
+                    .join("")
+                    .trim();
+                const ignored = segments
+                    .filter(segment => segment.probability >= 0.4)
+                    .map(segment => `${segment.text} (${Math.floor(segment.probability * 100)}%) `)
+                    .join("")
+                    .trim();
+                if (text.length > 0) {
+                    subtitleLog.info(green(text));
+                    remoteControl.subtitles(Number(id), "final", text);
+                }
+                if (ignored.length > 0) {
+                    subtitleLog.info(yellow(ignored));
+                }
+            } else {
+                subtitleLog.info(subtitle);
+            }
         }
         //console.log(data.toString());
     });

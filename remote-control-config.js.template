@@ -1,5 +1,6 @@
 module.exports = {
     hotkeys: {
+        enabled: true,
         focus: ["Left Control", "Left Alt", "F"],
         endFocus: ["Left Control", "Left Alt", "D"],
     },

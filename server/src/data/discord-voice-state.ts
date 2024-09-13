@@ -11,8 +11,7 @@ export default class DiscordVoiceState {
     startSpeaking$ = new Subject<{ channel_id: string, user_id: string }>();
     stopSpeaking$ = new Subject<{ channel_id: string, user_id: string }>();
 
-    constructor(channelId: string) {
-        //this.connectToRpc(channelId);
+    constructor() {
         this.speaking$ = merge(
             this.startSpeaking$.pipe(map(e => (speakers: SpeakingMap) => speakers.set(e.user_id, true))),
             this.stopSpeaking$.pipe(map(e => (speakers: SpeakingMap) => speakers.delete(e.user_id)))

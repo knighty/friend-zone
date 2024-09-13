@@ -112,7 +112,10 @@ fromDomEvent(document.getElementById("updateFeedButton"), "click").subscribe(e =
 
 // Connection opened
 ws.addEventListener("open", (event) => {
-    ws.send("Hello Server!");
+    ws.send(JSON.stringify({
+        type: "register",
+        data: "Hello server!"
+    }));
 });
 
 ws.addEventListener("close", (event) => {

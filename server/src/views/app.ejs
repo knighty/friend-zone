@@ -31,7 +31,8 @@
 				<span class="word"></span>
 			</div>
 		</section>
-		<section class="webcam">
+		<% if (showWebcam) { %>
+		<x-webcam class="webcam">
 			<div class="time"><span>0:00</span><span>am</span></div>
 			<div class="video-shadow">
 				<div class="video">
@@ -50,7 +51,8 @@
 			<% if (webcam) { %>
 			<button>Start webcam</button>
 			<% } %>
-		</section>
+		</x-webcam>
+		<% } %>
 	</x-app>
 	<script src='<%= scripts %>'></script>
 

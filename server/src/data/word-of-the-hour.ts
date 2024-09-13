@@ -42,7 +42,7 @@ export class WordOfTheHour {
                             switch (name) {
                                 case "reset": {
                                     this.counts = new Map<string, number>();
-                                    log.info(`Reset all counts"`);
+                                    log.info(`Reset all counts`);
                                     this.update$.next();
                                 } break;
 

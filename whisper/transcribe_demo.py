@@ -6,10 +6,11 @@ import numpy as np
 import speech_recognition as sr
 import whisper
 import torch
+import json
 
 from datetime import datetime, UTC, timedelta
 from queue import Queue
-from time import sleep
+from time import sleep, time
 from sys import platform
 
 
@@ -86,7 +87,7 @@ def main():
 
     # Create a background thread that will pass us raw audio bytes.
     # We could do this manually but SpeechRecognizer provides a nice helper.
-    recorder.listen_in_background(source, record_callback, phrase_time_limit=record_timeout)
+    recorder.listen_in_background(source, record_callback, phrase_time_limit=1)
 
     # Cue the user that we're ready to go.
     print("Model loaded.\n", flush=True)
@@ -94,17 +95,22 @@ def main():
     audio_data = b''
     id = 0
     last_text = ''
-    last_new_text_time = datetime.now(UTC)
+    last_new_text_time = time()
+    complete = False
     while True:
         try:
-            now = datetime.now(UTC)
+            now = time()
             # Pull raw recorded audio from the queue.
             if not data_queue.empty():
                 phrase_complete = False
                 # If enough time has passed between recordings, consider the phrase complete.
                 # Clear the current working audio buffer to start over with the new data.
-                if phrase_time and now - phrase_time > timedelta(seconds=phrase_timeout):
+                if (phrase_time and now - phrase_time > phrase_timeout) or len(audio_data) > 1000000 or complete:
+                    print("new phrase started\n", flush=True);
+                    id = id + 1
+                    last_text = ''
                     phrase_complete = True
+                    complete = False
                     audio_data = b''
                 
                 # Combine audio data from queue
@@ -117,47 +123,36 @@ def main():
                 audio_np = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32) / 32768.0
 
                 # Read the transcription.
-                result = audio_model.transcribe(audio_np, fp16=torch.cuda.is_available())
-                text = ''
-                if phrase_complete:
-                    id = id + 1
+                print("transcribing " + str(round(len(audio_data) / 1000,0)) + "kb...\n", flush=True);
+                start = time();
+                result = audio_model.transcribe(audio_np, fp16=torch.cuda.is_available(), initial_prompt='A conversation between friends called Knighty, Lethallin, Megadanxzero, Dan, PHN, Leth, Graeme, Peter, Alan')
+                end = time();
+                print("transcribed in " + str(round(end - start, 2)) + "s\n", flush=True);
                 #print(result);
+                response = [];
+                text = ""
                 for segment in result['segments']:
-                    if segment['no_speech_prob'] < 0.5:
-                        text = text + segment['text']
-                    else:
-                        print("ignored: " + segment['text'], flush=True)
-                if last_text != text:
-                    last_new_text_time = datetime.now(UTC)
-                    last_text = text
-                if now - last_new_text_time > timedelta(seconds=3):
-                    phrase_complete = True
-                    audio_data = b''
+                    response.append({
+                        "text": segment['text'],
+                        "probability": segment['no_speech_prob']
+                    })
+                    text = text + "" if segment['no_speech_prob'] > 0.5 else segment['text']
 
-                if text != "":
-                    print("subtitle " + str(id) + " " + text, flush=True)
-
-                # If we detected a pause between recordings, add a new item to our transcription.
-                # Otherwise edit the existing one.
-                if phrase_complete:
-                    transcription.append(text)
-                    last_new_text_time = datetime.now(UTC)
+                if text == last_text:
+                    if now > last_new_text_time - 2:
+                        complete = True
                 else:
-                    transcription[-1] = text
+                    last_text = text
+                    last_new_text_time = time()
 
-                # Clear the console to reprint the updated transcription.
-                #os.system('cls' if os.name=='nt' else 'clear')
-                #for line in transcription:
-                #    print(line)
-                # Flush stdout.
-                #print('', end='', flush=True)
-                #print(transcription[-1]);
+                if len(response) > 0:
+                    print("subtitle " + str(id) + " " + json.dumps(response) + "\n", flush=True)
 
                 # This is the last time we received new audio data from the queue.
                 phrase_time = now
             else:
                 # Infinite loops are bad for processors, must sleep.
-                sleep(0.25)
+                sleep(0.05)
         except KeyboardInterrupt:
             break
 

@@ -53,6 +53,29 @@ function socketMessages<D>(type: string): Observable<D> {
     )
 }
 
+class Webcam extends HTMLElement {
+    connectedCallback() {
+        socketMessages<SocketMessageData.Webcam>("webcam").subscribe(cam => {
+            const webcam = this.querySelector<HTMLElement>(".webcam");
+            webcam.style.setProperty("--left", cam.position[0].toString());
+            webcam.style.setProperty("--top", cam.position[1].toString());
+        });
+
+        interval(1000).subscribe(() => {
+            const date = new Date();
+            const hours = date.getHours() % 12;
+            const minutes = date.getMinutes().toString().padStart(2, "0");
+            const seconds = date.getSeconds().toString().padStart(2, "0");
+            this.querySelector(".webcam .time span:first-child").textContent = `${hours}:${minutes}:${seconds}`;
+            this.querySelector(".webcam .time span:nth-child(2)").textContent = date.getHours() >= 12 ? "PM" : "AM";
+        });
+
+        window.addEventListener('obsSceneChanged', function (event) {
+            document.body.dataset.scene = event.detail.name;
+        });
+    }
+}
+
 class App extends HTMLElement {
     getPersonElement(id: string): HTMLElement {
         return document.querySelector(`.friend-list [data-person=${id}]`) as HTMLElement;
@@ -95,15 +118,9 @@ class App extends HTMLElement {
         )
         merge(wothCountUpdates$, wothUpdated$).subscribe();
 
-        socketMessages<SocketMessageData.Webcam>("webcam").subscribe(cam => {
-            const webcam = this.querySelector<HTMLElement>(".webcam");
-            webcam.style.setProperty("--left", cam.position[0].toString());
-            webcam.style.setProperty("--top", cam.position[1].toString());
-        });
-
         socketMessages<SocketMessageData.Voice>("voice").subscribe(data => {
             for (let el of document.querySelectorAll<HTMLElement>(".friend-list [data-person]")) {
-                el.classList.toggle("speaking", data.users[el.dataset.discordId]);
+                el.classList.toggle("speaking", !!data.users[el.dataset.discordId]);
             }
         });
 
@@ -119,11 +136,11 @@ class App extends HTMLElement {
             const elements = Array.from(friendList.querySelectorAll<HTMLElement>(`[data-person]`));
             for (let userId in users) {
                 let user = users[userId];
-                let element = elements.find(element => element.dataset.person == user.id);
+                let element = elements.find(element => element.dataset.person == userId.toLowerCase());
                 if (!element) {
                     element = document.createElement("li");
                     element.dataset.discordId = user.discordId;
-                    element.dataset.person = userId;
+                    element.dataset.person = userId.toLowerCase();
                     element.innerHTML = `<div class="user">
                         <span class="name">${user.name}</span>
                         <span class="count">0</span>
@@ -203,19 +220,6 @@ class App extends HTMLElement {
                 }
             });
         }
-
-        interval(1000).subscribe(() => {
-            const date = new Date();
-            const hours = date.getHours() % 12;
-            const minutes = date.getMinutes().toString().padStart(2, "0");
-            const seconds = date.getSeconds().toString().padStart(2, "0");
-            this.querySelector(".webcam .time span:first-child").textContent = `${hours}:${minutes}:${seconds}`;
-            this.querySelector(".webcam .time span:nth-child(2)").textContent = date.getHours() >= 12 ? "PM" : "AM";
-        });
-
-        window.addEventListener('obsSceneChanged', function (event) {
-            document.body.dataset.scene = event.detail.name;
-        });
     }
 }
 
@@ -234,17 +238,6 @@ class Dashboard extends HTMLElement {
 
 class Feed extends HTMLElement {
     connectedCallback() {
-        const url$ = new BehaviorSubject<string | null>(null);
-        socketMessages<SocketMessageData.FocusedFeed>("feed").subscribe(feed => {
-            if (feed) {
-                this.querySelector(".name").textContent = feed.user;
-                url$.next(feed.url);
-                this.style.setProperty("--aspect-ratio", feed.aspectRatio);
-            } else {
-                url$.next(null);
-            }
-        });
-
         const urlHandlers = [
             (url: string) => {
                 const matches = url.match(/(?:youtu\.be\/|youtube\.com(?:\/embed\/|\/v\/|\/watch\?v=|\/user\/\S+|\/ytscreeningroom\?v=))([\w\-]{10,12})\b/);
@@ -272,24 +265,28 @@ class Feed extends HTMLElement {
             },
         ]
 
-        url$.pipe(
-            debounceTime(1000),
-            distinctUntilChanged()
-        ).subscribe(url => {
+        socketMessages<SocketMessageData.FocusedFeed>("feed").pipe(
+            distinctUntilChanged((a, b) => a?.url == b?.url),
+            debounceTime(100),
+        ).subscribe(feed => {
             const iframe = this.querySelector<HTMLIFrameElement>("iframe");
-            this.classList.toggle("show", !!url);
-            if (url) {
-                for (const handler of urlHandlers) {
-                    const newUrl = handler(url);
-                    if (newUrl) {
-                        url = newUrl;
-                        break;
-                    }
-                }
-                iframe.src = url;
-            } else {
+            if (feed == null) {
                 iframe.src = "about:blank";
+                this.classList.toggle("show", false);
+                return;
             }
+            this.querySelector(".name").textContent = feed.user;
+            this.style.setProperty("--aspect-ratio", feed.aspectRatio);
+            this.classList.toggle("show", !!feed.url);
+            for (const handler of urlHandlers) {
+                const newUrl = handler(feed.url);
+                if (newUrl) {
+                    feed.url = newUrl;
+                    break;
+                }
+            }
+            iframe.src = feed.url;
+            this.classList.toggle("show", true);
         })
     }
 }
@@ -297,3 +294,4 @@ class Feed extends HTMLElement {
 customElements.define("x-app", App);
 customElements.define("x-dashboard", Dashboard);
 customElements.define("x-feed", Feed);
+customElements.define("x-webcam", Webcam);

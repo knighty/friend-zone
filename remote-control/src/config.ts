@@ -2,8 +2,9 @@ import path from "node:path";
 
 type Config = {
     hotkeys: {
+        enabled: boolean,
         focus: string[],
-        endFocus: string[],
+        active: string[],
     },
     user: string,
     userName: string,
@@ -19,8 +20,9 @@ type Config = {
 
 export const config = {
     hotkeys: {
+        enabled: true,
         focus: ["Left Control", "Left Alt", "F"],
-        endFocus: ["Left Control", "Left Alt", "D"],
+        active: ["Left Control", "Left Alt", "D"],
     },
     socket: "ws://127.0.0.1:3000/remote-control/websocket",
     whisper: {
