@@ -1,0 +1,11 @@
+<article class="error">
+	<h1>404 - Page Not Found</h1>
+	<p>
+		<%= errorText %>
+	</p>
+	<% if (stack) { %>
+	<pre>
+            <%= stack %>
+        </pre>
+	<% } %>
+</article>

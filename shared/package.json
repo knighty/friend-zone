@@ -1,0 +1,12 @@
+{
+    "name": "shared",
+    "version": "1.0.0",
+    "type": "commonjs",
+    "description": "",
+    "author": "",
+    "main": "index.ts",
+    "license": "ISC",
+    "dependencies": {
+        "kolorist": "^1.8.0"
+    }
+}

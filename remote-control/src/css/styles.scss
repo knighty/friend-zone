@@ -52,7 +52,7 @@ button {
     }
 }
 
-.connection-status {
+.server-connection-status {
     color: #fff;
     background: red;
     padding: 1em;
@@ -82,5 +82,46 @@ fieldset {
         padding: 0 0.5em;
         font-size: 1.4em;
         font-weight: bold;
+    }
+}
+
+.connection-status {
+    display: grid;
+    position: fixed;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    border: 5px solid red;
+
+    .connected {
+        place-self: center;
+    }
+
+    .disconnected {
+        place-self: start center;
+        background: red;
+        color: white;
+        font-size: 1em;
+        padding: 0.5em 2em;
+        font-family: "Rubik Mono One";
+    }
+}
+
+body.connected {
+    .connection-status {
+        display: none;
+
+        .disconnected {
+            display: none;
+        }
+    }
+}
+
+body:not(.connected) {
+    .connection-status {
+        .connected {
+            display: none;
+        }
     }
 }

@@ -1,17 +1,23 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
-import { distinctUntilChanged, EMPTY, filter, map, merge, startWith, Subject, switchMap } from "rxjs";
+import { distinctUntilChanged, EMPTY, filter, map, merge, Observable, share, startWith, switchMap } from "rxjs";
 
-const gkm = spawn('java', ['-jar', path.join(__dirname, 'lib/gkm.jar')]);
-
-const rawKeyEvents$ = new Subject<string>();
-
-gkm.stdout.on('data', function (message: string) {
-    const data = message.toString().split(/\r\n|\r|\n/).filter(function (item) { return item; });
-    for (var i in data) {
-        rawKeyEvents$.next(data[i]);
+const rawKeyEvents$ = (new Observable<string>(subscriber => {
+    const gkm = spawn('java', ['-jar', path.join(__dirname, 'lib/gkm.jar')]);
+    const cb = function (message: string) {
+        const data = message.toString().split(/\r\n|\r|\n/).filter(function (item) { return item; });
+        for (var i in data) {
+            subscriber.next(data[i]);
+        }
+    };
+    gkm.stdout.on('data', cb);
+    return () => {
+        gkm.stdout.off('data', cb);
+        gkm.kill();
     }
-});
+})).pipe(
+    share()
+);
 
 const keyEvents$ = rawKeyEvents$.pipe(
     map((data: string) => {

@@ -1,0 +1,34 @@
+module.exports = {
+    // Whether the server should log all http requests to the console
+    accessLogging: true,
+
+    // Authorisation
+    auth: {
+        // Array of twitch usernames that have admin rights
+        admins: ["user"]
+    },
+
+    // Twitch settings
+    twitch: {
+        // Twitch channel to pull word of the hour information from
+        channel: ""
+    },
+
+    // Discord settings
+    discord: {
+        // Whether voice status should be shown for people speaking
+        voiceStatus: true,
+
+        // Array of channels to connect to (right click channel -> copy id with discord dev mod enabled)
+        channels: [""],
+
+        // Client ID for discord app
+        clientId: "",
+
+        // Secret key for discord app
+        clientSecret: "",
+
+        // Redirect URI for RPC server. http://localhost:3000/api/auth/callback/discord should be fine
+        redirectUri: "",
+    }
+}

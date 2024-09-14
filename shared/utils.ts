@@ -337,8 +337,8 @@ export function removeNode(node: any) {
 export function observeMousePosition(element: HTMLElement | undefined) {
     return fromDomEvent(element ?? document.documentElement, "mousemove").pipe(
         map(e => ({
-            x: e.pageX - element?.offsetLeft ?? 0,
-            y: e.pageY - element?.offsetTop ?? 0,
+            x: e.pageX - element.offsetLeft,
+            y: e.pageY - element.offsetTop,
         }))
     )
 }

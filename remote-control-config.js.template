@@ -1,17 +1,43 @@
 module.exports = {
+    // Hot key settings
     hotkeys: {
+        // Whether hotkeys are enabled or not. Enabled requires java to be installed
         enabled: true,
+
+        // Hotkey to toggle focus stream
         focus: ["Left Control", "Left Alt", "F"],
-        endFocus: ["Left Control", "Left Alt", "D"],
+
+        // Hotkey to toggle stream as active
+        active: ["Left Control", "Left Alt", "D"],
     },
+
+    // User ID use for word of the hour (must be one word)
     user: "",
+
+    // Username to show in the stream
     userName: "",
+
+    // Discord ID use for voice monitoring (right click user -> copy user id with dev mode in Discord)
     discordId: "",
+
+    // Remote socket for server to connect to
     socket: "ws://[ip]:3000/remote-control/websocket",
+
+    // AI speech to text
     whisper: {
+        // Model to use. tiny/small/large
         model: "small",
+
+        // How long to wait with no input for a phrase to be considered complete
         phrase_timeout: 3,
-        energy_threshold: 500,
+
+        // Amplitude for speech detection. 
+        energy_threshold: 1000,
+
+        // Minimum probability to ignore speech
+        min_probability: 0.4
     },
+
+    // Subtitle mode. Can be off/whisper/browser(non functional)
     subtitles: "off"
 }

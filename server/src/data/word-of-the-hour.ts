@@ -1,7 +1,6 @@
 import { Subject } from "rxjs";
-import tmi from "tmi.js";
-import config from "../config";
 import { logger } from "../lib/logger";
+import { TwitchChat } from "./twitch-chat";
 
 const log = logger("woth");
 export class WordOfTheHour {
@@ -9,66 +8,53 @@ export class WordOfTheHour {
     counts = new Map<string, number>();
     update$ = new Subject<void>();
 
-    constructor(twitchChannel: string) {
-        const client = new tmi.Client({
-            connection: {
-                secure: true,
-                reconnect: true
-            },
-            channels: [twitchChannel]
-        });
-
-        client.connect();
-
-        function isUserAdmin(name: string): boolean {
-            const regex = new RegExp(`^(${config.auth.admins.join("|")})$`);
-            const isAdmin = !!name.toLowerCase().match(regex);
-            return isAdmin;
-        }
-
-        client.on('message', (channel, tags, message, self) => {
-            const chatName = tags['display-name'];
-
-            const isAdmin = chatName && isUserAdmin(chatName);
-            const isCommand = message.startsWith('!');
-
-            if (isCommand && isAdmin) {
-                const args = message.slice(1).split(' ');
-                const command = args[0];
-                switch (command) {
-                    case "woth":
-                        {
-                            const name = args[1].toLowerCase();
-                            switch (name) {
-                                case "reset": {
-                                    this.counts = new Map<string, number>();
-                                    log.info(`Reset all counts`);
-                                    this.update$.next();
-                                } break;
-
-                                case "set": {
-                                    this.word = args[2] ?? null;
-                                    log.info(`Set to "${this.word}"`);
-                                    this.update$.next();
-                                } break;
-
-                                default: {
-                                    const amount = Number(args[2]);
-                                    const count = this.counts.get(name) || 0;
-                                    if (!isNaN(amount)) {
-                                        this.counts.set(name, Number(amount));
-                                        log.info(`Set ${name} to "${Number(amount)}"`);
-                                    } else {
-                                        this.counts.set(name, count + 1);
-                                        log.info(`Set ${name} to "${count + 1}"`);
-                                    }
-                                    this.update$.next();
-                                }
-                            }
-                        } break;
+    constructor(twitchChat: TwitchChat) {
+        twitchChat.observeCommand("woth").subscribe(command => {
+            const name = command.arguments[0].toLowerCase();
+            switch (name) {
+                case "reset": {
+                    this.reset();
+                } break;
+                case "set": {
+                    this.setWord(command.arguments[1] ?? null);
+                } break;
+                default: {
+                    const count = Number(command.arguments[1]);
+                    if (!isNaN(count)) {
+                        this.setUserCount(name, count);
+                    } else {
+                        this.incrementUserCount(name);
+                    }
                 }
             }
-            console.log(`${tags['display-name']}: ${message}`);
         });
+    }
+
+    setWord(word: string | null) {
+        log.info(`Set to "${this.word}"`);
+        this.update$.next();
+    }
+
+    incrementUserCount(user: string) {
+        const count = this.counts.get(user) || 0;
+        this.counts.set(user, count + 1);
+        log.info(`Set ${user} to "${count + 1}"`);
+        this.update$.next();
+    }
+
+    setUserCount(user: string, count: number) {
+        log.info(`Set ${user} to "${Number(count)}"`);
+        this.counts.set(user, Number(count));
+        this.update$.next();
+    }
+
+    reset() {
+        const newMap = new Map<string, number>();
+        for (let key in this.counts) {
+            newMap.set(key, 0);
+        }
+        this.counts = newMap;
+        log.info(`Reset all counts`);
+        this.update$.next();
     }
 }

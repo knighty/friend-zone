@@ -3,3 +3,4 @@ dist
 /resources
 /.env
 /remote-control-config.js
+/server-config.js

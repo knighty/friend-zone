@@ -1,13 +1,10 @@
 import { BehaviorSubject, combineLatest, debounceTime, distinctUntilChanged, endWith, exhaustMap, filter, fromEvent, interval, map, merge, Observable, scan, share, startWith, Subject, switchMap, takeWhile, tap } from "rxjs";
-import { observeScopedEvent } from "../../../shared/utils";
+import { observeScopedEvent } from "shared/utils";
+import { connectSocket } from "shared/websocket/browser";
 
 type SubtitleMessage = {
     id: number,
     text: string
-}
-type SocketMessage<D> = {
-    type: string,
-    data: D;
 }
 
 namespace SocketMessageData {
@@ -40,22 +37,12 @@ namespace SocketMessageData {
     }
 }
 
-const ws = new WebSocket(`${document.location.protocol == "https:" ? "wss:" : "ws:"}//${document.location.host}/websocket`);
-const websocketMessages$ = fromEvent<MessageEvent>(ws, "message").pipe(
-    map<MessageEvent, SocketMessage<any>>(event => JSON.parse(event.data)),
-    share()
-);
-
-function socketMessages<D>(type: string): Observable<D> {
-    return websocketMessages$.pipe(
-        filter(message => message.type == type),
-        map<SocketMessage<D>, D>(message => message.data as D)
-    )
-}
+const socket = connectSocket(`${document.location.protocol == "https:" ? "wss:" : "ws:"}//${document.location.host}/websocket`);
+socket.isConnected$.subscribe(isConnected => document.body.classList.toggle("connected", isConnected));
 
 class Webcam extends HTMLElement {
     connectedCallback() {
-        socketMessages<SocketMessageData.Webcam>("webcam").subscribe(cam => {
+        socket.receive<SocketMessageData.Webcam>("webcam").subscribe(cam => {
             const webcam = this.querySelector<HTMLElement>(".webcam");
             webcam.style.setProperty("--left", cam.position[0].toString());
             webcam.style.setProperty("--top", cam.position[1].toString());
@@ -85,7 +72,7 @@ class App extends HTMLElement {
         const subtitles$: Record<string, Subject<SubtitleMessage>> = {};
 
         const usersUpdated$ = new BehaviorSubject<boolean>(true);
-        const wothMessage$ = socketMessages<SocketMessageData.Woth>("woth").pipe(share());
+        const wothMessage$ = socket.receive<SocketMessageData.Woth>("woth").pipe(share());
         const wothCounts$ = wothMessage$.pipe(
             map(woth => woth.counts)
         );
@@ -118,20 +105,20 @@ class App extends HTMLElement {
         )
         merge(wothCountUpdates$, wothUpdated$).subscribe();
 
-        socketMessages<SocketMessageData.Voice>("voice").subscribe(data => {
+        socket.receive<SocketMessageData.Voice>("voice").subscribe(data => {
             for (let el of document.querySelectorAll<HTMLElement>(".friend-list [data-person]")) {
                 el.classList.toggle("speaking", !!data.users[el.dataset.discordId]);
             }
         });
 
-        socketMessages<SocketMessageData.Subtitles>("subtitles").subscribe(subtitle => {
+        socket.receive<SocketMessageData.Subtitles>("subtitles").subscribe(subtitle => {
             subtitles$[subtitle.userId].next({
                 id: subtitle.subtitleId,
                 text: subtitle.text
             });
         });
 
-        socketMessages<SocketMessageData.Users>("users").subscribe(users => {
+        socket.receive<SocketMessageData.Users>("users").subscribe(users => {
             const friendList = document.querySelector(".friend-list");
             const elements = Array.from(friendList.querySelectorAll<HTMLElement>(`[data-person]`));
             for (let userId in users) {
@@ -265,7 +252,7 @@ class Feed extends HTMLElement {
             },
         ]
 
-        socketMessages<SocketMessageData.FocusedFeed>("feed").pipe(
+        socket.receive<SocketMessageData.FocusedFeed>("feed").pipe(
             distinctUntilChanged((a, b) => a?.url == b?.url),
             debounceTime(100),
         ).subscribe(feed => {

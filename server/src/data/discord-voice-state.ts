@@ -1,61 +1,86 @@
-import RPC from "discord-rpc";
-import { interval, map, merge, Observable, scan, shareReplay, Subject } from "rxjs";
-import { Person } from "./users";
+import RPC, { RPCEvents } from "discord-rpc";
+import { map, merge, Observable, scan, shareReplay, Subject, switchMap, tap } from "rxjs";
+import config from "../config";
+import { logger } from "../lib/logger";
 
 type DiscordUser = string;
 type SpeakingMap = Map<DiscordUser, boolean>;
+const log = logger("discord-voice-status");
 
-//channel "407280611469033482"
+const client$ = (new Observable<RPC.Client>(subscriber => {
+    log.info(`Init RPC client`);
+    const client = new RPC.Client({ transport: 'ipc' });
+    client.on('ready', () => {
+        log.info(`RPC client ready`);
+        subscriber.next(client);
+    });
+    client.login({
+        clientId: config.discord.clientId,
+        clientSecret: config.discord.clientSecret,
+        redirectUri: config.discord.redirectUri,
+        scopes: ['rpc']
+    });
+    return () => client.destroy();
+})).pipe(shareReplay(1))
+
+namespace Events {
+    export type Speaking = { channel_id: string, user_id: string };
+
+    export type Message = {
+        message: {
+            nick: string,
+            content: string
+        }
+    };
+}
+
 export default class DiscordVoiceState {
     speaking$: Observable<SpeakingMap>;
-    startSpeaking$ = new Subject<{ channel_id: string, user_id: string }>();
-    stopSpeaking$ = new Subject<{ channel_id: string, user_id: string }>();
+    startSpeaking$ = new Subject<string>();
+    stopSpeaking$ = new Subject<string>();
 
     constructor() {
         this.speaking$ = merge(
-            this.startSpeaking$.pipe(map(e => (speakers: SpeakingMap) => speakers.set(e.user_id, true))),
-            this.stopSpeaking$.pipe(map(e => (speakers: SpeakingMap) => speakers.delete(e.user_id)))
+            this.startSpeaking$.pipe(map(userId => (speakers: SpeakingMap) => speakers.set(userId, true))),
+            this.stopSpeaking$.pipe(map(userId => (speakers: SpeakingMap) => speakers.delete(userId)))
         ).pipe(
             scan((a, c) => (c(a), a), new Map<DiscordUser, boolean>()),
             shareReplay(1),
         )
     }
 
-    mock(users: Map<string, Person>) {
-        interval(500).subscribe(e => {
-            const keys = Array.from(users.keys());
-            const key = keys[Math.floor(keys.length * Math.random())];
-            if (Math.random() > 0.5) {
-                this.startSpeaking$.next({ channel_id: "rgergeg", user_id: users.get(key).discordId });
-            } else {
-                this.stopSpeaking$.next({ channel_id: "rgergeg", user_id: users.get(key).discordId });
-            }
+    connectToChannel(channelId: string) {
+        function watch<T>(event: RPCEvents, data: any) {
+            return client$.pipe(
+                switchMap(client => {
+                    return new Observable<T>(subscriber => {
+                        log.info(`Subscribed to ${event} in channel "${channelId}"`);
+                        const fn = (e: T) => subscriber.next(e)
+                        const subscription = client.subscribe(event, data as T);
+                        client.on(event, fn);
+                        return () => {
+                            client.off(event, fn);
+                            log.info(`Unsubscribed from ${event} in channel "${channelId}"`);
+                            subscription.then(subscription => subscription.unsubscribe());
+                        }
+                    });
+                })
+            )
+        }
+
+        return merge(
+            watch<Events.Speaking>("SPEAKING_START", { channel_id: channelId }).pipe(
+                tap(e => this.startSpeaking$.next(e.user_id))
+            ),
+            watch<Events.Speaking>("SPEAKING_STOP", { channel_id: channelId }).pipe(
+                tap(e => this.stopSpeaking$.next(e.user_id))
+            ),
+            watch<Events.Message>("MESSAGE_CREATE", { channel_id: channelId }).pipe(
+                tap((e: any) => log.info(`[${e.message.nick}] ${e.message.content}`))
+            ),
+        ).subscribe({
+            error: error => log.error(error)
         });
-    }
-
-    connectToRpc(channelId: string) {
-        const client = new RPC.Client({ transport: 'ipc' });
-
-        client.on('ready', () => {
-            console.log(client.user);
-            console.log('Authed for user', client.user.username);
-
-            client.subscribe("SPEAKING_START", { channel_id: channelId });
-            client.subscribe("SPEAKING_STOP", { channel_id: channelId });
-            client.subscribe("MESSAGE_CREATE", { channel_id: channelId });
-            client.on("MESSAGE_CREATE", e => console.log(e));
-            client.on("SPEAKING_START", e => this.startSpeaking$.next(e));
-            client.on("SPEAKING_STOP", e => this.stopSpeaking$.next(e));
-        });
-
-        // Log in to RPC with client id
-        client.login({
-            clientId: '1282680646573097002',
-            clientSecret: 'EdF05JayGOQAJSAuDOTTAfzB2cDpFqEQ',
-            redirectUri: 'http://localhost:3000/api/auth/callback/discord',
-            scopes: ['rpc']
-        });
-
     }
 }
 

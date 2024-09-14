@@ -21,7 +21,8 @@
         "gkm": "^0.2.0",
         "sound-play": "^1.1.0",
         "ts-loader": "^9.5.1",
-        "ws": "^8.18.0"
+        "ws": "^8.18.0",
+        "shared": "../shared"
     },
     "devDependencies": {
         "@types/dom-speech-recognition": "^0.0.4",

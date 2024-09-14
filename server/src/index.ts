@@ -15,11 +15,12 @@ import config from "./config";
 import DiscordVoiceState from './data/discord-voice-state';
 import { ExternalFeeds } from './data/external-feeds';
 import Subtitles from './data/subtitles';
+import { TwitchChat } from './data/twitch-chat';
 import { Users } from './data/users';
 import Webcam from './data/webcam';
 import { WordOfTheHour } from './data/word-of-the-hour';
 import { MissingError } from './errors';
-import { logger } from './lib/logger';
+import { log, logger } from './lib/logger';
 import { errorHandler } from './plugins/errors';
 import { fastifyFavicon } from "./plugins/favicon";
 import { fastifyLogger } from './plugins/logger';
@@ -81,9 +82,15 @@ Dependencies
 */
 serverLog.info("Creating dependencies");
 const users = new Users();
-const wordOfTheHour = new WordOfTheHour(config.twitch.channel);
+const twitchChat = new TwitchChat(config.twitch.channel);
+twitchChat.observeMessages().subscribe(message => log.info(`${message.user}: ${message.text}`));
+const wordOfTheHour = new WordOfTheHour(twitchChat);
 const discordVoiceState = new DiscordVoiceState();
-discordVoiceState.connectToRpc("267039446572990465");
+if (config.discord.voiceStatus) {
+    for (let channel of config.discord.channels) {
+        discordVoiceState.connectToChannel(channel);
+    }
+}
 const webcam = new Webcam();
 const subtitles = new Subtitles();
 

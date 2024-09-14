@@ -1,14 +1,45 @@
+import path from "path";
 
 function env<T>(key: string) {
     return process.env[key] ? <T>process.env[key] : undefined;
 }
 
-export default {
-    port: Number(process.env.PORT) || 3000,
-    staticCaching: process.env.STATIC_CACHE == "true" || true,
-    accessLogging: process.env.ACCESS_LOGGING || process.env.NODE_ENV == "development",
+type Config = {
+    port: number,
+    staticCaching: boolean,
+    accessLogging: boolean,
     auth: {
-        admins: process.env.ADMINS ? process.env.ADMINS.split(",") : []
+        admins: string[]
+    },
+    errors: {
+        stackTraces: boolean
+    },
+    csrf: {
+        tokenLength: number,
+        tokenDuration: number
+    },
+    video: {
+        webcam: boolean,
+        vdoNinjaUrl?: string
+    },
+    twitch: {
+        channel?: string,
+    },
+    discord: {
+        voiceStatus?: boolean,
+        channels?: string[],
+        clientId?: string,
+        clientSecret?: string,
+        redirectUri?: string,
+    },
+};
+
+const defaultConfig: Config = {
+    port: 3000,
+    staticCaching: true,
+    accessLogging: true,
+    auth: {
+        admins: []
     },
     errors: {
         stackTraces: process.env.NODE_ENV == "development"
@@ -17,28 +48,17 @@ export default {
         tokenLength: 16, // Bytes of entropy
         tokenDuration: 60 * 60 * 1000
     },
-    memoryStore: {
-        host: "redis://redis"
-    },
-    database: {
-        connectionLimit: 10,
-        connection: {
-            host: 'db',
-            user: 'root',
-            password: 'password',
-            database: 'site'
-        }
-    },
     video: {
-        webcam: process.env.WEBCAM == "true" || false,
-        vdoNinjaUrl: process.env.VDO_NINJA_URL || null
+        webcam: false,
+        vdoNinjaUrl: null
     },
     twitch: {
-        log: process.env.TWITCH_LOG == "true" || false,
-        channel: process.env.TWITCH_CHANNEL,
-        updateFrequency: process.env.TWITCH_UPDATE_FREQUENCY ? Number(process.env.TWITCH_UPDATE_FREQUENCY) : 10 * 60 * 1000,
-        clientId: process.env.TWITCH_CLIENT,
-        secret: process.env.TWITCH_SECRET,
-        redirectUrl: process.env.TWITCH_REDIRECT_URL,
+    },
+    discord: {
     }
-} satisfies Record<string, any>
+};
+
+export default {
+    ...defaultConfig,
+    ...require(path.join(__dirname, "../../server-config.js")),
+} as Config
