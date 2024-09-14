@@ -37,7 +37,7 @@ namespace SocketMessageData {
     }
 }
 
-const socket = connectSocket(`${document.location.protocol == "https:" ? "wss:" : "ws:"}//${document.location.host}/websocket`);
+const socket = connectSocket(document.body.dataset.socketUrl);
 socket.isConnected$.subscribe(isConnected => document.body.classList.toggle("connected", isConnected));
 
 class Webcam extends HTMLElement {

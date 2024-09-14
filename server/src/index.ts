@@ -150,6 +150,7 @@ fastifyApp.get("/", async (req, res) => {
         webcam: config.video.webcam,
         vdoNinjaUrl: config.video.vdoNinjaUrl,
         showWebcam: false,
+        socketUrl: `${config.socketHost}/websocket`,
         style: await getManifestPath("main.css"),
         scripts: await getManifestPath("main.js"),
     })

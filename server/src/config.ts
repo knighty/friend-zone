@@ -32,6 +32,7 @@ type Config = {
         clientSecret?: string,
         redirectUri?: string,
     },
+    socketHost: string,
 };
 
 const defaultConfig: Config = {
@@ -55,7 +56,8 @@ const defaultConfig: Config = {
     twitch: {
     },
     discord: {
-    }
+    },
+    socketHost: "ws://localhost:3000"
 };
 
 export default {
