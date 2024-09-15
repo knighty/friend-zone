@@ -6,7 +6,7 @@ import Fastify, { FastifyInstance } from "fastify";
 import fs from "fs";
 import child_process from "node:child_process";
 import path from "node:path";
-import { BehaviorSubject, EMPTY, filter, firstValueFrom, map, merge, Observable, scan, shareReplay, switchMap, takeUntil, tap } from "rxjs";
+import { BehaviorSubject, debounceTime, EMPTY, filter, firstValueFrom, map, merge, Observable, scan, shareReplay, switchMap, takeUntil, tap } from "rxjs";
 import { serverSocket } from 'shared/websocket/server';
 import { log, logger } from "../../server/src/lib/logger";
 import { config } from "./config";
@@ -33,6 +33,7 @@ function dynamicConfig<T>(initial: T) {
 type Feed = {
     url: string,
     aspectRatio: string,
+    sourceAspectRatio: string,
 }
 
 const [setFeed, feed$] = dynamicConfig<Feed | null>(null);
@@ -70,6 +71,7 @@ fastifyApp.register(fastifyStatic, {
 });
 
 remoteControl.isConnected$.pipe(
+    debounceTime(500),
     switchMap(isConnected => {
         if (isConnected) {
             return merge(
@@ -105,13 +107,15 @@ fastifyApp.register(async (fastify: FastifyInstance) => {
         const configSetters$ = merge(
             configMessage<{
                 url: string,
-                aspectRatio: string
+                aspectRatio: string,
+                sourceAspectRatio: string
             }>("feed").pipe(
                 tap(feed => {
                     if (feed.url != "") {
                         setFeed({
                             url: feed.url,
                             aspectRatio: feed.aspectRatio,
+                            sourceAspectRatio: feed.sourceAspectRatio,
                         });
                     } else {
                         setFeed(null);

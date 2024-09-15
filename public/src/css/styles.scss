@@ -134,8 +134,6 @@ x-app {
     video,
     iframe {
         width: 100%;
-        max-height: 34em;
-        clip-path: polygon(12em 0, 100% 0, 100% 100%, 0 100%, 0 100%, 0 var(--cutout-size), 10em var(--cutout-size));
         display: block;
         /*--rotation: 0deg;
         width: 400px;
@@ -151,20 +149,51 @@ x-app {
     }
 }
 
-.feed {
+.feed-container {
+    --left: 0;
+    --top: 0.5;
+    --width: calc(100vw - 2em - 100%);
+    --height: calc(100vh - 2em - 100%);
     --cutout-size: 2.5rem;
-    --aspect-ratio: 16/9;
-    width: 600px;
-    transition:
-        transform 0.5s,
-        opacity 0.5s;
-    transform: translate(-100%, 0);
-    opacity: 0;
-    grid-row: 2;
+    --size: 0.3;
 
-    &.show {
-        transform: translate(0%, 0);
-        opacity: 1;
+    .feed {
+        --aspect-ratio: 16/9;
+
+        position: fixed;
+        left: 1em;
+        top: 1em;
+        transform: translate(calc(var(--width) * var(--left)), calc(var(--height) * var(--top)));
+        aspect-ratio: var(--aspect-ratio);
+
+        width: calc((var(--size) / 100) * (100vw - 2em));
+        opacity: 0;
+        transition:
+            transform 0.5s,
+            opacity 0.5s;
+        &.show {
+            //transform: translate(0%, 0);
+            opacity: 1;
+        }
+    }
+
+    .video {
+        height: 100%;
+    }
+
+    .video-container {
+        clip-path: polygon(12em 0, 100% 0, 100% 100%, 0 100%, 0 100%, 0 var(--cutout-size), 10em var(--cutout-size));
+        overflow: hidden;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        height: 100%;
+
+        iframe {
+            aspect-ratio: var(--source-aspect-ratio);
+            place-self: center;
+            height: 100%;
+            width: auto;
+        }
     }
 
     .name {

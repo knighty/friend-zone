@@ -75,7 +75,7 @@ const config: any = {
     },
     entry: {
         main: [path.join(dirs.css, "styles.scss"), path.join(dirs.js, "index.ts")],
-        dashboard: [path.join(dirs.css, "dashboard.scss")],
+        dashboard: [path.join(dirs.css, "dashboard.scss"), path.join(dirs.js, "dashboard.ts")],
     },
     output: {
         path: path.resolve(__dirname, 'dist'),

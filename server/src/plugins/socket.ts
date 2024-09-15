@@ -4,7 +4,7 @@ import { serverSocket } from "shared/websocket/server";
 
 type WebsocketMessageStream = Observable<{
     type: string,
-    data: object | string
+    data: any
 }>
 
 export const socket = (streams: WebsocketMessageStream[]) => async (fastify: FastifyInstance, options: {}) => {
@@ -15,9 +15,7 @@ export const socket = (streams: WebsocketMessageStream[]) => async (fastify: Fas
             tap(o => socket.send(o.type, o.data))
         )
 
-        merge(
-            streams$,
-        ).pipe(
+        streams$.pipe(
             takeUntil(socket.disconnected$)
         ).subscribe();
     })

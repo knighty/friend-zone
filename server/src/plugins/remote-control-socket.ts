@@ -1,5 +1,5 @@
 import { FastifyInstance } from "fastify";
-import { BehaviorSubject, catchError, EMPTY, map, merge, Observable, of, switchMap, tap } from "rxjs";
+import { BehaviorSubject, catchError, EMPTY, map, Observable, of, switchMap, takeUntil, tap } from "rxjs";
 import { serverSocket } from "shared/websocket/server";
 import { ExternalFeeds } from "../data/external-feeds";
 import Subtitles from "../data/subtitles";
@@ -28,7 +28,8 @@ namespace Messages {
 
     export type RegisterFeed = {
         url: string;
-        aspectRatio: string
+        aspectRatio: string,
+        sourceAspectRatio: string
     }
 
     export type Active = {
@@ -52,21 +53,23 @@ export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds, 
             }
         }>(ws);
 
-        const feed$ = new BehaviorSubject<{ url: string, aspectRatio: string } | null>(null);
+        const feed$ = new BehaviorSubject<{ url: string, aspectRatio: string, sourceAspectRatio: string } | null>(null);
         const feedActive$ = new BehaviorSubject(false);
 
         const feedObservable$ = feed$.pipe(
-            switchMap(feed => of(feed).pipe(map(feed => ({ url: new URL(feed.url), aspectRatio: feed.aspectRatio })), catchError(e => EMPTY))),
+            switchMap(feed => of(feed).pipe(map(feed => ({ url: new URL(feed.url), aspectRatio: feed.aspectRatio, sourceAspectRatio: feed.sourceAspectRatio })), catchError(e => EMPTY))),
             tap(feed => {
                 feeds.addFeed({
                     user: userId,
                     focused: null,
                     active: true,
                     aspectRatio: feed.aspectRatio,
+                    sourceAspectRatio: feed.sourceAspectRatio,
                     url: feed.url.href
                 });
                 feeds.updateFeed(userId, {
                     aspectRatio: feed.aspectRatio,
+                    sourceAspectRatio: feed.sourceAspectRatio,
                     url: feed.url.href
                 })
             }),
@@ -110,16 +113,18 @@ export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds, 
             log.info(`${userName} is now ${data.isActive ? "active" : "inactive"}`);
         });
 
-        socket.disconnected$.subscribe(() => {
+        function disconnect() {
             feeds.removeFeed(userId);
             users.removePerson(userId);
             log.info(`${userName} disconnected`);
+        }
+        socket.connection$.subscribe({
+            complete: disconnect,
+            error: disconnect
         });
 
-        socket.connected$.pipe(
-            switchMap(client => merge(
-                feedObservable$,
-            ))
+        feedObservable$.pipe(
+            takeUntil(socket.disconnected$)
         ).subscribe();
     })
 }

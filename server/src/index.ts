@@ -21,6 +21,7 @@ import Webcam from './data/webcam';
 import { WordOfTheHour } from './data/word-of-the-hour';
 import { MissingError } from './errors';
 import { log, logger } from './lib/logger';
+import { configSocket } from './plugins/config-socket';
 import { errorHandler } from './plugins/errors';
 import { fastifyFavicon } from "./plugins/favicon";
 import { fastifyLogger } from './plugins/logger';
@@ -158,8 +159,9 @@ fastifyApp.get("/", async (req, res) => {
 
 fastifyApp.get("/dashboard", async (req, res) => {
     return res.viewAsync("dashboard", {
+        socketUrl: `${config.socketHost}/config/websocket`,
         style: await getManifestPath("dashboard.css"),
-        scripts: await getManifestPath("main.js"),
+        scripts: await getManifestPath("dashboard.js"),
     })
 })
 
@@ -233,8 +235,23 @@ const feed$ = feeds.focusedFeed$.pipe(
     }))
 )
 
-fastifyApp.register(socket([woth$, webcam$, voiceState$, subtitles$, feed$, users$]));
+const feedPosition$ = feeds.feedPosition$.pipe(
+    map(position => ({
+        type: "feedPosition",
+        data: position
+    }))
+)
+
+const feedSize$ = feeds.feedSize$.pipe(
+    map(size => ({
+        type: "feedSize",
+        data: size
+    }))
+)
+
+fastifyApp.register(socket([woth$, webcam$, voiceState$, subtitles$, feed$, users$, feedPosition$, feedSize$]));
 fastifyApp.register(remoteControlSocket(subtitles, feeds, users));
+fastifyApp.register(configSocket(feeds.slideshowFrequency$, feeds.feedSize$, feeds.feedPosition$));
 
 serverLog.info("Listen...");
 const server = fastifyApp.listen({ port: config.port, host: "0.0.0.0" }, function (err, address) {

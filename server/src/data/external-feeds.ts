@@ -1,14 +1,18 @@
-import { combineLatest, distinctUntilChanged, map, merge, Observable, of, scan, shareReplay, Subject, switchMap, timer } from "rxjs";
+import { BehaviorSubject, combineLatest, distinctUntilChanged, map, merge, Observable, of, scan, shareReplay, Subject, switchMap, timer } from "rxjs";
+import { logger } from "shared/logger";
 
 type Feed = {
     user: string,
     aspectRatio: string,
+    sourceAspectRatio: string,
     url: string,
     focused: Date | null;
     active: boolean,
 }
 
 type FeedMap = Map<string, Feed>;
+
+const log = logger("feeds");
 
 export class ExternalFeeds {
     addFeed$ = new Subject<Feed>();
@@ -19,6 +23,9 @@ export class ExternalFeeds {
     feeds$: Observable<Map<string, Feed>>;
     activeFeeds$: Observable<Feed[]>;
     focusedFeed$: Observable<Feed>;
+    slideshowFrequency$ = new BehaviorSubject<number>(30);
+    feedSize$ = new BehaviorSubject<number>(30);
+    feedPosition$ = new BehaviorSubject<[number, number]>([0, 0.5]);
 
     constructor() {
         this.feeds$ = merge(
@@ -42,13 +49,21 @@ export class ExternalFeeds {
         )
         this.feeds$.subscribe();
 
-        const untilFeedChanged = () => distinctUntilChanged<Feed | null>((previous, next) => previous == next);
+        const untilFeedChanged = () => distinctUntilChanged<Feed | null>((previous, next) => {
+            return (previous?.url == next?.url) && (previous?.aspectRatio == next?.aspectRatio) && (previous?.sourceAspectRatio == next?.sourceAspectRatio);
+        });
 
         this.activeFeeds$ = this.feeds$.pipe(
             map(feeds => Array.from(feeds.values()).filter(feed => feed.active)),
             shareReplay(1),
         )
-        const slideshow$ = combineLatest([this.activeFeeds$, timer(0, 30 * 1000)]).pipe(
+        const slideshowTimer$ = this.slideshowFrequency$.pipe(
+            switchMap(frequency => {
+                log.info(`Starting slideshow, changing every ${frequency}s`);
+                return timer(0, frequency * 1000)
+            })
+        )
+        const slideshow$ = combineLatest([this.activeFeeds$, slideshowTimer$]).pipe(
             map(([feeds, i]) => feeds[i % feeds.length]),
             untilFeedChanged(),
             shareReplay(1),
@@ -57,16 +72,20 @@ export class ExternalFeeds {
         const focused$ = this.feeds$.pipe(
             map(feeds => Array.from(feeds.values()).filter(feed => feed.focused).toSorted((a, b) => focusedTime(b) - focusedTime(a))),
             map(feeds => (feeds.length > 0 ? feeds[0] : null)),
+
             untilFeedChanged()
         )
         this.focusedFeed$ = focused$.pipe(
             switchMap(focusedFeed => {
                 if (focusedFeed) {
+                    log.info(`Feed mode: Focus`);
                     return of(focusedFeed)
                 } else {
+                    log.info(`Feed mode: Slideshow`);
                     return slideshow$
                 }
             }),
+            untilFeedChanged(),
             shareReplay(1)
         )
     }

@@ -13,24 +13,49 @@
 	<link href="https://fonts.googleapis.com/css2?family=Rubik+Mono+One&display=swap" rel="stylesheet">
 </head>
 
-<body>
-	<x-dashboard>
-		<h1>Webcam</h1>
-		<h2>Position</h2>
-		<ul class="webcam-positions">
-			<li><button data-action="setWebcamPosition" value="0,0">↖</button></li>
-			<li><button data-action="setWebcamPosition" value="0.5,0">↑</button></li>
-			<li><button data-action="setWebcamPosition" value="1,0">↗</button></li>
-			<li><button data-action="setWebcamPosition" value="0,0.5">←</button></li>
-			<li><button data-action="setWebcamPosition" value="0.5,0.5">·</button></li>
-			<li><button data-action="setWebcamPosition" value="1,0.5">→</button></li>
-			<li><button data-action="setWebcamPosition" value="0,1">↙</button></li>
-			<li><button data-action="setWebcamPosition" value="0.5,1">↓</button></li>
-			<li><button data-action="setWebcamPosition" value="1,1">↘</button></li>
-		</ul>
-	</x-dashboard>
+<body data-socket-url="<%= socketUrl %>">
+	<main>
+		<x-dashboard>
+			<fieldset>
+				<legend>Webcam</legend>
+				<h2>Position</h2>
+				<ul class="webcam-positions">
+					<li><button data-action="setWebcamPosition" value="0,0">↖</button></li>
+					<li><button data-action="setWebcamPosition" value="0.5,0">↑</button></li>
+					<li><button data-action="setWebcamPosition" value="1,0">↗</button></li>
+					<li><button data-action="setWebcamPosition" value="0,0.5">←</button></li>
+					<li><button data-action="setWebcamPosition" value="0.5,0.5">·</button></li>
+					<li><button data-action="setWebcamPosition" value="1,0.5">→</button></li>
+					<li><button data-action="setWebcamPosition" value="0,1">↙</button></li>
+					<li><button data-action="setWebcamPosition" value="0.5,1">↓</button></li>
+					<li><button data-action="setWebcamPosition" value="1,1">↘</button></li>
+				</ul>
+			</fieldset>
+			<fieldset>
+				<legend>Feeds</legend>
+				<label>
+					Slideshow Frequency
+					<input type="text" id="slideshowFrequency" />
+				</label>
+				<label>
+					Feed Size (%)
+					<input type="text" id="feedSize" />
+				</label>
+				<ul class="webcam-positions">
+					<li><button data-action="setFeedPosition" value="0,0">↖</button></li>
+					<li><button data-action="setFeedPosition" value="0.5,0">↑</button></li>
+					<li><button data-action="setFeedPosition" value="1,0">↗</button></li>
+					<li><button data-action="setFeedPosition" value="0,0.5">←</button></li>
+					<li><button data-action="setFeedPosition" value="0.5,0.5">·</button></li>
+					<li><button data-action="setFeedPosition" value="1,0.5">→</button></li>
+					<li><button data-action="setFeedPosition" value="0,1">↙</button></li>
+					<li><button data-action="setFeedPosition" value="0.5,1">↓</button></li>
+					<li><button data-action="setFeedPosition" value="1,1">↘</button></li>
+				</ul>
+			</fieldset>
+		</x-dashboard>
+	</main>
 	<script src='<%= scripts %>'></script>
-
 </body>
 
 </html>

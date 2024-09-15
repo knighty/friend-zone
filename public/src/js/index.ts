@@ -1,5 +1,5 @@
-import { BehaviorSubject, combineLatest, debounceTime, distinctUntilChanged, endWith, exhaustMap, filter, fromEvent, interval, map, merge, Observable, scan, share, startWith, Subject, switchMap, takeWhile, tap } from "rxjs";
-import { observeScopedEvent } from "shared/utils";
+import { BehaviorSubject, combineLatest, debounceTime, delay, distinctUntilChanged, EMPTY, endWith, exhaustMap, filter, finalize, fromEvent, interval, map, merge, Observable, scan, share, startWith, Subject, switchMap, takeWhile, tap } from "rxjs";
+import { createElement } from "shared/utils";
 import { connectBrowserSocket } from "shared/websocket/browser";
 
 type SubtitleMessage = {
@@ -33,8 +33,11 @@ namespace SocketMessageData {
         focused: string,
         active: boolean,
         url: string,
-        aspectRatio: string
+        aspectRatio: string,
+        sourceAspectRatio: string,
     }
+    export type FeedPosition = [number, number]
+    export type FeedSize = number
 }
 
 const socket = connectBrowserSocket(document.body.dataset.socketUrl);
@@ -210,21 +213,17 @@ class App extends HTMLElement {
     }
 }
 
-class Dashboard extends HTMLElement {
-    connectedCallback() {
-        observeScopedEvent<HTMLInputElement, "click">(this, "click", "[data-action=setWebcamPosition]").subscribe(([e, element]) => {
-            const position = element.value.split(",");
-            fetch("/settings/webcam-position", {
-                method: "POST",
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: new URLSearchParams({ left: position[0], top: position[1] })
-            });
-        })
-    }
-}
-
 class Feed extends HTMLElement {
     connectedCallback() {
+        socket.receive<SocketMessageData.FeedPosition>("feedPosition").subscribe(position => {
+            this.style.setProperty("--left", position[0].toString());
+            this.style.setProperty("--top", position[1].toString());
+        });
+
+        socket.receive<SocketMessageData.FeedPosition>("feedSize").subscribe(size => {
+            this.style.setProperty("--size", size.toString());
+        });
+
         const urlHandlers = [
             (url: string) => {
                 const matches = url.match(/(?:youtu\.be\/|youtube\.com(?:\/embed\/|\/v\/|\/watch\?v=|\/user\/\S+|\/ytscreeningroom\?v=))([\w\-]{10,12})\b/);
@@ -252,10 +251,83 @@ class Feed extends HTMLElement {
             },
         ]
 
-        socket.receive<SocketMessageData.FocusedFeed>("feed").pipe(
-            distinctUntilChanged((a, b) => a?.url == b?.url),
+        /*<div class="video-shadow"></div>
+                <div class="video">
+                    <iframe src="about:blank" allow="autoplay;"></iframe>
+                </div>
+                <span class="name">knighty</span>*/
+
+        const feedItems$ = socket.receive<SocketMessageData.FocusedFeed>("feed").pipe(
             debounceTime(100),
-        ).subscribe(feed => {
+        );
+
+        type FeedItem = {
+            url: string,
+            user: string,
+            feed: {
+                observable: Observable<any>,
+                setAspectRatio: (aspectRatio: string) => void,
+                setSourceAspectRatio: (aspectRatio: string) => void,
+            }
+        }
+
+        feedItems$.pipe(
+            scan((a, feed) => {
+                if (feed == null)
+                    return null;
+
+                for (const handler of urlHandlers) {
+                    const newUrl = handler(feed.url);
+                    if (newUrl) {
+                        feed.url = newUrl;
+                        break;
+                    }
+                }
+
+                if (a?.url == feed.url) {
+                    a.feed.setAspectRatio(feed.aspectRatio);
+                    a.feed.setSourceAspectRatio(feed.sourceAspectRatio);
+                    return a;
+                } else {
+                    const element = createElement("div", { classes: ["feed"] });
+                    element.style.setProperty("--aspect-ratio", feed.aspectRatio);
+                    element.style.setProperty("--source-aspect-ratio", feed.sourceAspectRatio);
+                    element.innerHTML = `<div class="video-shadow"></div>
+                    <div class="video">
+                        <div class="video-container">
+                            <iframe src="${feed.url}" allow="autoplay;"></iframe>
+                        </div>
+                    </div>
+                    <span class="name">${feed.user}</span>`;
+
+                    this.appendChild(element);
+                    const observable$ = new Observable(subscriber => subscriber.next(element)).pipe(
+                        tap(() => element.classList.add("show")),
+                        finalize(() => {
+                            element.classList.remove("show")
+                            setTimeout(() => element.remove(), 1000);
+                        })
+                    );
+
+                    return {
+                        feed: {
+                            observable: observable$,
+                            setAspectRatio: (aspectRatio: string) => element.style.setProperty("--aspect-ratio", aspectRatio),
+                            setSourceAspectRatio: (aspectRatio: string) => element.style.setProperty("--source-aspect-ratio", aspectRatio),
+                        },
+                        url: feed.url,
+                        user: feed.user
+                    }
+                }
+            }, null as FeedItem),
+            map(feedItem => feedItem?.feed.observable),
+            distinctUntilChanged(),
+            delay(2000),
+            switchMap(observable => observable ? observable : EMPTY)
+        ).subscribe();
+
+
+        /*feedItems$.subscribe(feed => {
             const iframe = this.querySelector<HTMLIFrameElement>("iframe");
             if (feed == null) {
                 iframe.src = "about:blank";
@@ -274,11 +346,10 @@ class Feed extends HTMLElement {
             }
             iframe.src = feed.url;
             this.classList.toggle("show", true);
-        })
+        })*/
     }
 }
 
 customElements.define("x-app", App);
-customElements.define("x-dashboard", Dashboard);
 customElements.define("x-feed", Feed);
 customElements.define("x-webcam", Webcam);

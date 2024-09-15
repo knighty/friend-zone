@@ -95,6 +95,7 @@ fromDomEvent(document.getElementById("updateFeedButton"), "click").subscribe(e =
         value: {
             url: element<HTMLInputElement>("feedUrl").value,
             aspectRatio: element<HTMLInputElement>("feedAspectRatio").value,
+            sourceAspectRatio: element<HTMLInputElement>("feedSourceAspectRatio").value,
         }
     })
 })

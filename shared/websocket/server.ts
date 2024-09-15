@@ -1,4 +1,4 @@
-import { BehaviorSubject, filter, fromEvent, ignoreElements, interval, map, merge, Observable, share, shareReplay, Subject, switchMap, takeUntil, tap } from "rxjs";
+import { BehaviorSubject, endWith, filter, fromEvent, ignoreElements, interval, map, merge, Observable, share, shareReplay, Subject, switchMap, takeUntil, tap } from "rxjs";
 import { WebSocket } from "ws";
 import { logger } from "../logger";
 
@@ -95,8 +95,8 @@ export function serverSocket<T extends ServerSocket>(ws: WebSocket, opts?: Optio
         receive: socketMessages,
         send: send,
         isConnected$,
-        disconnected$: client$.pipe(ignoreElements()),
-        connected$: client$,
+        connection$: client$,
+        disconnected$: client$.pipe(ignoreElements(), endWith(true)),
         disconnect
     }
 }
