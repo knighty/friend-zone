@@ -22,6 +22,7 @@ export function initSocket(url: string, userId: string, userName: string, discor
     return {
         subtitles: subtitles,
         feed,
+        connection$: socket.connected$,
         isConnected$: socket.isConnected$
     }
 }

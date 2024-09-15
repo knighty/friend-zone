@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
-import { distinctUntilChanged, EMPTY, filter, map, merge, Observable, share, startWith, switchMap } from "rxjs";
+import { distinctUntilChanged, filter, map, merge, Observable, of, share, startWith, switchMap } from "rxjs";
 
 const rawKeyEvents$ = (new Observable<string>(subscriber => {
     const gkm = spawn('java', ['-jar', path.join(__dirname, 'lib/gkm.jar')]);
@@ -37,13 +37,13 @@ export function keyEvent(e: string) {
 
 export function pressed(key: string) {
     return keyEvent("key.pressed").pipe(
-        filter(e => e.data == key)
+        filter(e => e.data == key),
     );
 }
 
 export function released(key: string) {
     return keyEvent("key.released").pipe(
-        filter(e => e.data == key)
+        filter(e => e.data == key),
     );
 }
 
@@ -61,7 +61,7 @@ export function hotkey(hotkeys: string[]) {
     let hotkey$ = held(hotkeys[0]);
     for (let hotkey of hotkeys.slice(1)) {
         hotkey$ = hotkey$.pipe(
-            switchMap(e => e ? held(hotkey) : EMPTY)
+            switchMap(e => e ? held(hotkey) : of(false))
         )
     }
     return hotkey$.pipe(filter(v => v));
