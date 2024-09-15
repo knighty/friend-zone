@@ -2,7 +2,7 @@ call git pull
 echo Install root
 call npm ci
 echo Install shared
-pushd .\public
+pushd .\shared
 call npm ci
 popd
 pushd .\remote-control

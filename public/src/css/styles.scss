@@ -270,16 +270,19 @@ x-app {
 
 .theme-lethal-company {
     font-family: monospace;
+    --blue: #353366;
+    --light-blue: #b6b5d4;
 
     .word-of-the-hour {
         font-size: 1.2em;
         font-weight: bold;
+        text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.2);
 
         .word-container {
             border: 5px solid;
-            border-image: url("../images/lethal-company-frame.png") 16 / 16px;
+            border-image: url("../images/lethal-company-frame.png") 32 / 32px;
             border-image-repeat: repeat;
-            color: #353366;
+            color: var(--light-blue);
 
             label {
             }
@@ -299,10 +302,10 @@ x-app {
 
     .video {
         border: 5px solid;
-        border-image: url("../images/lethal-company-frame.png") 16 / 16px;
+        border-image: url("../images/lethal-company-frame.png") 32 / 32px;
         border-image-repeat: repeat;
         overflow: hidden;
-        color: #353366;
+        color: var(--blue);
         padding: 0.5em;
     }
 
@@ -312,13 +315,15 @@ x-app {
         transform: skew(0deg, -5deg);
         width: 32em;
         margin-bottom: 2em;
+        text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.2);
 
         li {
             .user {
+                background: #0002;
                 border: 5px solid;
-                border-image: url("../images/lethal-company-frame.png") 24 / 16px;
+                border-image: url("../images/lethal-company-frame.png") 32 / 32px;
                 border-image-repeat: repeat;
-                color: #353366;
+                color: var(--light-blue);
 
                 @keyframes animate-person {
                     0% {
@@ -361,8 +366,9 @@ x-app {
 
         .subtitles {
             font-family: monospace;
-            color: #353366;
+            color: var(--light-blue);
             font-weight: bold;
+            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.2);
         }
     }
 
@@ -371,7 +377,7 @@ x-app {
             position: absolute;
             left: 0;
             top: 0;
-            background: #353366;
+            background: var(--blue);
             color: #c8c7d1;
             padding: 0.3em 1em;
             font-size: 1.3em;
