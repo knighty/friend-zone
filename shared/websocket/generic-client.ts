@@ -36,7 +36,7 @@ export function connectGenericClient(socketFactory: (url: string) => Socket) {
 
         const clientConnection$ = new Observable<Socket>(subscriber => {
             const ws = socketFactory(url);
-            log.info("Connecting to socket...");
+            log.info(`Connecting to ${url}...`);
             const errorSubscription = ws.on("error", (e: any) => {
                 log.error("Socket error");
                 subscriber.error(e);

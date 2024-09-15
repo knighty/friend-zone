@@ -43,7 +43,6 @@ if (config.hotkeys.enabled) {
     hotkey(config.hotkeys.focus).pipe(
         scan((a, c) => !a, false)
     ).subscribe(focus => {
-        console.log(`Focus: ${focus}`);
         remoteControl.feed(focus ? "focus" : "unfocus");
         sound.play(`C:/windows/media/${focus ? "Speech On.wav" : "Speech Off.wav"}`);
     });
