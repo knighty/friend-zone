@@ -48,7 +48,7 @@ export class ExternalFeeds {
             map(feeds => Array.from(feeds.values()).filter(feed => feed.active)),
             shareReplay(1),
         )
-        const slideshow$ = combineLatest([this.activeFeeds$, timer(0, 3 * 1000)]).pipe(
+        const slideshow$ = combineLatest([this.activeFeeds$, timer(0, 30 * 1000)]).pipe(
             map(([feeds, i]) => feeds[i % feeds.length]),
             untilFeedChanged(),
             shareReplay(1),

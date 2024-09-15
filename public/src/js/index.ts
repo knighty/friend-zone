@@ -1,6 +1,6 @@
 import { BehaviorSubject, combineLatest, debounceTime, distinctUntilChanged, endWith, exhaustMap, filter, fromEvent, interval, map, merge, Observable, scan, share, startWith, Subject, switchMap, takeWhile, tap } from "rxjs";
 import { observeScopedEvent } from "shared/utils";
-import { connectSocket } from "shared/websocket/browser";
+import { connectBrowserSocket } from "shared/websocket/browser";
 
 type SubtitleMessage = {
     id: number,
@@ -37,7 +37,7 @@ namespace SocketMessageData {
     }
 }
 
-const socket = connectSocket(document.body.dataset.socketUrl);
+const socket = connectBrowserSocket(document.body.dataset.socketUrl);
 socket.isConnected$.subscribe(isConnected => document.body.classList.toggle("connected", isConnected));
 
 class Webcam extends HTMLElement {

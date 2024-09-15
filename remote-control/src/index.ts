@@ -6,7 +6,8 @@ import Fastify, { FastifyInstance } from "fastify";
 import fs from "fs";
 import child_process from "node:child_process";
 import path from "node:path";
-import { BehaviorSubject, EMPTY, filter, firstValueFrom, fromEvent, ignoreElements, interval, map, merge, Observable, of, scan, share, shareReplay, switchMap, takeUntil, tap } from "rxjs";
+import { BehaviorSubject, EMPTY, filter, firstValueFrom, map, merge, Observable, scan, shareReplay, switchMap, takeUntil, tap } from "rxjs";
+import { serverSocket } from 'shared/websocket/server';
 import { log, logger } from "../../server/src/lib/logger";
 import { config } from "./config";
 import { hotkey } from "./hotkeys";
@@ -87,40 +88,15 @@ type SocketMessage<D> = {
 
 const remoteControlLog = logger("remote-control");
 fastifyApp.register(async (fastify: FastifyInstance) => {
-    fastify.get('/websocket', { websocket: true }, (socket, req) => {
-        function send(type: string, data?: object | string) {
-            socket.send(JSON.stringify({
-                type,
-                data
-            }));
-        }
-
-        const ping$ = interval(30 * 1000).pipe(
-            tap(i => socket.ping()),
-        );
-
-        const websocketMessages$ = fromEvent<MessageEvent>(socket, "message").pipe(
-            switchMap<MessageEvent, Observable<SocketMessage<any>>>(event => {
-                try {
-                    const data = JSON.parse(event.data);
-                    return of(data);
-                } catch (e: any) {
-                    remoteControlLog.error(e.message);
-                    return EMPTY;
-                }
-            }),
-            share()
-        );
-
-        function socketMessages<Data>(type: string): Observable<Data> {
-            return websocketMessages$.pipe(
-                filter(message => message.type == type),
-                map<SocketMessage<Data>, Data>(message => message.data as Data)
-            )
-        }
+    fastify.get('/websocket', { websocket: true }, (ws, req) => {
+        const socket = serverSocket<{
+            Events: {
+                "config": { key: string, value: any }
+            }
+        }>(ws);
 
         function configMessage<ConfigValue>(config: string): Observable<ConfigValue> {
-            return socketMessages<{ key: string, value: ConfigValue }>("config").pipe(
+            return socket.receive("config").pipe(
                 filter(message => message.key == config),
                 map(message => message.value)
             )
@@ -154,28 +130,22 @@ fastifyApp.register(async (fastify: FastifyInstance) => {
             feed$.pipe(map(url => ({ key: "feedUrl", value: url }))),
             feedActive$.pipe(map(active => ({ key: "feedActive", value: active }))),
         ).pipe(
-            tap(message => send("config", message))
+            tap(message => socket.send("config", message))
         );
 
         const connectionStatus$ = remoteControl.isConnected$.pipe(
             tap(isConnected => {
-                send("connectionStatus", { isConnected })
+                socket.send("connectionStatus", { isConnected })
             })
         );
 
         merge(
             configMessages$,
             configSetters$,
-            ping$,
             connectionStatus$
         ).pipe(
-            ignoreElements(),
-            takeUntil(fromEvent(socket, "close"))
-        ).subscribe({
-            complete: () => {
-                log.info("Closing web socket", "websocket");
-            }
-        });
+            takeUntil(socket.disconnected$)
+        ).subscribe();
     })
 });
 

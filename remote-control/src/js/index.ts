@@ -1,5 +1,5 @@
 import { fromDomEvent, observeScopedEvent } from "shared/utils";
-import { connectSocket } from "shared/websocket/browser";
+import { connectBrowserSocket } from "shared/websocket/browser";
 
 if (window.webkitSpeechRecognition) {
     let lastId = 0;
@@ -63,7 +63,7 @@ if (window.webkitSpeechRecognition) {
     }
 }
 
-const socket = connectSocket(`${document.location.protocol == "https:" ? "wss:" : "ws:"}//${document.location.host}/websocket`);
+const socket = connectBrowserSocket(`${document.location.protocol == "https:" ? "wss:" : "ws:"}//${document.location.host}/websocket`);
 socket.isConnected$.subscribe(isConnected => document.body.classList.toggle("connected", isConnected));
 
 function element<T extends HTMLElement>(id: string) {

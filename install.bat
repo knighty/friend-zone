@@ -1,15 +1,21 @@
+call git pull
 echo Install root
-call npm install
+call npm ci
+echo Install shared
+pushd .\public
+call npm ci
+popd
 pushd .\remote-control
 echo Install remote control
-call npm install
+call npm ci
+call npm run build:dev
 popd
 echo Install server
 pushd .\server
-call npm install
+call npm ci
 popd
 echo Install public
 pushd .\public
-call npm install
+call npm ci
+call npm run build:dev
 popd
-
