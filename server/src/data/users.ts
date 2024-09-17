@@ -1,4 +1,4 @@
-import { BehaviorSubject } from "rxjs";
+import { BehaviorSubject, map } from "rxjs";
 
 export type Person = {
     name: string;
@@ -24,6 +24,12 @@ export class Users {
     removePerson(id: string) {
         this.users.delete(id);
         this.updated$.next(this);
+    }
+
+    observeUsers() {
+        return this.updated$.pipe(
+            map(() => Object.fromEntries(this.users))
+        )
     }
 }
 

@@ -11,20 +11,21 @@
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 	<link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Balsamiq+Sans:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
 	<link href="https://fonts.googleapis.com/css2?family=Rubik+Mono+One&display=swap" rel="stylesheet">
+	<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet">
 </head>
 
-<body class="theme-lethal-company" data-socket-url="<%= socketUrl %>">
+<body class="theme-default" data-socket-url="<%= socketUrl %>">
 	<x-app>
-		<section class="friends">
-			<x-feed class="feed-container"></x-feed>
+		<x-feed></x-feed>
+		<friends-module class="friends">
 			<ul class="friend-list"></ul>
-		</section>
-		<section class="word-of-the-hour">
+		</friends-module>
+		<word-of-the-hour-module class="word-of-the-hour">
 			<div class="word-container">
 				<label>Word <span>Of The</span> Hour</label>
 				<span class="word"></span>
 			</div>
-		</section>
+		</word-of-the-hour-module>
 		<% if (showWebcam) { %>
 		<x-webcam class="webcam">
 			<div class="time"><span>0:00</span><span>am</span></div>

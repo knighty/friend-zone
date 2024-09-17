@@ -105,15 +105,24 @@ socket.receive<{ isConnected: boolean }>("connectionStatus").subscribe(data => {
 });
 
 socket.receive<{ key: string, value: any }>("config").subscribe(data => {
-    const element = document.querySelector<HTMLElement>(`[data-config=${data.key}]`);
-    if (element) {
-        if (element instanceof HTMLInputElement && element.type == "checkbox") {
-            element.checked = !!data.value;
-        } else if (element instanceof HTMLInputElement) {
-            element.value = data.value;
-        }
-        else if (element instanceof HTMLTextAreaElement) {
-            element.value = data.value;
-        }
+    switch (data.key) {
+        case "feed": {
+            element<HTMLInputElement>("feedUrl").value = data.value?.url ?? "";
+            element<HTMLInputElement>("feedAspectRatio").value = data.value?.aspectRatio ?? "";
+            element<HTMLInputElement>("feedSourceAspectRatio").value = data.value?.sourceAspectRatio ?? "";
+        } break;
+        default: {
+            const element = document.querySelector<HTMLElement>(`[data-config=${data.key}]`);
+            if (element) {
+                if (element instanceof HTMLInputElement && element.type == "checkbox") {
+                    element.checked = !!data.value;
+                } else if (element instanceof HTMLInputElement) {
+                    element.value = data.value;
+                }
+                else if (element instanceof HTMLTextAreaElement) {
+                    element.value = data.value;
+                }
+            }
+        } break;
     }
 });

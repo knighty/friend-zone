@@ -1,4 +1,4 @@
-import { BehaviorSubject, endWith, filter, fromEvent, ignoreElements, interval, map, merge, Observable, share, shareReplay, Subject, switchMap, takeUntil, tap } from "rxjs";
+import { BehaviorSubject, EMPTY, endWith, filter, fromEvent, ignoreElements, interval, map, merge, Observable, share, shareReplay, Subject, switchMap, takeUntil, tap } from "rxjs";
 import { WebSocket } from "ws";
 import { logger } from "../logger";
 
@@ -16,7 +16,7 @@ const defaultOptions: Required<Options> = {
 }
 
 type ServerSocket = {
-    Events: any
+    Events: Record<string, any>
 }
 
 export function serverSocket<T extends ServerSocket>(ws: WebSocket, opts?: Options) {
@@ -61,14 +61,17 @@ export function serverSocket<T extends ServerSocket>(ws: WebSocket, opts?: Optio
         share()
     );
 
-    function socketMessages<Key extends keyof T["Events"]>(type: Key): Observable<T["Events"][Key]> {
+    type Messages = T["Events"] & { "subscribe": string[] };
+    function socketMessages<Key extends keyof Messages>(type: Key): Observable<Messages[Key]> {
         return websocketMessages$.pipe(
             filter(message => message.type == type),
-            map<SocketMessage<T["Events"][Key]>, T["Events"][Key]>(message => message.data as T["Events"][Key])
+            map<SocketMessage<Messages[Key]>, Messages[Key]>(message => message.data as Messages[Key])
         )
     }
 
     const sendMessages$ = new Subject<{ type: string, data: any }>();
+    const events: Record<string, Observable<any>> = {};
+    const eventSubscriptions$ = new Subject<string[]>();
 
     merge(
         client$.pipe(
@@ -78,6 +81,23 @@ export function serverSocket<T extends ServerSocket>(ws: WebSocket, opts?: Optio
         ),
         interval(options.pingFrequency).pipe(
             tap(i => ws.ping()),
+        ),
+        eventSubscriptions$.pipe(
+            switchMap(e => {
+                const observables = e.map(event => {
+                    if (events[event]) {
+                        return events[event].pipe(
+                            tap(data => send(event, data))
+                        )
+                    }
+                    log.error(`Event "${event}" does not exist`);
+                    return EMPTY
+                })
+                return merge(...observables)
+            })
+        ),
+        socketMessages("subscribe").pipe(
+            tap(events => eventSubscriptions$.next(events))
         )
     ).pipe(
         takeUntil(disconnected$)
@@ -91,12 +111,17 @@ export function serverSocket<T extends ServerSocket>(ws: WebSocket, opts?: Optio
         disconnected$.next();
     }
 
+    function addEvent<T>(type: string, observable: Observable<T>) {
+        events[type] = observable;
+    }
+
     return {
         receive: socketMessages,
         send: send,
         isConnected$,
         connection$: client$,
         disconnected$: client$.pipe(ignoreElements(), endWith(true)),
-        disconnect
+        disconnect,
+        addEvent
     }
 }

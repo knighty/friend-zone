@@ -1,4 +1,4 @@
-import { Subject } from "rxjs";
+import { map, startWith, Subject } from "rxjs";
 import { logger } from "../lib/logger";
 import { TwitchChat } from "./twitch-chat";
 
@@ -30,7 +30,18 @@ export class WordOfTheHour {
         });
     }
 
+    observe() {
+        return this.update$.pipe(
+            startWith(null),
+            map(() => ({
+                word: this.word,
+                counts: Object.fromEntries(this.counts)
+            }))
+        );
+    }
+
     setWord(word: string | null) {
+        this.word = word;
         log.info(`Set to "${this.word}"`);
         this.update$.next();
     }

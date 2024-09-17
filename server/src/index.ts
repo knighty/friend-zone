@@ -5,12 +5,12 @@ import fastifyStatic from '@fastify/static';
 import fastifyView from "@fastify/view";
 import websocket from "@fastify/websocket";
 import 'dotenv/config';
-import Fastify, { FastifyRequest } from "fastify";
+import Fastify from "fastify";
 import { green } from 'kolorist';
 import path from "path";
 import process from "process";
 import qs from "qs";
-import { map, startWith } from 'rxjs';
+import { map, Observable } from 'rxjs';
 import config from "./config";
 import DiscordVoiceState from './data/discord-voice-state';
 import { ExternalFeeds } from './data/external-feeds';
@@ -86,6 +86,7 @@ const users = new Users();
 const twitchChat = new TwitchChat(config.twitch.channel);
 twitchChat.observeMessages().subscribe(message => log.info(`${message.user}: ${message.text}`));
 const wordOfTheHour = new WordOfTheHour(twitchChat);
+wordOfTheHour.setWord("Bespoke");
 const discordVoiceState = new DiscordVoiceState();
 if (config.discord.voiceStatus) {
     for (let channel of config.discord.channels) {
@@ -96,8 +97,39 @@ const webcam = new Webcam();
 const subtitles = new Subtitles();
 
 const feeds = new ExternalFeeds();
-feeds.focusedFeed$.subscribe(feed => {
-});
+feeds.addFeed({
+    active: true,
+    focused: null,
+    aspectRatio: "16/9",
+    sourceAspectRatio: "16/9",
+    //url: "https://www.youtube.com/watch?v=6DOGPqAasIQ",
+    url: "about:blank;",
+    user: "knighty"
+})
+feeds.addFeed({
+    active: true,
+    focused: null,
+    aspectRatio: "16/9",
+    sourceAspectRatio: "16/9",
+    url: "about:blank;",
+    user: "PHN"
+})
+feeds.addFeed({
+    active: true,
+    focused: null,
+    aspectRatio: "16/9",
+    sourceAspectRatio: "16/9",
+    url: "about:blank;",
+    user: "Dan"
+})
+feeds.addFeed({
+    active: true,
+    focused: null,
+    aspectRatio: "16/9",
+    sourceAspectRatio: "16/9",
+    url: "about:blank;",
+    user: "Leth"
+})
 
 /*
 Logging
@@ -142,10 +174,6 @@ Favicon
 */
 fastifyApp.register(fastifyFavicon, { root: path.join(publicDir, '/dist') });
 
-fastifyApp.get("/test", (req, res) => {
-    res.send("Hello World");
-})
-
 fastifyApp.get("/", async (req, res) => {
     return res.viewAsync("app", {
         webcam: config.video.webcam,
@@ -163,16 +191,6 @@ fastifyApp.get("/dashboard", async (req, res) => {
         style: await getManifestPath("dashboard.css"),
         scripts: await getManifestPath("dashboard.js"),
     })
-})
-
-fastifyApp.post("/settings/webcam-position", async (req: FastifyRequest<{
-    Body: {
-        left: string,
-        top: string;
-    }
-}>, res) => {
-    webcam.setPosition(Number(req.body.left), Number(req.body.top));
-    return res.send("done");
 });
 
 /* 
@@ -184,72 +202,84 @@ fastifyApp.all("/*", async (req, res) => {
 
 fastifyApp.register(websocket);
 
-const woth$ = wordOfTheHour.update$.pipe(
-    startWith(null),
-    map(() => ({
-        type: "woth",
-        data: {
-            word: wordOfTheHour.word,
-            counts: Object.fromEntries(wordOfTheHour.counts)
-        }
-    }))
-);
+function socketParam<T, D>(type: string, observable$: Observable<T>, project?: (data: T) => D) {
+    return {
+        type,
+        data: observable$.pipe(
+            map(data => project ? project(data) : data)
+        )
+    }
+}
 
-const users$ = users.updated$.pipe(
-    map(users => ({
-        type: "users",
-        data: Object.fromEntries(users.users)
-    }))
-);
+type StreamModule = {
+    id: string,
+}
 
-const webcam$ = webcam.update$.pipe(
-    startWith(webcam),
-    map(webcam => ({
-        type: "webcam",
-        data: {
-            position: [webcam.left, webcam.top]
-        }
-    }))
-)
+function registerStreamModule(module: StreamModule) {
+    fastifyApp.get(`/stream-modules/${module.id}`, async (req, res) => {
+        return res.viewAsync(`stream-modules/${module.id}`, {
+            socketUrl: `${config.socketHost}/websocket`,
+            style: await getManifestPath("main.css"),
+            scripts: await getManifestPath("main.js"),
+        })
+    })
+}
 
-const voiceState$ = discordVoiceState.speaking$.pipe(
-    map(map => ({
-        type: "voice",
-        data: {
-            users: Object.fromEntries(map)
-        }
-    }))
-)
+fastifyApp.get<{
+    Querystring: {
+        anchor: string
+    }
+}>(`/stream-modules/friends`, async (req, res) => {
+    const anchorParts = (req.query.anchor ?? "")
+        .split(" ");
+    const anchorHorizontal = anchorParts
+        .map(pos => {
+            switch (pos) {
+                case "left": return "start"
+                case "center": return "center"
+                case "right": return "end"
+                default: return ""
+            }
+        }).find(pos => pos != "") ?? "start"
+    const anchorVertical = anchorParts
+        .map(pos => {
+            switch (pos) {
+                case "top": return "start"
+                case "middle": return "center"
+                case "bottom": return "end"
+                default: return ""
+            }
+        }).find(pos => pos != "") ?? "end"
 
-const subtitles$ = subtitles.stream$.pipe(
-    map(event => ({
-        type: "subtitles",
-        data: event
-    }))
-)
+    return res.viewAsync(`stream-modules/friends`, {
+        anchor: `${anchorVertical} ${anchorHorizontal}`,
+        anchorHorizontal: anchorHorizontal,
+        anchorVertical: anchorVertical,
+        socketUrl: `${config.socketHost}/websocket`,
+        style: await getManifestPath("main.css"),
+        scripts: await getManifestPath("main.js"),
+    })
+})
 
-const feed$ = feeds.focusedFeed$.pipe(
-    map(feed => ({
-        type: "feed",
-        data: feed
-    }))
-)
+registerStreamModule({
+    id: "feeds"
+});
+registerStreamModule({
+    id: "woth"
+});
 
-const feedPosition$ = feeds.feedPosition$.pipe(
-    map(position => ({
-        type: "feedPosition",
-        data: position
-    }))
-)
-
-const feedSize$ = feeds.feedSize$.pipe(
-    map(size => ({
-        type: "feedSize",
-        data: size
-    }))
-)
-
-fastifyApp.register(socket([woth$, webcam$, voiceState$, subtitles$, feed$, users$, feedPosition$, feedSize$]));
+fastifyApp.register(socket([
+    socketParam("woth", wordOfTheHour.observe()),
+    socketParam("webcam", webcam.observePosition()),
+    socketParam("voice", discordVoiceState.speaking$, map => ({
+        users: Object.fromEntries(map)
+    })),
+    socketParam("subtitles", subtitles.stream$),
+    socketParam("feed", feeds.observeFeeds(3)),
+    socketParam("users", users.observeUsers()),
+    socketParam("feedPosition", feeds.feedPosition$),
+    socketParam("feedSize", feeds.feedSize$)
+]));
 fastifyApp.register(remoteControlSocket(subtitles, feeds, users));
 fastifyApp.register(configSocket(feeds.slideshowFrequency$, feeds.feedSize$, feeds.feedPosition$));
 
@@ -266,6 +296,5 @@ const server = fastifyApp.listen({ port: config.port, host: "0.0.0.0" }, functio
 process.on('SIGTERM', () => {
     serverLog.info('SIGTERM signal received: closing HTTP server')
     fastifyApp.close();
-    serverLog.info("Closing database")
     serverLog.info('HTTP server closed')
 });

@@ -1,4 +1,4 @@
-import { Subject } from "rxjs";
+import { map, startWith, Subject } from "rxjs";
 import { log } from "../lib/logger";
 
 export default class Webcam {
@@ -11,5 +11,14 @@ export default class Webcam {
         this.left = left;
         this.top = top;
         this.update$.next(this);
+    }
+
+    observePosition() {
+        return this.update$.pipe(
+            startWith(this),
+            map(webcam => ({
+                position: [webcam.left, webcam.top]
+            }))
+        )
     }
 }

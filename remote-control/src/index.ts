@@ -129,12 +129,10 @@ fastifyApp.register(async (fastify: FastifyInstance) => {
             )
         );
 
-        const configMessages$ = merge(
-            feed$.pipe(map(url => ({ key: "feedUrl", value: url }))),
+        socket.addEvent("config", merge(
+            feed$.pipe(map(feed => ({ key: "feed", value: feed }))),
             feedActive$.pipe(map(active => ({ key: "feedActive", value: active }))),
-        ).pipe(
-            tap(message => socket.send("config", message))
-        );
+        ));
 
         const connectionStatus$ = remoteControl.isConnected$.pipe(
             tap(isConnected => {
@@ -143,7 +141,6 @@ fastifyApp.register(async (fastify: FastifyInstance) => {
         );
 
         merge(
-            configMessages$,
             configSetters$,
             connectionStatus$
         ).pipe(

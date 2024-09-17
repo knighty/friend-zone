@@ -1,4 +1,4 @@
-import { BehaviorSubject, filter, map, Observable, retry, share, shareReplay, Subject, switchMap, takeUntil, tap, timer } from "rxjs";
+import { BehaviorSubject, filter, map, Observable, retry, scan, share, shareReplay, Subject, switchMap, takeUntil, tap, timer } from "rxjs";
 import { logger } from "../logger";
 
 type SocketMessage<D> = {
@@ -31,6 +31,14 @@ export function connectGenericClient(socketFactory: (url: string) => Socket) {
             ...opts
         };
 
+        const subscribeToEvent$ = new Subject<string>();
+        const subscribedEvents$ = subscribeToEvent$.pipe(
+            scan((a, c) => {
+                a.push(c);
+                return a;
+            }, []),
+            shareReplay(1)
+        )
         const disconnect$ = new Subject<void>();
         const log = logger("web-socket-client");
 
@@ -77,6 +85,15 @@ export function connectGenericClient(socketFactory: (url: string) => Socket) {
             return [client$, isConnected$] as const;
         }
 
+        subscribedEvents$.pipe(
+            switchMap(events => {
+                return client$.pipe(
+                    tap(client => send("subscribe", events))
+                )
+            }),
+            takeUntil(disconnect$)
+        ).subscribe();
+
         const [client$, isConnected$] = connect();
 
         const websocketMessages$ = client$.pipe(
@@ -87,6 +104,7 @@ export function connectGenericClient(socketFactory: (url: string) => Socket) {
         );
 
         function socketMessages<D>(type: string): Observable<D> {
+            subscribeToEvent$.next(type);
             return websocketMessages$.pipe(
                 filter(message => message.type == type),
                 map<SocketMessage<D>, D>(message => message.data as D)

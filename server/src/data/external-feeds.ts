@@ -1,4 +1,4 @@
-import { BehaviorSubject, combineLatest, distinctUntilChanged, map, merge, Observable, of, scan, shareReplay, Subject, switchMap, timer } from "rxjs";
+import { BehaviorSubject, combineLatest, map, merge, Observable, scan, shareReplay, Subject, switchMap, timer } from "rxjs";
 import { logger } from "shared/logger";
 
 type Feed = {
@@ -15,17 +15,16 @@ type FeedMap = Map<string, Feed>;
 const log = logger("feeds");
 
 export class ExternalFeeds {
-    addFeed$ = new Subject<Feed>();
-    removeFeed$ = new Subject<string>();
-    updateFeed$ = new Subject<Partial<Feed>>();
-    focusFeed$ = new Subject<{ user: string, focus: boolean }>();
-    activeFeed$ = new Subject<{ user: string, active: boolean }>();
-    feeds$: Observable<Map<string, Feed>>;
-    activeFeeds$: Observable<Feed[]>;
-    focusedFeed$: Observable<Feed>;
+    private addFeed$ = new Subject<Feed>();
+    private removeFeed$ = new Subject<string>();
+    private updateFeed$ = new Subject<Partial<Feed>>();
+    private focusFeed$ = new Subject<{ user: string, focus: boolean }>();
+    private activeFeed$ = new Subject<{ user: string, active: boolean }>();
+    private feeds$: Observable<Map<string, Feed>>;
     slideshowFrequency$ = new BehaviorSubject<number>(30);
     feedSize$ = new BehaviorSubject<number>(30);
     feedPosition$ = new BehaviorSubject<[number, number]>([0, 0.5]);
+    private sortedFeeds$: Observable<Feed[]>;
 
     constructor() {
         this.feeds$ = merge(
@@ -49,45 +48,37 @@ export class ExternalFeeds {
         )
         this.feeds$.subscribe();
 
-        const untilFeedChanged = () => distinctUntilChanged<Feed | null>((previous, next) => {
-            return (previous?.url == next?.url) && (previous?.aspectRatio == next?.aspectRatio) && (previous?.sourceAspectRatio == next?.sourceAspectRatio);
-        });
-
-        this.activeFeeds$ = this.feeds$.pipe(
-            map(feeds => Array.from(feeds.values()).filter(feed => feed.active)),
-            shareReplay(1),
-        )
         const slideshowTimer$ = this.slideshowFrequency$.pipe(
             switchMap(frequency => {
                 log.info(`Starting slideshow, changing every ${frequency}s`);
                 return timer(0, frequency * 1000)
             })
         )
-        const slideshow$ = combineLatest([this.activeFeeds$, slideshowTimer$]).pipe(
-            map(([feeds, i]) => feeds[i % feeds.length]),
-            untilFeedChanged(),
-            shareReplay(1),
-        );
-        const focusedTime = (feed: Feed) => feed.focused ? feed.focused.getTime() : 0;
-        const focused$ = this.feeds$.pipe(
-            map(feeds => Array.from(feeds.values()).filter(feed => feed.focused).toSorted((a, b) => focusedTime(b) - focusedTime(a))),
-            map(feeds => (feeds.length > 0 ? feeds[0] : null)),
-
-            untilFeedChanged()
-        )
-        this.focusedFeed$ = focused$.pipe(
-            switchMap(focusedFeed => {
-                if (focusedFeed) {
-                    log.info(`Feed mode: Focus`);
-                    return of(focusedFeed)
-                } else {
-                    log.info(`Feed mode: Slideshow`);
-                    return slideshow$
-                }
+        this.sortedFeeds$ = combineLatest([this.feeds$, slideshowTimer$]).pipe(
+            map(([feeds, timer]) => {
+                const feedArray = Array.from(feeds.values());
+                const sortedFeeds = feedArray.map((feed, i) => ({ feed, i: (i + timer) % feedArray.length })).toSorted((a, b) => {
+                    if (a.feed.focused != b.feed.focused) {
+                        return (b.feed.focused?.getTime() ?? 0) - (a.feed.focused?.getTime() ?? 0);
+                    }
+                    return a.i - b.i;
+                }).map(o => o.feed);
+                return sortedFeeds;
             }),
-            untilFeedChanged(),
             shareReplay(1)
         )
+    }
+
+    observeFeeds(count: number) {
+        return this.sortedFeeds$.pipe(
+            map(feeds => feeds.slice(0, count))
+        );
+    }
+
+    observeFeed() {
+        return this.sortedFeeds$.pipe(
+            map(feeds => feeds.length > 0 ? feeds[0] : null)
+        );
     }
 
     updateFeed(user: string, feed: Partial<Feed>) {

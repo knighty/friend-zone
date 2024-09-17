@@ -1,0 +1,27 @@
+.video-shadow {
+    filter: drop-shadow(0px 0px 10px rgba(0, 0, 0, 0.3));
+}
+
+.video {
+    --rotation: 0deg;
+    border-radius: 0.4em;
+
+    video,
+    iframe {
+        width: 100%;
+        display: block;
+    }
+
+    iframe {
+        aspect-ratio: var(--aspect-ratio);
+    }
+}
+
+.video {
+    border: 0.15em solid transparent;
+    //animation: border 10s linear infinite;
+    background: linear-gradient(var(--rotation), #8333da, #d4bae8, #8333da) border-box;
+    box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.2);
+    clip-path: polygon(12em 0, 100% 0, 100% 100%, 0 100%, 0 100%, 0 var(--cutout-size), 10em var(--cutout-size));
+    overflow: hidden;
+}
