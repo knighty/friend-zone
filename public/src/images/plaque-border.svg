@@ -1,7 +1,7 @@
-<svg viewBox="-10 -2 120 24" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<svg viewBox="-10 -2 108 24" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
 	<defs>
-		<path id="path" d="M 22 2 L 98 2 L 82 18 L 6 18 Z"></path>
-		<path id="path2" d="M 16 4 L 100 4 L 84 20 L 0 20 Z"></path>
+		<path id="path" d="M 22 2 L 86 2 L 70 18 L 6 18 Z"></path>
+		<path id="path2" d="M 16 4 L 88 4 L 72 20 L 0 20 Z"></path>
 	</defs>
 	<use xlink:href="#path2" fill="none" stroke="#c829f1" stroke-width="1" stroke-linejoin="round" stroke-linecap="round"></use>
 	<use xlink:href="#path" fill="#111">

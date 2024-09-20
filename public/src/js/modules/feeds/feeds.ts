@@ -1,10 +1,11 @@
-import { debounceTime, first, of, Subscription, switchMap, tap } from "rxjs";
+import { debounceTime, first, of, Subscription, switchMap, tap, timer } from "rxjs";
 import { createElement } from "shared/utils";
 import { socket } from "../../socket";
 import { Embed } from "./embed-handlers/embed-handler";
 import { handleEmbed } from "./embed-handlers/embed-handlers";
 
 const audioEnabled = false;
+const numFeeds = 2;
 
 namespace Message {
     export type FocusedFeed = {
@@ -49,7 +50,7 @@ export default class FeedsModule extends HTMLElement {
             debounceTime(100),
         );
 
-        const feedContainers$ = of([...Array(3)].map<FeedContainer>(i => {
+        const feedContainers$ = of([...Array(numFeeds)].map<FeedContainer>(i => {
             const rootElement = createElement("div", { classes: ["feed-container"] });
             let element: HTMLElement = null;
             let item: Message.FocusedFeed = null;
@@ -82,11 +83,12 @@ export default class FeedsModule extends HTMLElement {
                         if (subscription) {
                             subscription.unsubscribe();
                         }
-                        subscription = (typeof embed == "boolean" ? of(0) : embed.loaded).pipe(first()).subscribe(() => {
+                        subscription = (typeof embed == "boolean" ? timer(0) : embed.loaded).pipe(first()).subscribe(() => {
                             if (previousElement != null) {
                                 previousElement.classList.remove("show");
-                                previousElement.remove();
+                                setTimeout(() => previousElement.remove(), 2000);
                             }
+                            let test = element.offsetLeft;
                             element.classList.add("show");
                         });
                         item = feed;
@@ -117,14 +119,14 @@ export default class FeedsModule extends HTMLElement {
                     tap(feeds => {
                         const usedContainers = [];
                         const remainingContainers = Array.from(containers);
-                        const activeFeeds = feeds.filter(feed => feed.focused || feed.active);
+                        const activeFeeds = feeds.filter(feed => feed.focused || feed.active).slice(0, numFeeds);
 
                         // Match up feeds that have existing containers
                         const remainingFeeds = activeFeeds.reduce((a, feed) => {
                             for (let container of remainingContainers) {
                                 if (container.canAccept(feed)) {
                                     remainingContainers.splice(remainingContainers.indexOf(container), 1);
-                                    const embed = container.accept(feed);
+                                    container.accept(feed);
                                     container.toggleVisibility(true);
                                     usedContainers.push(container);
                                     return a;
@@ -140,7 +142,7 @@ export default class FeedsModule extends HTMLElement {
                             if (!container) {
                                 break;
                             }
-                            const embed = container.accept(feed);
+                            container.accept(feed);
                             container.toggleVisibility(true);
                             usedContainers.push(container);
                         }

@@ -114,6 +114,8 @@ export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds, 
             log.info(`${userName} is now ${data.isActive ? "active" : "inactive"}`);
         });
 
+        socket.addEvent("subtitles", of({ enabled: true }));
+
         function disconnect() {
             feeds.removeFeed(userId);
             users.removePerson(userId);

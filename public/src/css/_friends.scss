@@ -43,16 +43,16 @@ friends-module {
             @include flex.row();
             justify-content: space-between;
             align-items: center;
-            width: 260px;
+            width: 242px;
             height: 60px;
-            padding-right: 22px;
-            padding-left: 46px;
+            padding-right: 34px;
+            padding-left: 61px;
             font-size: 1.1em;
             color: #fff;
             text-shadow: 1px 1px #000;
             text-transform: uppercase;
             letter-spacing: 1px;
-            background: url("../images/plaque-border.svg") center / cover;
+            background: url("../images/plaque-border.svg") -20px center / cover;
             transition: transform 0.1s;
 
             &.animation {
@@ -86,7 +86,7 @@ friends-module {
             position: absolute;
             right: 0;
             bottom: 4px;
-            width: 39px;
+            width: 50px;
             height: 39px;
             opacity: 0;
             clip-path: polygon(0 100%, 200px calc(100% - 200px), 100% 100%);

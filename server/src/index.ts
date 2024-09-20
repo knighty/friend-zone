@@ -32,7 +32,6 @@ import { getManifestPath } from './utils';
 
 //const RPC = require("discord-rpc");
 
-
 const publicDir = path.join(__dirname, `/../../public`);
 
 const serverLog = logger("server");
@@ -105,8 +104,8 @@ class Scene {
 
 const feeds = new ExternalFeeds();
 
-function mockUser(name: string, image?: string) {
-    users.addPerson(name.toLowerCase(), "", name, 0);
+function mockUser(name: string, image: string, sort: number) {
+    users.addPerson(name.toLowerCase(), name, name, sort);
     if (image) {
         feeds.addFeed({
             active: true,
@@ -117,6 +116,18 @@ function mockUser(name: string, image?: string) {
             user: name
         });
     };
+    of('').pipe(
+        switchMap(
+            () => timer(500 + Math.random() * 1000)
+        ),
+        repeat(),
+    ).subscribe(() => {
+        if (Math.random() > 0.5) {
+            discordVoiceState.startSpeaking$.next(name);
+        } else {
+            discordVoiceState.stopSpeaking$.next(name);
+        }
+    })
     const timer$ = of('').pipe(
         switchMap(
             () => timer(2000 + Math.random() * 5000)
@@ -127,9 +138,9 @@ function mockUser(name: string, image?: string) {
     timer$.subscribe(i => subtitles.handle(name.toLowerCase(), i, "final", sentences[Math.floor(sentences.length * Math.random())]))
 };
 
-mockUser("Dan", "https://www.godisageek.com/wp-content/uploads/FActorio-Main.jpg");
-mockUser("Leth", "https://i.ytimg.com/vi/O23kAaqFAeA/maxresdefault.jpg");
-mockUser("PHN");
+mockUser("Dan", "https://www.godisageek.com/wp-content/uploads/FActorio-Main.jpg", 4);
+mockUser("Leth", "https://i.ytimg.com/vi/O23kAaqFAeA/maxresdefault.jpg", 3);
+mockUser("PHN", null, 1);
 
 /*
 Logging

@@ -22,6 +22,7 @@ export class ExternalFeeds {
     private activeFeed$ = new Subject<{ user: string, active: boolean }>();
     private feeds$: Observable<Map<string, Feed>>;
     slideshowFrequency$ = new BehaviorSubject<number>(30);
+    feedCount$ = new BehaviorSubject<number>(1);
     feedSize$ = new BehaviorSubject<number>(30);
     feedPosition$ = new BehaviorSubject<[number, number]>([0, 0.5]);
     feedLayout$ = new BehaviorSubject<"row" | "column">("row");

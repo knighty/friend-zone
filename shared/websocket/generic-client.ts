@@ -37,9 +37,10 @@ export function connectGenericClient(socketFactory: (url: string) => Socket) {
         const subscribeToEvent$ = new Subject<string>();
         const subscribedEvents$ = subscribeToEvent$.pipe(
             scan((a, c) => {
-                a.push(c);
+                if (!a.includes(c))
+                    a.push(c);
                 return a;
-            }, []),
+            }, [] as string[]),
             shareReplay(1)
         )
         const disconnect$ = new Subject<void>();

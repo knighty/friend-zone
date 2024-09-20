@@ -1,10 +1,8 @@
 import fastifyStatic from '@fastify/static';
 import fastifyView from "@fastify/view";
 import websocket from "@fastify/websocket";
-import { green, yellow } from "ansi-colors";
 import Fastify, { FastifyInstance } from "fastify";
 import fs from "fs";
-import child_process from "node:child_process";
 import path from "node:path";
 import { BehaviorSubject, debounceTime, EMPTY, filter, firstValueFrom, map, merge, Observable, scan, shareReplay, switchMap, takeUntil, tap } from "rxjs";
 import { log, logger } from 'shared/logger';
@@ -12,6 +10,7 @@ import { serverSocket } from 'shared/websocket/server';
 import { config } from "./config";
 import { hotkey } from "./hotkeys";
 import { initSocket } from "./socket";
+import { observeSubtitles } from './subtitles';
 const sound = require("sound-play");
 
 declare module 'fastify' {
@@ -184,53 +183,13 @@ const server = fastifyApp.listen({ port: 3010, host: "0.0.0.0" }, function (err,
     }
 });
 
-const subtitleLog = logger("subtitles");
-if (config.subtitles == "whisper") {
-    const pythonProcess = child_process.spawn('python', [
-        path.join(__dirname, "/../../whisper/transcribe_demo.py"),
-        `--model=${config.whisper.model}`,
-        `--phrase_timeout=${config.whisper.phrase_timeout}`,
-        `--energy_threshold=${config.whisper.energy_threshold}`,
-        `--min_probability=${config.whisper.min_probability}`
-    ]);
-    pythonProcess.stdout.on('data', (data: string) => {
-        const lines = data.toString().split(/[\r\n]/g);
-        for (let subtitle of lines) {
-            if (subtitle == "")
-                continue;
-            const split = subtitle.split(" ");
-            if (split[0] == "subtitle") {
-                const id = split[1];
-                const json = split.slice(2).join(" ").trim();
-                const segments = JSON.parse(json) as {
-                    text: string,
-                    probability: number
-                }[];
-                const text = segments
-                    .filter(segment => segment.probability < config.whisper.min_probability)
-                    .map(segment => segment.text)
-                    .join("")
-                    .trim();
-                const ignored = segments
-                    .filter(segment => segment.probability >= config.whisper.min_probability)
-                    .map(segment => `${segment.text} (${Math.floor(segment.probability * 100)}%) `)
-                    .join("")
-                    .trim();
-                if (text.length > 0) {
-                    subtitleLog.info(green(text));
-                    remoteControl.subtitles(Number(id), "final", text);
-                }
-                if (ignored.length > 0) {
-                    subtitleLog.info(yellow(ignored));
-                }
-            } else {
-                subtitleLog.info(subtitle);
-            }
+remoteControl.subtitlesEnabled$.pipe(
+    switchMap(enabled => {
+        if (enabled && config.subtitles == "whisper") {
+            return observeSubtitles().pipe(
+                tap(subtitle => remoteControl.subtitles(subtitle.id, "final", subtitle.text))
+            )
         }
-        //console.log(data.toString());
-    });
-    pythonProcess.stderr.on('data', (data: string) => {
-        subtitleLog.error(data.toString());
-    });
-}
-//pythonProcess.kill();
+        return EMPTY;
+    })
+).subscribe();

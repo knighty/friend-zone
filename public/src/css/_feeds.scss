@@ -63,6 +63,7 @@ x-feed {
         transition:
             transform 0.5s,
             opacity 0.5s;
+
         &.show {
             //transform: translate(0%, 0);
             opacity: 1;
