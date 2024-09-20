@@ -1,0 +1,11 @@
+@mixin slanted-background($size) {
+    clip-path: polygon($size 0, 100% 0, calc(100% - $size) $size, 0 $size);
+}
+
+@mixin fullSizeAbsolute() {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+}

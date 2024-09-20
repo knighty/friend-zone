@@ -21,17 +21,21 @@ class Dashboard extends HTMLElement {
             socket.send("config/feedPosition", position);
         });
 
+        fromDomEvent(document.getElementById("feedLayout"), "input").subscribe(event => {
+            socket.send("config/feedLayout", (event.target as HTMLSelectElement).value);
+        });
+
         fromDomEvent(document.getElementById("slideshowFrequency"), "input").pipe(
             debounceTime(500),
-        ).subscribe(element => {
-            socket.send("config/slideshowFrequency", (element.target as HTMLInputElement).value);
-        })
+        ).subscribe(event => {
+            socket.send("config/slideshowFrequency", (event.target as HTMLInputElement).value);
+        });
 
         fromDomEvent(document.getElementById("feedSize"), "input").pipe(
             debounceTime(500),
-        ).subscribe(element => {
-            socket.send("config/feedSize", (element.target as HTMLInputElement).value);
-        })
+        ).subscribe(event => {
+            socket.send("config/feedSize", (event.target as HTMLInputElement).value);
+        });
     }
 }
 

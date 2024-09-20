@@ -3,25 +3,36 @@
 }
 
 .video {
+    --background-color-1: #8333da;
+    --background-color-2: #d4bae8;
     --rotation: 0deg;
-    border-radius: 0.4em;
+
+    border-radius: 4px;
+    border: 0.15em solid transparent;
+    background: linear-gradient(
+            var(--rotation),
+            var(--background-color-1),
+            var(--background-color-2),
+            var(--background-color-1)
+        )
+        border-box;
+    clip-path: polygon(7em 0, 100% 0, 100% 100%, 0 100%, 0 100%, 0 var(--cutout-size), 5em var(--cutout-size));
+    overflow: hidden;
 
     video,
-    iframe {
+    iframe,
+    img {
         width: 100%;
         display: block;
     }
 
-    iframe {
+    iframe,
+    img {
         aspect-ratio: var(--aspect-ratio);
     }
-}
 
-.video {
-    border: 0.15em solid transparent;
-    //animation: border 10s linear infinite;
-    background: linear-gradient(var(--rotation), #8333da, #d4bae8, #8333da) border-box;
-    box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.2);
-    clip-path: polygon(12em 0, 100% 0, 100% 100%, 0 100%, 0 100%, 0 var(--cutout-size), 10em var(--cutout-size));
-    overflow: hidden;
+    img {
+        height: 100%;
+        object-fit: cover;
+    }
 }

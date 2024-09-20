@@ -40,7 +40,14 @@
 					</label>
 					<label>
 						Feed Size (%)
-						<input type="range" min="0" max="100" value="30" step="10" id="feedSize" />
+						<input type="range" min="0" max="100" value="30" step="2" id="feedSize" />
+					</label>
+					<label>
+						Feed Layout
+						<select id="feedLayout">
+							<option value="row">Row</option>
+							<option value="column">Column</option>
+						</select>
 					</label>
 					<ul class="webcam-positions">
 						<li><button data-action="setFeedPosition" value="0,0">↖</button></li>

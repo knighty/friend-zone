@@ -24,6 +24,7 @@ export class ExternalFeeds {
     slideshowFrequency$ = new BehaviorSubject<number>(30);
     feedSize$ = new BehaviorSubject<number>(30);
     feedPosition$ = new BehaviorSubject<[number, number]>([0, 0.5]);
+    feedLayout$ = new BehaviorSubject<"row" | "column">("row");
     private sortedFeeds$: Observable<Feed[]>;
 
     constructor() {

@@ -3,6 +3,7 @@ import { BehaviorSubject, map } from "rxjs";
 export type Person = {
     name: string;
     discordId: string;
+    sortKey: number;
 }
 
 export class Users {
@@ -13,10 +14,11 @@ export class Users {
 
     }
 
-    addPerson(id: string, discordId: string, name: string) {
+    addPerson(id: string, discordId: string, name: string, sortKey: number) {
         this.users.set(id, {
             name: name,
-            discordId: discordId
+            discordId: discordId,
+            sortKey: sortKey
         });
         this.updated$.next(this);
     }

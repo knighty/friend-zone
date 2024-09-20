@@ -25,18 +25,20 @@ label {
     align-items: center;
 }
 
-input {
+input,
+select {
     padding: 0.5em 1em;
     font-size: inherit;
     color: inherit;
     background: #3c404d;
-    border: 1px transparent;
+    border: 1px solid #3c404d;
 
-    &:not([type="checkbox"]) {
+    &:not([type="checkbox"]),
+    select {
         flex: 1;
         border-radius: 0.5em;
 
-        &:active {
+        &:focus {
             background: #464b59;
             border: 1px solid #5b6273;
         }

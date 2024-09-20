@@ -1,7 +1,7 @@
-import { map, share, tap } from "rxjs";
+import { map } from "rxjs";
 import { socket } from "../socket";
 
-namespace SocketMessageData {
+namespace Message {
     export type Woth = {
         counts: Record<string, number>,
         word: string
@@ -10,16 +10,11 @@ namespace SocketMessageData {
 
 export default class WordOfTheHourModule extends HTMLElement {
     connectedCallback() {
-        const wothMessage$ = socket.receive<SocketMessageData.Woth>("woth").pipe(share());
-        const wothUpdated$ = wothMessage$.pipe(
+        socket.receive<Message.Woth>("woth").pipe(
             map(woth => woth.word),
-            tap(word => {
-                const wordElement = this.querySelector(".word");
-                if (wordElement) wordElement.textContent = word;
-                const wothElement = this.querySelector<HTMLElement>(".word-of-the-hour");
-                this.dataset.state = word ? "show" : "hidden";
-            })
-        )
-        wothUpdated$.subscribe();
+        ).subscribe(word => {
+            this.querySelector(".word").textContent = word;
+            this.dataset.state = word ? "show" : "hidden";
+        });
     }
 }

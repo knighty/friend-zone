@@ -1,7 +1,7 @@
 import RPC, { RPCEvents } from "discord-rpc";
-import { map, merge, Observable, scan, shareReplay, Subject, switchMap, tap } from "rxjs";
+import { filter, map, merge, Observable, scan, shareReplay, Subject, switchMap, tap } from "rxjs";
+import { logger } from "shared/logger";
 import config from "../config";
-import { logger } from "../lib/logger";
 
 type DiscordUser = string;
 type SpeakingMap = Map<DiscordUser, boolean>;
@@ -27,6 +27,7 @@ namespace Events {
     export type Speaking = { channel_id: string, user_id: string };
 
     export type Message = {
+        channel_id: string,
         message: {
             nick: string,
             content: string
@@ -76,6 +77,7 @@ export default class DiscordVoiceState {
                 tap(e => this.stopSpeaking$.next(e.user_id))
             ),
             watch<Events.Message>("MESSAGE_CREATE", { channel_id: channelId }).pipe(
+                filter(e => e.channel_id == channelId),
                 tap((e: any) => log.info(`[${e.message.nick}] ${e.message.content}`))
             ),
         ).subscribe({

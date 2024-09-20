@@ -4,7 +4,7 @@
 		<path id="path2" d="M 16 4 L 100 4 L 84 20 L 0 20 Z"></path>
 	</defs>
 	<use xlink:href="#path2" fill="none" stroke="#c829f1" stroke-width="1" stroke-linejoin="round" stroke-linecap="round"></use>
-	<use xlink:href="#path" fill="black">
+	<use xlink:href="#path" fill="#111">
 		<animate attributeName="stroke-dashoffset" values="0;200" dur="10s" repeatCount="indefinite" />
 	</use>
 	<use xlink:href="#path" fill="none" stroke="#32a8a8" stroke-width="0.6" stroke-linejoin="round" stroke-linecap="round"></use>

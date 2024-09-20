@@ -1,6 +1,6 @@
 import { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { cyan, green, red, yellow } from "kolorist";
-import { log } from "../lib/logger";
+import { log } from "shared/logger";
 
 type LoggerOptions = {
     duration?: boolean,

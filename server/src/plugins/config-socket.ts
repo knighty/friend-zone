@@ -1,27 +1,24 @@
 import { FastifyInstance } from "fastify";
-import { Subject } from "rxjs";
 import { serverSocket } from "shared/websocket/server";
+import { WebsocketEvent } from "./socket";
 
-export const configSocket = (slideshowFrequency: Subject<number>, feedSize: Subject<number>, feedPosition: Subject<[number, number]>) => async (fastify: FastifyInstance, options: {}) => {
+type Events<T extends Recievers> = {
+    [K in keyof T]: (data: Parameters<T[K]>) => void
+}
+
+type Recievers = {
+    [key: string]: any
+}
+
+export const configSocket = <R extends Recievers, T extends Events<R>>(events: WebsocketEvent[], receivers: R) => async (fastify: FastifyInstance, options: {}) => {
     fastify.get('/config/websocket', { websocket: true }, (ws, req) => {
         let socket = serverSocket<{
-            Events: {
-                "config/slideshowFrequency": number,
-                "config/feedPosition": [number, number],
-                "config/feedSize": number,
-            }
+            Events: T
         }>(ws);
 
-        socket.receive("config/slideshowFrequency").subscribe(frequency => {
-            slideshowFrequency.next(frequency);
-        });
-
-        socket.receive("config/feedPosition").subscribe(position => {
-            feedPosition.next(position);
-        });
-
-        socket.receive("config/feedSize").subscribe(size => {
-            feedSize.next(size);
-        });
+        for (let type in receivers) {
+            socket.receive(type).subscribe((data: any) => receivers[type](data));
+        }
+        events.forEach(stream => socket.addEvent(stream.type, stream.data));
     })
 }

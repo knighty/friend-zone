@@ -68,7 +68,7 @@ def main():
     model = args.model
     if args.model != "large" and not args.non_english:
         model = model + ".en"
-    audio_model = whisper.load_model(model)
+    audio_model = whisper.load_model(model, in_memory=True)
 
     record_timeout = args.record_timeout
     phrase_timeout = args.phrase_timeout
@@ -89,7 +89,7 @@ def main():
 
     # Create a background thread that will pass us raw audio bytes.
     # We could do this manually but SpeechRecognizer provides a nice helper.
-    recorder.listen_in_background(source, record_callback, phrase_time_limit=1)
+    recorder.listen_in_background(source, record_callback, phrase_time_limit=3)
 
     # Cue the user that we're ready to go.
     print("Model loaded.\n", flush=True)
@@ -107,7 +107,7 @@ def main():
                 phrase_complete = False
                 # If enough time has passed between recordings, consider the phrase complete.
                 # Clear the current working audio buffer to start over with the new data.
-                if (phrase_time and now - phrase_time > phrase_timeout) or len(audio_data) > 1000000 or complete:
+                if (phrase_time and now - phrase_time > 6) or len(audio_data) > 1000000 or complete:
                     print("new phrase started\n", flush=True);
                     id = id + 1
                     last_text = ''

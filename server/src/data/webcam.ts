@@ -1,5 +1,5 @@
 import { map, startWith, Subject } from "rxjs";
-import { log } from "../lib/logger";
+import { log } from "shared/logger";
 
 export default class Webcam {
     left: number = 0;

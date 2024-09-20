@@ -1,10 +1,10 @@
 import { FastifyInstance } from "fastify";
 import { BehaviorSubject, catchError, EMPTY, map, Observable, of, switchMap, takeUntil, tap } from "rxjs";
+import { logger } from "shared/logger";
 import { serverSocket } from "shared/websocket/server";
 import { ExternalFeeds } from "../data/external-feeds";
 import Subtitles from "../data/subtitles";
 import { Users } from "../data/users";
-import { logger } from "../lib/logger";
 
 type WebsocketMessageStream = Observable<{
     type: string,
@@ -17,6 +17,7 @@ namespace Messages {
     export type User = {
         id: string,
         name: string,
+        sortKey: number,
         discordId: string
     }
 
@@ -82,7 +83,7 @@ export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds, 
             userId = data.id;
             userName = data.name;
             log.info(`${data.name} registered`);
-            users.addPerson(userId, data.discordId, data.name);
+            users.addPerson(userId, data.discordId, data.name, data.sortKey);
         });
 
         socket.receive("subtitles").subscribe(data => {

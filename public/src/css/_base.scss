@@ -1,8 +1,10 @@
 @import "clear";
 
 html {
+    --font: "Bebas Neue";
+
     height: 100%;
-    font-family: "Lilita One", sans-serif;
+    font-family: var(--font);
     font-style: normal;
     font-weight: 400;
 }

@@ -1,5 +1,6 @@
-import { BehaviorSubject, filter, map, Observable, retry, scan, share, shareReplay, Subject, switchMap, takeUntil, tap, timer } from "rxjs";
+import { BehaviorSubject, filter, map, Observable, scan, share, shareReplay, Subject, switchMap, takeUntil, tap } from "rxjs";
 import { logger } from "../logger";
+import { retryWithBackoff } from "../rxutils";
 
 type SocketMessage<D> = {
     type: string,
@@ -8,10 +9,8 @@ type SocketMessage<D> = {
 
 type Options = {
     retry?: boolean,
-}
-
-const defaultOptions: Required<Options> = {
-    retry: true
+    retryBase?: number,
+    retryMax?: number,
 }
 
 type SocketEventSubscription = {
@@ -20,16 +19,20 @@ type SocketEventSubscription = {
 
 type Socket = {
     on: (event: "open" | "close" | "error", handler: any) => SocketEventSubscription;
-    messages$: Observable<MessageEvent<any>>,
     send: (message: string | ArrayBufferLike | Blob | ArrayBufferView) => void;
+    messages$: Observable<MessageEvent<any>>,
 };
 
 export function connectGenericClient(socketFactory: (url: string) => Socket) {
     return function (url: string, opts?: Options) {
         const options: Required<Options> = {
-            ...defaultOptions,
+            retry: true,
+            retryBase: 1.1,
+            retryMax: 60 * 1000,
             ...opts
         };
+
+        const log = logger("web-socket-client");
 
         const subscribeToEvent$ = new Subject<string>();
         const subscribedEvents$ = subscribeToEvent$.pipe(
@@ -40,61 +43,50 @@ export function connectGenericClient(socketFactory: (url: string) => Socket) {
             shareReplay(1)
         )
         const disconnect$ = new Subject<void>();
-        const log = logger("web-socket-client");
 
         const clientConnection$ = new Observable<Socket>(subscriber => {
             const ws = socketFactory(url);
             log.info(`Connecting to ${url}...`);
-            const errorSubscription = ws.on("error", (e: any) => {
-                log.error("Socket error");
-                subscriber.error(e);
-            });
-            const openSubscription = ws.on("open", (e: any) => {
-                log.info("Socket open");
-                subscriber.next(ws);
-            });
-            const closeSubscription = ws.on("close", (e: any) => {
-                log.info("Socket closed")
-                subscriber.error(e);
-            });
+            const subscriptions = [
+                ws.on("error", (e: any) => {
+                    log.error("Socket error");
+                    subscriber.error(e);
+                }),
+                ws.on("open", (e: any) => {
+                    log.info("Socket open");
+                    subscriber.next(ws);
+                }),
+                ws.on("close", (e: any) => {
+                    log.info("Socket closed")
+                    subscriber.error(e);
+                })
+            ]
             return () => {
-                errorSubscription.unsubscribe();
-                openSubscription.unsubscribe();
-                closeSubscription.unsubscribe();
+                for (let sub of subscriptions) {
+                    sub.unsubscribe();
+                }
             }
         }).pipe(
             takeUntil(disconnect$),
             shareReplay(1)
         );
 
-        function connect() {
-            const isConnected$ = new BehaviorSubject(false);
-            const client$ = clientConnection$.pipe(
-                options.retry ? retry({
-                    delay: (_error, retryIndex) => {
-                        const interval = 1000;
-                        const delay = Math.min(60 * 1000, Math.pow(2, retryIndex - 1) * interval);
-                        log.info(`Retrying socket connection after ${delay / 1000}s...`);
-                        isConnected$.next(false);
-                        return timer(delay);
-                    }
-                }) : undefined,
-                tap(() => isConnected$.next(true)),
-                shareReplay(1)
-            )
-            return [client$, isConnected$] as const;
-        }
+        const isConnected$ = new BehaviorSubject(false);
+        const client$ = clientConnection$.pipe(
+            options.retry ? retryWithBackoff(log, {
+                subject$: isConnected$,
+                base: options.retryBase,
+                max: options.retryMax
+            }) : undefined,
+            shareReplay(1)
+        )
 
         subscribedEvents$.pipe(
-            switchMap(events => {
-                return client$.pipe(
-                    tap(client => send("subscribe", events))
-                )
-            }),
+            switchMap(events => client$.pipe(
+                tap(client => send("subscribe", events))
+            )),
             takeUntil(disconnect$)
         ).subscribe();
-
-        const [client$, isConnected$] = connect();
 
         const websocketMessages$ = client$.pipe(
             switchMap(client => client.messages$),

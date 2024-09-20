@@ -8,6 +8,7 @@ type Config = {
     },
     user: string,
     userName: string,
+    userSortKey: number,
     discordId: string,
     socket: string,
     whisper: {
@@ -20,6 +21,7 @@ type Config = {
 }
 
 export const config = {
+    userSortKey: 0,
     hotkeys: {
         enabled: true,
         focus: ["Left Control", "Left Alt", "F"],

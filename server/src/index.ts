@@ -10,17 +10,18 @@ import { green } from 'kolorist';
 import path from "path";
 import process from "process";
 import qs from "qs";
-import { map, Observable } from 'rxjs';
+import { BehaviorSubject, map, Observable, of, repeat, scan, Subject, switchMap, timer } from 'rxjs';
+import { logger } from 'shared/logger';
 import config from "./config";
 import DiscordVoiceState from './data/discord-voice-state';
 import { ExternalFeeds } from './data/external-feeds';
+import { sentences } from './data/sentences';
 import Subtitles from './data/subtitles';
 import { TwitchChat } from './data/twitch-chat';
 import { Users } from './data/users';
 import Webcam from './data/webcam';
 import { WordOfTheHour } from './data/word-of-the-hour';
 import { MissingError } from './errors';
-import { log, logger } from './lib/logger';
 import { configSocket } from './plugins/config-socket';
 import { errorHandler } from './plugins/errors';
 import { fastifyFavicon } from "./plugins/favicon";
@@ -84,7 +85,6 @@ Dependencies
 serverLog.info("Creating dependencies");
 const users = new Users();
 const twitchChat = new TwitchChat(config.twitch.channel);
-twitchChat.observeMessages().subscribe(message => log.info(`${message.user}: ${message.text}`));
 const wordOfTheHour = new WordOfTheHour(twitchChat);
 wordOfTheHour.setWord("Bespoke");
 const discordVoiceState = new DiscordVoiceState();
@@ -96,40 +96,40 @@ if (config.discord.voiceStatus) {
 const webcam = new Webcam();
 const subtitles = new Subtitles();
 
+class Scene {
+    id: string;
+    feedSize$ = new BehaviorSubject<number>(30);
+    feedPosition$ = new BehaviorSubject<[number, number]>([0, 0.5]);
+    feedLayout$ = new BehaviorSubject<"row" | "column">("row");
+}
+
 const feeds = new ExternalFeeds();
-feeds.addFeed({
-    active: true,
-    focused: null,
-    aspectRatio: "16/9",
-    sourceAspectRatio: "16/9",
-    //url: "https://www.youtube.com/watch?v=6DOGPqAasIQ",
-    url: "about:blank;",
-    user: "knighty"
-})
-feeds.addFeed({
-    active: true,
-    focused: null,
-    aspectRatio: "16/9",
-    sourceAspectRatio: "16/9",
-    url: "about:blank;",
-    user: "PHN"
-})
-feeds.addFeed({
-    active: true,
-    focused: null,
-    aspectRatio: "16/9",
-    sourceAspectRatio: "16/9",
-    url: "about:blank;",
-    user: "Dan"
-})
-feeds.addFeed({
-    active: true,
-    focused: null,
-    aspectRatio: "16/9",
-    sourceAspectRatio: "16/9",
-    url: "about:blank;",
-    user: "Leth"
-})
+
+function mockUser(name: string, image?: string) {
+    users.addPerson(name.toLowerCase(), "", name, 0);
+    if (image) {
+        feeds.addFeed({
+            active: true,
+            focused: null,
+            aspectRatio: "16/9",
+            sourceAspectRatio: "16/9",
+            url: `image:${image}`,
+            user: name
+        });
+    };
+    const timer$ = of('').pipe(
+        switchMap(
+            () => timer(2000 + Math.random() * 5000)
+        ),
+        repeat(),
+        scan((a, c) => ++a, 0),
+    );
+    timer$.subscribe(i => subtitles.handle(name.toLowerCase(), i, "final", sentences[Math.floor(sentences.length * Math.random())]))
+};
+
+mockUser("Dan", "https://www.godisageek.com/wp-content/uploads/FActorio-Main.jpg");
+mockUser("Leth", "https://i.ytimg.com/vi/O23kAaqFAeA/maxresdefault.jpg");
+mockUser("PHN");
 
 /*
 Logging
@@ -268,7 +268,7 @@ registerStreamModule({
     id: "woth"
 });
 
-fastifyApp.register(socket([
+const dataSources = [
     socketParam("woth", wordOfTheHour.observe()),
     socketParam("webcam", webcam.observePosition()),
     socketParam("voice", discordVoiceState.speaking$, map => ({
@@ -278,10 +278,34 @@ fastifyApp.register(socket([
     socketParam("feed", feeds.observeFeeds(3)),
     socketParam("users", users.observeUsers()),
     socketParam("feedPosition", feeds.feedPosition$),
-    socketParam("feedSize", feeds.feedSize$)
-]));
+    socketParam("feedSize", feeds.feedSize$),
+    socketParam("feedLayout", feeds.feedLayout$),
+];
+fastifyApp.register(socket(dataSources));
 fastifyApp.register(remoteControlSocket(subtitles, feeds, users));
-fastifyApp.register(configSocket(feeds.slideshowFrequency$, feeds.feedSize$, feeds.feedPosition$));
+type InferObs<T> = T extends Subject<infer U> ? U : never;
+function observableReceiver<T extends Subject<any>, U extends InferObs<T>>(subject: T) {
+    return (data: U) => subject.next(data);
+}
+/*function receivers(receivers: Record<string, Subject<any>>) {
+    let r: Record<string, any> = {};
+    for(let receiver in receivers) {
+        r[receiver] = observableReceiver(receivers[receiver]);
+    }
+    return r;
+}
+const efwef = receivers({
+    "config/slideshowFrequency": feeds.slideshowFrequency$,
+    "config/feedPosition": feeds.feedPosition$,
+    "config/feedSize": feeds.feedSize$,
+    "config/feedLayout": feeds.feedLayout$,
+});*/
+fastifyApp.register(configSocket(dataSources, {
+    "config/slideshowFrequency": observableReceiver(feeds.slideshowFrequency$),
+    "config/feedPosition": observableReceiver(feeds.feedPosition$),
+    "config/feedSize": observableReceiver(feeds.feedSize$),
+    "config/feedLayout": observableReceiver(feeds.feedLayout$),
+}));
 
 serverLog.info("Listen...");
 const server = fastifyApp.listen({ port: config.port, host: "0.0.0.0" }, function (err, address) {

@@ -1,7 +1,7 @@
 import { filter, map, Observable, share, shareReplay, switchMap } from "rxjs";
+import { logger } from "shared/logger";
 import tmi from "tmi.js";
 import config from "../config";
-import { logger } from "../lib/logger";
 
 const log = logger("twitch-chat");
 

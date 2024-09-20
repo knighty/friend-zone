@@ -1,6 +1,6 @@
 import { FastifyReply, FastifyRequest } from "fastify";
+import { log } from "shared/logger";
 import config from "../config";
-import { log } from "../lib/logger";
 
 function getErrorTemplate(status: number) {
     const customPages = [403, 404];

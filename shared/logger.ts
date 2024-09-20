@@ -42,7 +42,7 @@ export const log = {
     error: logFactory("error", red),
 }
 
-export function logger(category: string, enabled = true) {
+export function logger(category: string, enabled = true): Logger {
     let isEnabled = enabled;
     return {
         enabled: (enabled: boolean) => isEnabled = enabled,
@@ -51,4 +51,12 @@ export function logger(category: string, enabled = true) {
         info: (message: string) => isEnabled ? log.info(message, category) : null,
         error: (message: any) => isEnabled ? log.error(message, category) : null,
     }
+}
+
+export type Logger = {
+    enabled: (enabled: boolean) => void,
+    debug: (message: string) => void,
+    warning: (message: string) => void,
+    info: (message: string) => void,
+    error: (message: any) => void,
 }

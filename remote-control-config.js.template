@@ -17,6 +17,9 @@ module.exports = {
     // Username to show in the stream
     userName: "",
 
+    // Sort Key
+    userSortKey: 0,
+
     // Discord ID use for voice monitoring (right click user -> copy user id with dev mode in Discord)
     discordId: "",
 

@@ -3,7 +3,7 @@ import { FastifyRequest } from 'fastify';
 import fs from "fs";
 import path from 'path';
 import { firstValueFrom, map, Observable, share, shareReplay, tap, timestamp } from 'rxjs';
-import { log } from './lib/logger';
+import { log } from 'shared/logger';
 
 export function randomString(length: number, encode: BufferEncoding = "hex") {
     const rb = crypto.randomBytes(length);

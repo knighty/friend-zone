@@ -1,6 +1,7 @@
 import { fromEvent } from "rxjs";
-import FeedsModule from "./modules/feeds";
-import FriendsModule from "./modules/friends";
+import FeedsModule from "./modules/feeds/feeds";
+import FriendsModule from "./modules/friends/friends";
+import { SubtitlesElement } from "./modules/friends/subtitles";
 import WebcamModule from "./modules/webcam";
 import WordOfTheHourModule from "./modules/word-of-the-hour";
 import { socket } from "./socket";
@@ -34,4 +35,5 @@ customElements.define("x-app", App);
 customElements.define("x-feed", FeedsModule);
 customElements.define("x-webcam", WebcamModule);
 customElements.define("friends-module", FriendsModule);
+customElements.define("x-subtitles", SubtitlesElement);
 customElements.define("word-of-the-hour-module", WordOfTheHourModule);

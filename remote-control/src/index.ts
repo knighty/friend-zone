@@ -7,8 +7,8 @@ import fs from "fs";
 import child_process from "node:child_process";
 import path from "node:path";
 import { BehaviorSubject, debounceTime, EMPTY, filter, firstValueFrom, map, merge, Observable, scan, shareReplay, switchMap, takeUntil, tap } from "rxjs";
+import { log, logger } from 'shared/logger';
 import { serverSocket } from 'shared/websocket/server';
-import { log, logger } from "../../server/src/lib/logger";
 import { config } from "./config";
 import { hotkey } from "./hotkeys";
 import { initSocket } from "./socket";
@@ -23,7 +23,7 @@ declare module 'fastify' {
 }
 
 const publicDir = path.join(__dirname, "../");
-const remoteControl = initSocket(config.socket, config.user, config.userName, config.discordId);
+const remoteControl = initSocket(config.socket, config.user, config.userName, config.discordId, config.userSortKey);
 
 function dynamicConfig<T>(initial: T) {
     const subject$ = new BehaviorSubject<T>(initial);
@@ -36,7 +36,11 @@ type Feed = {
     sourceAspectRatio: string,
 }
 
-const [setFeed, feed$] = dynamicConfig<Feed | null>(null);
+const [setFeed, feed$] = dynamicConfig<Feed | null>({
+    aspectRatio: "16/9",
+    sourceAspectRatio: "16/9",
+    url: null
+});
 const [setFeedActive, feedActive$] = dynamicConfig(false);
 
 if (config.hotkeys.enabled) {
@@ -134,15 +138,12 @@ fastifyApp.register(async (fastify: FastifyInstance) => {
             feedActive$.pipe(map(active => ({ key: "feedActive", value: active }))),
         ));
 
-        const connectionStatus$ = remoteControl.isConnected$.pipe(
-            tap(isConnected => {
-                socket.send("connectionStatus", { isConnected })
-            })
-        );
+        socket.addEvent("connectionStatus", remoteControl.isConnected$.pipe(
+            map(isConnected => ({ isConnected }))
+        ));
 
         merge(
-            configSetters$,
-            connectionStatus$
+            configSetters$
         ).pipe(
             takeUntil(socket.disconnected$)
         ).subscribe();

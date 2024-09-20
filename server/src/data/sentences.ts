@@ -1,0 +1,22 @@
+export const sentences = [
+    "The cat, which had been sleeping peacefully on the windowsill, suddenly jumped down and ran to the door when it heard the sound of someone opening a can of food in the kitchen.",
+    "He loves to read books on rainy afternoons, especially mysteries that keep him guessing until the very last page, while sipping his favorite cup of hot tea with a hint of lemon.",
+    "Let’s go for a walk along the riverbank where the trees are changing color, the air is crisp and cool, and we can enjoy the sound of the water flowing gently downstream.",
+    "She baked a delicious chocolate cake with layers of rich cream, topped with fresh strawberries and a drizzle of dark chocolate sauce, just in time for her friend's birthday celebration this weekend.",
+    "I found my lost keys after searching the entire house, checking every drawer, under every couch cushion, and finally discovering them in the pocket of the jacket I hadn’t worn in weeks.",
+    "Can you help me carry these heavy boxes up to the second floor? I’ve already tried moving them on my own, but they’re much heavier than I thought and I don’t want to hurt my back.",
+    "The sky is a beautiful shade of blue today, with not a single cloud in sight, and the gentle breeze makes it the perfect day for a picnic at the park with friends and family.",
+    "He runs every morning before the sun rises, following the same path along the quiet streets, listening to his favorite playlist, and using the time to clear his mind and prepare for the day.",
+    "We need more coffee for the meeting this afternoon because the last pot wasn’t enough for everyone, and I’m sure people will want a fresh cup to stay energized during the long discussions.",
+    "They are building a house next door, and the constant sound of hammers and drills can be heard from early in the morning until late in the afternoon, making it hard to concentrate at times.",
+    "She paints beautiful pictures of landscapes, inspired by her travels around the world, capturing the essence of each place with vibrant colors and intricate details that draw the viewer into the scene.",
+    "He won the race after months of rigorous training, pushing himself to his limits every day, and crossing the finish line with a sense of accomplishment and pride that made all the effort worthwhile.",
+    "I forgot my umbrella when I left the house this morning, and of course, it started pouring rain just as I was halfway to work, leaving me completely soaked by the time I arrived.",
+    "It's a sunny day, perfect for taking a long drive through the countryside with the windows down, enjoying the fresh air and the beautiful scenery that stretches out as far as the eye can see.",
+    "We should meet tomorrow to discuss the final details of the project, go over the timeline, and make sure everyone is on the same page before we move forward with the next phase of work.",
+    "Do you like pizza with lots of toppings, like pepperoni, mushrooms, green peppers, onions, and extra cheese? Or do you prefer something simpler, like a classic margherita with fresh basil and tomato sauce?",
+    "The flowers are blooming in the garden, their bright colors creating a beautiful contrast against the green leaves, and their sweet fragrance fills the air as butterflies and bees buzz around them.",
+    "He is learning to code by taking online courses, practicing every day, and working on small projects to improve his skills, hoping to eventually land a job as a software developer in the tech industry.",
+    "The dog barked loudly when the mailman came to the door, startling everyone in the house, and continued barking until the mailman was out of sight, wagging its tail the entire time as if proud of its efforts.",
+    "She enjoys swimming in the ocean, feeling the cool water against her skin, and the freedom of moving with the waves, letting the rhythmic sound of the ocean calm her mind and relax her body."
+];

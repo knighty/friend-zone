@@ -1,3 +1,6 @@
+@use "mixins";
+@use "flex";
+
 .word-of-the-hour {
     &[data-state="show"] {
         .word-container {
@@ -7,37 +10,30 @@
 }
 
 .word-of-the-hour {
-    z-index: -10;
     position: relative;
     display: grid;
     width: 100%;
     height: 100%;
-    font-family: "Bebas Neue";
 
     .word-container {
         place-self: center center;
-        display: flex;
-        flex-direction: row;
+        @include flex.row(0.3em);
         align-items: center;
-        gap: 0.3em;
-        width: 100%;
         width: 600px;
-        height: 100%;
         height: 100px;
         padding: 0.1em;
-        padding-right: 120px;
+        padding-right: 82px;
         padding-left: 130px;
+        font-size: 2em;
         color: #fff;
+        text-shadow: 1px 1px #000;
         background: url("../images/woth.svg") center / cover;
         transition: transform 1s;
         transform: translate(0, 10em);
 
         label {
-            display: flex;
-            flex-direction: row;
+            @include flex.row(0.1em);
             align-items: center;
-            gap: 0.1em;
-            font-size: 2em;
             text-transform: uppercase;
 
             span {
@@ -50,12 +46,17 @@
         }
 
         .word {
-            display: flex;
+            --size: 54px;
+
+            @include flex.row();
+            @include mixins.slanted-background(var(--size));
+
             flex: 1;
             justify-content: center;
             align-items: center;
-            font-size: 1.5em;
+            height: var(--size);
             text-transform: uppercase;
+            background: #454545;
         }
     }
 

@@ -1,8 +1,9 @@
 import { map, startWith, Subject } from "rxjs";
-import { logger } from "../lib/logger";
+import { logger } from "shared/logger";
 import { TwitchChat } from "./twitch-chat";
 
 const log = logger("woth");
+
 export class WordOfTheHour {
     word: string | null = null;
     counts = new Map<string, number>();
