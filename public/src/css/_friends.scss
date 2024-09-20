@@ -27,26 +27,24 @@ friends-module {
     @include flex.column(var(--spacing));
     align-items: start;
     font-size: 1.4em;
+    width: 100%;
 
     li {
         position: relative;
         display: grid;
         align-items: center;
         grid-template-columns: min-content 1fr;
-        gap: 0.5em;
         height: 3em;
 
         .user {
-            --border-radius: 1000px;
-
             position: relative;
             @include flex.row();
             justify-content: space-between;
             align-items: center;
             width: 242px;
             height: 60px;
-            padding-right: 34px;
-            padding-left: 61px;
+            padding-right: 48px;
+            padding-left: 32px;
             font-size: 1.1em;
             color: #fff;
             text-shadow: 1px 1px #000;
@@ -69,18 +67,18 @@ friends-module {
                 @include flex.column();
                 justify-content: center;
                 align-items: center;
-                width: 3.5em;
+                width: 2.5em;
                 height: 30px;
                 padding: 0;
                 font-size: 0.8em;
                 text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.4);
                 background: #454545;
-                clip-path: polygon(30px 0, 100% 0, calc(100% - 30px) 30px, 0 30px);
+                clip-path: polygon(15px 0, 100% 0, calc(100% - 16px) 30px, 0 30px);
             }
         }
 
         .speaker {
-            --r: 7px;
+            --r: 5px;
             --c: #c829f1;
 
             position: absolute;
@@ -89,7 +87,9 @@ friends-module {
             width: 50px;
             height: 39px;
             opacity: 0;
-            clip-path: polygon(0 100%, 200px calc(100% - 200px), 100% 100%);
+            clip-path: polygon(0 100%, 200px calc(100% - 400px), 100% 100%);
+            transition: opacity 0.2s;
+
             background: radial-gradient(
                 circle at 5px 33px,
                 var(--c) 0px var(--r),
@@ -99,8 +99,41 @@ friends-module {
                 var(--c) calc(var(--r) * 4 + 1px) calc(var(--r) * 5),
                 transparent calc(var(--r) * 5 + 1px) calc(var(--r) * 6)
             );
-            transition: opacity 0.2s;
         }
+
+        /*&[data-voice-level="1"] {
+            .speaker {
+                background: radial-gradient(
+                    circle at 5px 33px,
+                    var(--c) 0px var(--r),
+                    transparent calc(var(--r) * 1 + 1px) calc(var(--r) * 2)
+                );
+            }
+        }
+        &[data-voice-level="2"] {
+            .speaker {
+                background: radial-gradient(
+                    circle at 5px 33px,
+                    var(--c) 0px var(--r),
+                    transparent calc(var(--r) * 1 + 1px) calc(var(--r) * 2),
+                    var(--c) calc(var(--r) * 2 + 1px) calc(var(--r) * 3),
+                    transparent calc(var(--r) * 3 + 1px) calc(var(--r) * 4)
+                );
+            }
+        }
+        &[data-voice-level="3"] {
+            .speaker {
+                background: radial-gradient(
+                    circle at 5px 33px,
+                    var(--c) 0px var(--r),
+                    transparent calc(var(--r) * 1 + 1px) calc(var(--r) * 2),
+                    var(--c) calc(var(--r) * 2 + 1px) calc(var(--r) * 3),
+                    transparent calc(var(--r) * 3 + 1px) calc(var(--r) * 4),
+                    var(--c) calc(var(--r) * 4 + 1px) calc(var(--r) * 5),
+                    transparent calc(var(--r) * 5 + 1px) calc(var(--r) * 6)
+                );
+            }
+        }*/
 
         &.speaking {
             .speaker {

@@ -1,4 +1,4 @@
-import { animationFrames, filter, map, Observable, pairwise, retry, share, skip, Subject, tap, timer } from "rxjs";
+import { animationFrames, filter, map, merge, Observable, pairwise, retry, scan, share, skip, Subject, tap, timer } from "rxjs";
 import { Logger } from "./logger";
 
 export const renderLoop$ = animationFrames().pipe(
@@ -42,4 +42,11 @@ export function retryWithBackoff<T>(log: Logger, options: Partial<RetryOptions>)
             retryIndex = 1;
         })
     )
+}
+
+export function updateableState<State>(state: State, updaters: Observable<(state: State) => State>[]) {
+    return merge(...updaters).pipe(
+        scan((state, update) => update(state), state),
+        share()
+    );
 }

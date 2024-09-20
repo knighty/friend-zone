@@ -1,4 +1,4 @@
-import { BehaviorSubject, EMPTY, endWith, filter, fromEvent, ignoreElements, interval, map, merge, Observable, share, shareReplay, Subject, switchMap, takeUntil, tap } from "rxjs";
+import { BehaviorSubject, endWith, filter, fromEvent, ignoreElements, interval, map, merge, Observable, share, shareReplay, Subject, Subscription, switchMap, takeUntil, tap } from "rxjs";
 import { WebSocket } from "ws";
 import { logger } from "../logger";
 
@@ -73,6 +73,30 @@ export function serverSocket<T extends ServerSocket>(ws: WebSocket, opts?: Optio
     const events: Record<string, Observable<any>> = {};
     const eventSubscriptions$ = new Subject<string[]>();
 
+    function eventSubs() {
+        const eventSubscriptions: Record<string, Subscription> = {};
+        return (source: Observable<string[]>) => {
+            const sourceSubscription = source.subscribe(eventNames => {
+                for (let name of eventNames) {
+                    if (!eventSubscriptions[name]) {
+                        if (events[name])
+                            eventSubscriptions[name] = events[name].subscribe(value => send(name, value));
+                        else
+                            log.error(`Event "${name}" does not exist`);
+                    }
+                }
+            })
+            return new Observable(subscriber => {
+                return () => {
+                    for (let key in eventSubscriptions) {
+                        eventSubscriptions[key].unsubscribe();
+                    }
+                    sourceSubscription.unsubscribe();
+                }
+            })
+        }
+    }
+
     merge(
         client$.pipe(
             switchMap(client => sendMessages$.pipe(
@@ -83,18 +107,7 @@ export function serverSocket<T extends ServerSocket>(ws: WebSocket, opts?: Optio
             tap(i => ws.ping()),
         ),
         eventSubscriptions$.pipe(
-            switchMap(e => {
-                const observables = e.map(event => {
-                    if (events[event]) {
-                        return events[event].pipe(
-                            tap(data => send(event, data))
-                        )
-                    }
-                    log.error(`Event "${event}" does not exist`);
-                    return EMPTY
-                })
-                return merge(...observables)
-            })
+            eventSubs()
         ),
         socketMessages("subscribe").pipe(
             tap(events => eventSubscriptions$.next(events))
