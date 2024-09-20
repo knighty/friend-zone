@@ -138,9 +138,9 @@ function mockUser(name: string, image: string, sort: number) {
     timer$.subscribe(i => subtitles.handle(name.toLowerCase(), i, "final", sentences[Math.floor(sentences.length * Math.random())]))
 };
 
-mockUser("Dan", "https://www.godisageek.com/wp-content/uploads/FActorio-Main.jpg", 4);
-mockUser("Leth", "https://i.ytimg.com/vi/O23kAaqFAeA/maxresdefault.jpg", 3);
-mockUser("PHN", null, 1);
+//mockUser("Dan", "https://www.godisageek.com/wp-content/uploads/FActorio-Main.jpg", 4);
+//mockUser("Leth", "https://i.ytimg.com/vi/O23kAaqFAeA/maxresdefault.jpg", 3);
+//mockUser("PHN", null, 1);
 
 /*
 Logging

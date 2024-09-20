@@ -5,7 +5,7 @@ import { Embed } from "./embed-handlers/embed-handler";
 import { handleEmbed } from "./embed-handlers/embed-handlers";
 
 const audioEnabled = false;
-const numFeeds = 2;
+const numFeeds = 3;
 
 namespace Message {
     export type FocusedFeed = {
