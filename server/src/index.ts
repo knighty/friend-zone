@@ -138,9 +138,9 @@ function mockUser(name: string, image: string, sort: number) {
     timer$.subscribe(i => subtitles.handle(name.toLowerCase(), i, "final", sentences[Math.floor(sentences.length * Math.random())]))
 };
 
-//mockUser("Dan", "https://www.godisageek.com/wp-content/uploads/FActorio-Main.jpg", 4);
-//mockUser("Leth", "https://i.ytimg.com/vi/O23kAaqFAeA/maxresdefault.jpg", 3);
-//mockUser("PHN", null, 1);
+mockUser("Dan", "https://www.godisageek.com/wp-content/uploads/FActorio-Main.jpg", 4);
+mockUser("Leth", "https://i.ytimg.com/vi/O23kAaqFAeA/maxresdefault.jpg", 3);
+mockUser("PHN", null, 1);
 
 /*
 Logging
@@ -290,7 +290,9 @@ const dataSources = [
     socketParam("users", users.observeUsers()),
     socketParam("feedPosition", feeds.feedPosition$),
     socketParam("feedSize", feeds.feedSize$),
+    socketParam("feedCount", feeds.feedCount$),
     socketParam("feedLayout", feeds.feedLayout$),
+    socketParam("slideshowFrequency", feeds.slideshowFrequency$),
 ];
 fastifyApp.register(socket(dataSources));
 fastifyApp.register(remoteControlSocket(subtitles, feeds, users));
@@ -316,6 +318,7 @@ fastifyApp.register(configSocket(dataSources, {
     "config/feedPosition": observableReceiver(feeds.feedPosition$),
     "config/feedSize": observableReceiver(feeds.feedSize$),
     "config/feedLayout": observableReceiver(feeds.feedLayout$),
+    "config/feedCount": observableReceiver(feeds.feedCount$),
 }));
 
 serverLog.info("Listen...");

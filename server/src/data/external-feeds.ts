@@ -1,5 +1,7 @@
-import { BehaviorSubject, combineLatest, map, merge, Observable, scan, shareReplay, Subject, switchMap, timer } from "rxjs";
+import { BehaviorSubject, combineLatest, map, Observable, shareReplay, Subject, switchMap, timer } from "rxjs";
 import { logger } from "shared/logger";
+import { observableMap } from "shared/rxutils";
+import config from "../config";
 
 type Feed = {
     user: string,
@@ -15,39 +17,19 @@ type FeedMap = Map<string, Feed>;
 const log = logger("feeds");
 
 export class ExternalFeeds {
-    private addFeed$ = new Subject<Feed>();
+    private addFeed$ = new Subject<{ key: string, value: Feed }>();
     private removeFeed$ = new Subject<string>();
-    private updateFeed$ = new Subject<Partial<Feed>>();
-    private focusFeed$ = new Subject<{ user: string, focus: boolean }>();
-    private activeFeed$ = new Subject<{ user: string, active: boolean }>();
+    private updateFeed$ = new Subject<{ key: string, value: Partial<Feed> }>();
     private feeds$: Observable<Map<string, Feed>>;
-    slideshowFrequency$ = new BehaviorSubject<number>(30);
-    feedCount$ = new BehaviorSubject<number>(1);
-    feedSize$ = new BehaviorSubject<number>(30);
-    feedPosition$ = new BehaviorSubject<[number, number]>([0, 0.5]);
-    feedLayout$ = new BehaviorSubject<"row" | "column">("row");
+    slideshowFrequency$ = new BehaviorSubject<number>(config.feeds.slideshowFrequency);
+    feedCount$ = new BehaviorSubject<number>(config.feeds.count);
+    feedSize$ = new BehaviorSubject<number>(config.feeds.size);
+    feedPosition$ = new BehaviorSubject<[number, number]>(config.feeds.position);
+    feedLayout$ = new BehaviorSubject<"row" | "column">(config.feeds.layout);
     private sortedFeeds$: Observable<Feed[]>;
 
     constructor() {
-        this.feeds$ = merge(
-            this.addFeed$.pipe(map(feed => (feeds: FeedMap) => feeds.get(feed.user) ? null : feeds.set(feed.user, feed))),
-            this.removeFeed$.pipe(map(user => (feeds: FeedMap) => feeds.delete(user))),
-            this.updateFeed$.pipe(map(data => (feeds: FeedMap) => {
-                if (feeds.get(data.user))
-                    feeds.set(data.user, { ...feeds.get(data.user), ...data })
-            })),
-            this.focusFeed$.pipe(map(data => (feeds: FeedMap) => {
-                if (feeds.get(data.user))
-                    feeds.set(data.user, { ...feeds.get(data.user), focused: data.focus ? new Date() : null })
-            })),
-            this.activeFeed$.pipe(map(data => (feeds: FeedMap) => {
-                if (feeds.get(data.user))
-                    feeds.set(data.user, { ...feeds.get(data.user), active: data.active })
-            })),
-        ).pipe(
-            scan((a, c) => (c(a), a), new Map<string, Feed>()),
-            shareReplay(1)
-        )
+        this.feeds$ = observableMap<string, Feed>(this.addFeed$, this.removeFeed$, this.updateFeed$);
         this.feeds$.subscribe();
 
         const slideshowTimer$ = this.slideshowFrequency$.pipe(
@@ -85,21 +67,34 @@ export class ExternalFeeds {
 
     updateFeed(user: string, feed: Partial<Feed>) {
         this.updateFeed$.next({
-            user: user,
-            ...feed
+            key: user,
+            value: feed
         });
     }
 
     addFeed(feed: Feed) {
-        this.addFeed$.next(feed);
+        this.addFeed$.next({
+            key: feed.user,
+            value: feed
+        });
     }
 
     focusFeed(user: string, focus: boolean) {
-        this.focusFeed$.next({ user, focus });
+        this.updateFeed$.next({
+            key: user,
+            value: {
+                focused: focus ? new Date() : null
+            }
+        });
     }
 
     activeFeed(user: string, active: boolean) {
-        this.activeFeed$.next({ user, active });
+        this.updateFeed$.next({
+            key: user,
+            value: {
+                active: active
+            }
+        });
     }
 
     removeFeed(user: string) {

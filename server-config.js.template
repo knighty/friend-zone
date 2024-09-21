@@ -5,7 +5,7 @@ module.exports = {
     // Authorisation
     auth: {
         // Array of twitch usernames that have admin rights
-        admins: ["user"]
+        admins: [""]
     },
 
     // Twitch settings
@@ -30,5 +30,23 @@ module.exports = {
 
         // Redirect URI for RPC server. http://localhost:3000/api/auth/callback/discord should be fine
         redirectUri: "",
-    }
+    },
+
+    // Feed settings
+    feeds: {
+        // How long to wait between changing feeds (seconds)
+        slideshowFrequency: 30,
+
+        // How many feeds to show at once
+        count: 3,
+
+        // The size of each feed (percentage of width/height of screen depending on layout)
+        size: 30,
+
+        // Where feeds are anchored on the stream (x, y) 
+        position: [0.5, 0],
+
+        // row/column
+        layout: "row"
+    },
 }

@@ -1,4 +1,5 @@
 import { fromEvent } from "rxjs";
+import FeedContainer from "./modules/feeds/container";
 import FeedsModule from "./modules/feeds/feeds";
 import FriendsModule from "./modules/friends/friends";
 import { SubtitlesElement } from "./modules/friends/subtitles";
@@ -32,6 +33,7 @@ class App extends HTMLElement {
 }
 
 customElements.define("x-app", App);
+customElements.define("feed-container", FeedContainer);
 customElements.define("x-feed", FeedsModule);
 customElements.define("x-webcam", WebcamModule);
 customElements.define("friends-module", FriendsModule);

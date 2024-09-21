@@ -1,6 +1,7 @@
 import RPC, { RPCEvents } from "discord-rpc";
-import { filter, map, merge, Observable, scan, shareReplay, Subject, switchMap, tap } from "rxjs";
+import { filter, map, merge, Observable, shareReplay, Subject, switchMap, tap } from "rxjs";
 import { logger } from "shared/logger";
+import { updateableState } from "shared/rxutils";
 import config from "../config";
 
 type DiscordUser = string;
@@ -41,13 +42,10 @@ export default class DiscordVoiceState {
     stopSpeaking$ = new Subject<string>();
 
     constructor() {
-        this.speaking$ = merge(
-            this.startSpeaking$.pipe(map(userId => (speakers: SpeakingMap) => speakers.set(userId, true))),
-            this.stopSpeaking$.pipe(map(userId => (speakers: SpeakingMap) => speakers.delete(userId)))
-        ).pipe(
-            scan((a, c) => (c(a), a), new Map<DiscordUser, boolean>()),
-            shareReplay(1),
-        )
+        this.speaking$ = updateableState(new Map<DiscordUser, boolean>(), [
+            this.startSpeaking$.pipe(map(userId => speakers => speakers.set(userId, true))),
+            this.stopSpeaking$.pipe(map(userId => speakers => (speakers.delete(userId), speakers)))
+        ]);
     }
 
     connectToChannel(channelId: string) {

@@ -58,7 +58,7 @@ export const vdoNinjaHandler: EmbedHandler = (url: string, element: HTMLElement)
                         "mute": !allowed
                     }, '*');
                     iframe.contentWindow.postMessage({
-                        "getLoudness": true
+                        "getLoudness": allowed
                     }, '*');
                 }, 500)
             },

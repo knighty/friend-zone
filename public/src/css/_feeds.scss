@@ -38,7 +38,7 @@ x-feed {
         border-bottom: none;
     }
 
-    .feed-container {
+    feed-container {
         grid-template-columns: minmax(0, 0fr);
         transition: grid-template-columns 1s;
         overflow: hidden;
@@ -106,6 +106,7 @@ x-feed {
     }
 
     .volume-indicator {
+        display: none;
         position: absolute;
         --size: 2em;
         right: 1em;

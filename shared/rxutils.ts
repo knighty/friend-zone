@@ -1,4 +1,4 @@
-import { animationFrames, filter, map, merge, Observable, pairwise, retry, scan, share, skip, Subject, tap, timer } from "rxjs";
+import { animationFrames, filter, map, merge, Observable, pairwise, retry, scan, share, shareReplay, skip, Subject, tap, timer } from "rxjs";
 import { Logger } from "./logger";
 
 export const renderLoop$ = animationFrames().pipe(
@@ -48,5 +48,47 @@ export function updateableState<State>(state: State, updaters: Observable<(state
     return merge(...updaters).pipe(
         scan((state, update) => update(state), state),
         share()
+    );
+}
+
+export function mutableState<State>(state: State, updaters: Observable<(state: State) => void>[]) {
+    return merge(...updaters).pipe(
+        scan((state, update) => (update(state), state), state),
+        share()
+    );
+}
+
+export function observableMap<K, V>(add: Observable<{ key: K, value: V }>, remove: Observable<K>, update: Observable<{ key: K, value: Partial<V> }>) {
+    const o$ = new Observable<Map<K, V>>(subscriber => {
+        const map = new Map<K, V>();
+        const subscriptions = [
+            add.subscribe(kv => {
+                map.set(kv.key, kv.value);
+                subscriber.next(map);
+            }),
+            remove.subscribe(key => {
+                if (map.has(key)) {
+                    map.delete(key);
+                    subscriber.next(map);
+                }
+            }),
+            update.subscribe(kv => {
+                if (map.has(kv.key)) {
+                    map.set(kv.key, {
+                        ...map.get(kv.key),
+                        ...kv.value
+                    });
+                    subscriber.next(map);
+                }
+            })
+        ]
+        return () => {
+            for (let s of subscriptions) {
+                s.unsubscribe();
+            }
+        }
+    })
+    return o$.pipe(
+        shareReplay(1)
     );
 }

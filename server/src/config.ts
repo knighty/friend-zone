@@ -33,6 +33,13 @@ type Config = {
         redirectUri?: string,
     },
     socketHost: string,
+    feeds: {
+        slideshowFrequency: number,
+        count: number,
+        size: number,
+        position: [number, number],
+        layout: "row" | "column"
+    },
 };
 
 const defaultConfig: Config = {
@@ -57,7 +64,14 @@ const defaultConfig: Config = {
     },
     discord: {
     },
-    socketHost: "ws://localhost:3000"
+    socketHost: "ws://localhost:3000",
+    feeds: {
+        slideshowFrequency: 30,
+        count: 3,
+        size: 30,
+        position: [0.5, 0],
+        layout: "row"
+    },
 };
 
 export default {

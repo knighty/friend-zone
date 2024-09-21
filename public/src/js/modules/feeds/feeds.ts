@@ -1,11 +1,8 @@
-import { debounceTime, first, of, Subscription, switchMap, tap, timer } from "rxjs";
-import { createElement } from "shared/utils";
+import { debounceTime, scan, shareReplay, switchMap, tap } from "rxjs";
 import { socket } from "../../socket";
-import { Embed } from "./embed-handlers/embed-handler";
-import { handleEmbed } from "./embed-handlers/embed-handlers";
+import FeedContainer from "./container";
 
 const audioEnabled = false;
-const numFeeds = 3;
 
 namespace Message {
     export type FocusedFeed = {
@@ -18,15 +15,8 @@ namespace Message {
     }
     export type FeedPosition = [number, number]
     export type FeedSize = number
+    export type FeedCount = number
     export type FeedLayout = "row" | "column";
-}
-
-type FeedContainer = {
-    toggleVisibility: (visible: boolean) => void,
-    canAccept: (item: Message.FocusedFeed) => boolean,
-    accept: (item: Message.FocusedFeed) => Embed,
-    hasAudio: () => boolean;
-    toggleAudio: (audio: boolean) => void;
 }
 
 const isFirst = (feed: Message.FocusedFeed, feeds: Message.FocusedFeed[]) => feeds[0] == feed;
@@ -48,78 +38,33 @@ export default class FeedsModule extends HTMLElement {
 
         const feedItems$ = socket.receive<Message.FocusedFeed[]>("feed").pipe(
             debounceTime(100),
+            shareReplay(1),
         );
+        feedItems$.subscribe();
 
-        const feedContainers$ = of([...Array(numFeeds)].map<FeedContainer>(i => {
-            const rootElement = createElement("div", { classes: ["feed-container"] });
-            let element: HTMLElement = null;
-            let item: Message.FocusedFeed = null;
-            let wasVisible = false;
-            let subscription: Subscription = null;
-            let currentEmbed: Embed = null;
+        const feedCount$ = socket.receive<Message.FeedCount>("feedCount");
 
-            return {
-                canAccept(feed) {
-                    return feed.user == item?.user;
-                },
-                accept(feed) {
-                    const isSame = item?.url == feed.url && item?.user == feed.user;
-                    if (!isSame) {
-                        if (currentEmbed && currentEmbed.unload)
-                            currentEmbed.unload();
-                        const previousElement = element;
-                        element = createElement("div", { classes: ["feed"] });
-
-                        element.innerHTML = `<div class="video-shadow"></div>
-                        <div class="video">
-                            <div class="video-container"></div>
-                        </div>
-                        <span class="name">${feed.user}</span>`;
-                        rootElement.appendChild(element);
-
-                        const embed = handleEmbed(feed.url, element.querySelector(".video-container"));
-                        currentEmbed = typeof embed == "boolean" ? null : embed;
-
-                        if (subscription) {
-                            subscription.unsubscribe();
-                        }
-                        subscription = (typeof embed == "boolean" ? timer(0) : embed.loaded).pipe(first()).subscribe(() => {
-                            if (previousElement != null) {
-                                previousElement.classList.remove("show");
-                                setTimeout(() => previousElement.remove(), 2000);
-                            }
-                            let test = element.offsetLeft;
-                            element.classList.add("show");
-                        });
-                        item = feed;
-                    }
-                    rootElement.style.setProperty("--aspect-ratio", feed.aspectRatio);
-                    rootElement.style.setProperty("--source-aspect-ratio", feed.sourceAspectRatio);
-                    return currentEmbed;
-                },
-                toggleVisibility: (visible: boolean) => {
-                    rootElement.classList.toggle("show", visible);
-                    if (visible && !wasVisible) {
-                        this.appendChild(rootElement);
-                    } else if (!visible && wasVisible) {
-                        this.removeChild(rootElement);
-                    }
-                    wasVisible = visible;
-                },
-                hasAudio: () => currentEmbed?.hasAudio ?? false,
-                toggleAudio(audio) {
-                    currentEmbed?.toggleAudio(audio);
+        const feedContainers$ = feedCount$.pipe(
+            scan((state, num) => {
+                for (let container of state.slice(num)) {
+                    container.remove();
                 }
-            };
-        }));
+                state = state.slice(0, num);
+                for (let i = state.length; i < num; i++) {
+                    state.push(new FeedContainer())
+                }
+                return state;
+            }, [] as FeedContainer[])
+        );
 
         feedContainers$.pipe(
             switchMap(containers => {
+                console.log(containers);
                 return feedItems$.pipe(
                     tap(feeds => {
                         const usedContainers = [];
                         const remainingContainers = Array.from(containers);
-                        const activeFeeds = feeds.filter(feed => feed.focused || feed.active).slice(0, numFeeds);
+                        const activeFeeds = feeds.filter(feed => feed.focused || feed.active).slice(0, containers.length);
 
                         // Match up feeds that have existing containers
                         const remainingFeeds = activeFeeds.reduce((a, feed) => {
@@ -127,7 +72,7 @@ export default class FeedsModule extends HTMLElement {
                                 if (container.canAccept(feed)) {
                                     remainingContainers.splice(remainingContainers.indexOf(container), 1);
                                     container.accept(feed);
-                                    container.toggleVisibility(true);
+                                    container.toggleVisibility(true, this);
                                     usedContainers.push(container);
                                     return a;
                                 }
@@ -143,7 +88,7 @@ export default class FeedsModule extends HTMLElement {
                                 break;
                             }
                             container.accept(feed);
-                            container.toggleVisibility(true);
+                            container.toggleVisibility(true, this);
                             usedContainers.push(container);
                         }
 
@@ -162,7 +107,7 @@ export default class FeedsModule extends HTMLElement {
 
                         // Any remaining containers should be hidden
                         for (let container of remainingContainers) {
-                            container.toggleVisibility(false);
+                            container.toggleVisibility(false, this);
                         }
                     })
                 )

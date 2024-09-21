@@ -18,25 +18,14 @@
 		<x-dashboard>
 			<div class="panels">
 				<section>
-					<h1>Webcam</h1>
-					<h2>Position</h2>
-					<ul class="webcam-positions">
-						<li><button data-action="setWebcamPosition" value="0,0">↖</button></li>
-						<li><button data-action="setWebcamPosition" value="0.5,0">↑</button></li>
-						<li><button data-action="setWebcamPosition" value="1,0">↗</button></li>
-						<li><button data-action="setWebcamPosition" value="0,0.5">←</button></li>
-						<li><button data-action="setWebcamPosition" value="0.5,0.5">·</button></li>
-						<li><button data-action="setWebcamPosition" value="1,0.5">→</button></li>
-						<li><button data-action="setWebcamPosition" value="0,1">↙</button></li>
-						<li><button data-action="setWebcamPosition" value="0.5,1">↓</button></li>
-						<li><button data-action="setWebcamPosition" value="1,1">↘</button></li>
-					</ul>
-				</section>
-				<section>
 					<h1>Feeds</h1>
 					<label>
 						Slideshow Frequency
-						<input type="text" id="slideshowFrequency" />
+						<input type="number" id="slideshowFrequency" />
+					</label>
+					<label>
+						Feed Count
+						<input type="number" id="feedCount" />
 					</label>
 					<label>
 						Feed Size (%)
