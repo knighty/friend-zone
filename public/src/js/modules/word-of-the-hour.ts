@@ -1,4 +1,5 @@
 import { map } from "rxjs";
+import { CustomElement } from "shared/html/custom-element";
 import { socket } from "../socket";
 
 namespace Message {
@@ -8,12 +9,25 @@ namespace Message {
     }
 }
 
-export default class WordOfTheHourModule extends HTMLElement {
-    connectedCallback() {
-        socket.receive<Message.Woth>("woth").pipe(
+export default class WordOfTheHourModule extends CustomElement<{
+    Data: {
+        woth: string
+    },
+    Elements: {
+        word: HTMLElement
+    }
+}> {
+    setup() {
+        this.bindData("woth", socket.receive<Message.Woth>("woth").pipe(
             map(woth => woth.word),
-        ).subscribe(word => {
-            this.querySelector(".word").textContent = word;
+        ));
+        this.elements = {
+            word: this.querySelector(".word")
+        }
+    }
+    connect() {
+        this.registerHandler("woth").subscribe(word => {
+            this.element("word").textContent = word;
             this.dataset.state = word ? "show" : "hidden";
         });
     }

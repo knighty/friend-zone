@@ -1,4 +1,4 @@
-import { first, Subscription, timer } from "rxjs";
+import { finalize, Subscription, take, timer } from "rxjs";
 import { createElement } from "shared/utils";
 import { Embed } from "./embed-handlers/embed-handler";
 import { handleEmbed } from "./embed-handlers/embed-handlers";
@@ -55,15 +55,17 @@ export default class FeedContainer extends HTMLElement {
             if (this.subscription) {
                 this.subscription.unsubscribe();
             }
-            //TODO: This is leaky if another element comes along before the previous one completes loading
-            this.subscription = (typeof embed == "boolean" ? timer(0) : embed.loaded).pipe(first()).subscribe(() => {
-                if (previousElement != null) {
-                    previousElement.classList.remove("show");
-                    setTimeout(() => previousElement.remove(), 2000);
-                }
-                let test = this.element.offsetLeft;
-                this.element.classList.add("show");
-            });
+            this.subscription = (typeof embed == "boolean" ? timer(0) : embed.loaded).pipe(
+                take(1),
+                finalize(() => {
+                    if (previousElement != null) {
+                        previousElement.classList.remove("show");
+                        setTimeout(() => previousElement.remove(), 2000);
+                    }
+                    let test = this.element.offsetLeft;
+                    this.element.classList.add("show");
+                })
+            ).subscribe();
             this.item = feed;
         }
         this.style.setProperty("--aspect-ratio", feed.aspectRatio);

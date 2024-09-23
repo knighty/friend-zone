@@ -1,4 +1,4 @@
-import { BehaviorSubject, filter, map, Observable, scan, share, shareReplay, Subject, switchMap, takeUntil, tap } from "rxjs";
+import { BehaviorSubject, filter, finalize, map, Observable, share, shareReplay, Subject, switchMap, takeUntil, tap } from "rxjs";
 import { logger } from "../logger";
 import { retryWithBackoff } from "../rxutils";
 
@@ -23,6 +23,37 @@ type Socket = {
     messages$: Observable<MessageEvent<any>>,
 };
 
+function subscriptionHandler() {
+    type SubscribedEvents = Record<string, number>;
+    const subscriptions: SubscribedEvents = {};
+    const subscriptions$ = new BehaviorSubject<SubscribedEvents>(subscriptions);
+
+    function subscribe(event: string) {
+        if (!subscriptions[event]) {
+            subscriptions[event] = 0;
+            subscriptions$.next(subscriptions);
+        }
+        subscriptions[event]++;
+
+        return {
+            unsubscribe: () => {
+                subscriptions[event]--;
+                if (subscriptions[event] == 0) {
+                    delete subscriptions[event];
+                    subscriptions$.next(subscriptions);
+                }
+            }
+        }
+    }
+
+    return {
+        subscriptions$: subscriptions$.pipe(
+            map(subscriptions => Object.keys(subscriptions))
+        ),
+        subscribe
+    }
+}
+
 export function connectGenericClient(socketFactory: (url: string) => Socket) {
     return function (url: string, opts?: Options) {
         const options: Required<Options> = {
@@ -34,15 +65,8 @@ export function connectGenericClient(socketFactory: (url: string) => Socket) {
 
         const log = logger("web-socket-client");
 
-        const subscribeToEvent$ = new Subject<string>();
-        const subscribedEvents$ = subscribeToEvent$.pipe(
-            scan((a, c) => {
-                if (!a.includes(c))
-                    a.push(c);
-                return a;
-            }, [] as string[]),
-            shareReplay(1)
-        )
+        const subscriptions = subscriptionHandler();
+
         const disconnect$ = new Subject<void>();
 
         const clientConnection$ = new Observable<Socket>(subscriber => {
@@ -79,12 +103,19 @@ export function connectGenericClient(socketFactory: (url: string) => Socket) {
                 base: options.retryBase,
                 max: options.retryMax
             }) : undefined,
-            shareReplay(1)
+            shareReplay(1),
         )
 
-        subscribedEvents$.pipe(
-            switchMap(events => client$.pipe(
-                tap(client => send("subscribe", events))
+        client$.pipe(
+            switchMap(client => subscriptions.subscriptions$.pipe(
+                tap(events => client.send(JSON.stringify({ type: "subscribe", data: events })))
+            )),
+            takeUntil(disconnect$)
+        ).subscribe();
+
+        client$.pipe(
+            switchMap(client => sendMessages$.pipe(
+                tap(message => client.send(JSON.stringify(message)))
             )),
             takeUntil(disconnect$)
         ).subscribe();
@@ -97,23 +128,24 @@ export function connectGenericClient(socketFactory: (url: string) => Socket) {
         );
 
         function socketMessages<D>(type: string): Observable<D> {
-            subscribeToEvent$.next(type);
-            return websocketMessages$.pipe(
-                filter(message => message.type == type),
-                map<SocketMessage<D>, D>(message => message.data as D)
-            )
+            return new Observable(subscriber => {
+                const socketSubscription = subscriptions.subscribe(type);
+                const sub = websocketMessages$.pipe(
+                    filter(message => message.type == type),
+                    map<SocketMessage<D>, D>(message => message.data as D),
+                    finalize(() => {
+                        socketSubscription.unsubscribe();
+                    }),
+                ).subscribe(m => {
+                    subscriber.next(m);
+                })
+                return () => sub.unsubscribe();
+            })
         }
 
         const sendMessages$ = new Subject<{ type: string, data: any }>();
 
         const connected$ = client$;
-
-        client$.pipe(
-            switchMap(client => sendMessages$.pipe(
-                tap(message => client.send(JSON.stringify(message)))
-            )),
-            takeUntil(disconnect$)
-        ).subscribe();
 
         function send(type: string, data: any) {
             sendMessages$.next({ type, data });

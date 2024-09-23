@@ -1,6 +1,6 @@
-import { distinctUntilChanged, filter, map, merge, scan, share, switchMap, tap } from "rxjs"
+import { distinctUntilChanged, filter, map, of, scan, share } from "rxjs"
 import { socket } from "../../socket"
-import { SubtitlesElement } from "./subtitles"
+import { FriendElement } from "./friend"
 
 namespace Message {
     export type Woth = {
@@ -37,18 +37,24 @@ export default class FriendsModule extends HTMLElement {
                 let newElements: HTMLElement[] = [];
                 for (let userId in users) {
                     let user = users[userId];
-                    let element = elements.find(element => element.dataset.person == userId.toLowerCase());
+                    let element: FriendElement = elements.find(element => element.dataset.person == userId.toLowerCase()) as FriendElement;
                     if (!element) {
-                        element = document.createElement("li");
-                        element.dataset.discordId = user.discordId;
+                        element = new FriendElement();
+                        element.dataset.person = userId;
+                        element.bindData("woth", wothCounts$.pipe(
+                            map(counts => (counts[userId] ?? 0).toString()),
+                            distinctUntilChanged()
+                        ));
+                        element.bindData("subtitles", subtitles$.pipe(
+                            filter(subtitle => subtitle.userId == userId),
+                            map(subtitle => ({ id: subtitle.subtitleId, text: subtitle.text }))
+                        ));
+                        element.bindData("voice", voices$.pipe(
+                            map(users => !!users[user.discordId]),
+                            distinctUntilChanged(),
+                        ))
+                        element.bindData("name", of(user.name));
                         element.dataset.sortKey = user.sortKey.toString();
-                        element.dataset.person = userId.toLowerCase();
-                        element.innerHTML = `<div class="user">
-                        <span class="name">${user.name}</span>
-                        <span class="count">0</span>
-                        <div class="speaker"></div>
-                    </div>
-                    <x-subtitles class="subtitles"></x-subtitles>`
                         newElements.push(element);
                     }
                     newElements.push(element);
@@ -63,43 +69,7 @@ export default class FriendsModule extends HTMLElement {
                     .sort((a, b) => a.sort - b.sort)
                     .forEach(e => friendList.appendChild(e.element));
                 return newElements;
-            }, [] as HTMLElement[]),
-            switchMap(userElements => {
-                const subtitleUpdates$ = merge(...userElements.map(element => {
-                    const subtitlesElement = element.querySelector<SubtitlesElement>(".subtitles");
-                    const userId = element.dataset.person;
-                    return subtitles$.pipe(
-                        filter(subtitle => subtitle.userId == userId),
-                        tap(subtitle => subtitlesElement.updateSubtitles({
-                            id: subtitle.subtitleId,
-                            text: subtitle.text
-                        }))
-                    )
-                }));
-                const wothupdates$ = merge(...userElements.map(element => {
-                    const countElement = element.querySelector(".count");
-                    const userId = element.dataset.person;
-                    return wothCounts$.pipe(
-                        map(counts => counts[userId]),
-                        distinctUntilChanged(),
-                        tap(count => {
-                            element.classList.remove("animation");
-                            element.offsetWidth;
-                            element.classList.add("animation");
-                            countElement.textContent = (count ?? 0).toString();
-                        })
-                    )
-                }));
-                const voiceUpdates$ = merge(...userElements.map(element => {
-                    const discordId = element.dataset.discordId;
-                    return voices$.pipe(
-                        map(users => !!users[discordId]),
-                        distinctUntilChanged(),
-                        tap(speaking => element.classList.toggle("speaking", speaking))
-                    )
-                }));
-                return merge(voiceUpdates$, wothupdates$, subtitleUpdates$);
-            })
+            }, [] as HTMLElement[])
         ).subscribe();
     }
 }

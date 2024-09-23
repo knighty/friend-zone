@@ -1,4 +1,5 @@
 import { debounceTime, scan, shareReplay, switchMap, tap } from "rxjs";
+import { CustomElement } from "shared/html/custom-element";
 import { socket } from "../../socket";
 import FeedContainer from "./container";
 
@@ -19,32 +20,49 @@ namespace Message {
     export type FeedLayout = "row" | "column";
 }
 
-const isFirst = (feed: Message.FocusedFeed, feeds: Message.FocusedFeed[]) => feeds[0] == feed;
+export default class FeedsModule extends CustomElement<{
+    Data: {
+        position: [number, number],
+        size: number,
+        layout: "row" | "column",
+        count: number,
+        feeds: Message.FocusedFeed[]
+    },
+    Elements: {}
+}> {
+    setup() {
+        this.bindData("position", socket.receive<Message.FeedPosition>("feedPosition"));
+        this.bindData("size", socket.receive<Message.FeedSize>("feedSize"));
+        this.bindData("layout", socket.receive<Message.FeedLayout>("feedLayout"));
+        this.bindData("count", socket.receive<Message.FeedCount>("feedCount"));
+        this.bindData("feeds", socket.receive<Message.FocusedFeed[]>("feed").pipe(
+            debounceTime(100),
+            shareReplay(1),
+        ));
+    }
 
-export default class FeedsModule extends HTMLElement {
-    connectedCallback() {
-        socket.receive<Message.FeedPosition>("feedPosition").subscribe(position => {
+    connect() {
+        this.innerHTML = "";
+
+        this.registerHandler("position").subscribe(position => {
             this.style.setProperty("--left", position[0].toString());
             this.style.setProperty("--top", position[1].toString());
         });
 
-        socket.receive<Message.FeedPosition>("feedSize").subscribe(size => {
+        this.registerHandler("size").subscribe(size => {
             this.style.setProperty("--size", size.toString());
         });
 
-        socket.receive<Message.FeedLayout>("feedLayout").subscribe(layout => {
+        this.registerHandler("layout").subscribe(layout => {
             this.dataset.orientation = layout;
         });
 
-        const feedItems$ = socket.receive<Message.FocusedFeed[]>("feed").pipe(
+        const feedItems$ = this.registerHandler("feeds").pipe(
             debounceTime(100),
             shareReplay(1),
         );
-        feedItems$.subscribe();
 
-        const feedCount$ = socket.receive<Message.FeedCount>("feedCount");
-
-        const feedContainers$ = feedCount$.pipe(
+        const feedContainers$ = this.registerHandler("count").pipe(
             scan((state, num) => {
                 for (let container of state.slice(num)) {
                     container.remove();
@@ -59,7 +77,6 @@ export default class FeedsModule extends HTMLElement {
 
         feedContainers$.pipe(
             switchMap(containers => {
-                console.log(containers);
                 return feedItems$.pipe(
                     tap(feeds => {
                         const usedContainers = [];

@@ -15,30 +15,18 @@
 
 <body>
 	<main>
-		<div class="server-connection-status">
+		<div class="server-connection-status"></div>
+
+		<div class="panels">
+			<section>
+				<h1>Feed</h1>
+				<label>Active <input type="checkbox" id="feedActive" data-config="feedActive" /></label>
+				<label>URL <input type="text" id="feedUrl" /></label>
+				<label>Aspect Ratio <input text="text" id="feedAspectRatio" value="16/9" /></label>
+				<label>Source Aspect Ratio <input text="text" id="feedSourceAspectRatio" value="16/9" /></label>
+				<button class="button" id="updateFeedButton">Update Feed</button>
+			</section>
 		</div>
-
-		<fieldset>
-			<legend>Feed Status</legend>
-			<label>Active <input type="checkbox" id="feedActive" data-config="feedActive" /></label>
-		</fieldset>
-
-		<fieldset>
-			<legend>Feed URL</legend>
-			<label>URL <input type="text" id="feedUrl" /></label>
-			<label>Aspect Ratio <input text="text" id="feedAspectRatio" value="16/9" /></label>
-			<label>Source Aspect Ratio <input text="text" id="feedSourceAspectRatio" value="16/9" /></label>
-			<button id="updateFeedButton">Update Feed</button>
-		</fieldset>
-
-		<fieldset>
-			<legend>Subtitles</legend>
-			<button id="button" onclick="toggleStartStop()"></button>
-			<div style="border:dotted;padding:10px">
-				<span id="final_span"></span>
-				<span id="interim_span" style="color:grey"></span>
-			</div>
-		</fieldset>
 
 		<div class="connection-status">
 			<div class="connected">Connected</div>

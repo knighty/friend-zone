@@ -10,7 +10,7 @@ export const vdoNinjaHandler: EmbedHandler = (url: string, element: HTMLElement)
             bitrate: 5000,
             codec: "h264",
             speakermute: true,
-            ...Object.fromEntries(urlObj.searchParams),
+            ...Object.fromEntries(urlObj.searchParams.entries()),
         }
         for (let key in params) {
             urlObj.searchParams.set(key, params[key].toString());
