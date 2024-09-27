@@ -40,7 +40,7 @@ type Config = {
         position: [number, number],
         layout: "row" | "column"
     },
-    mockUsers: { name: string, feed: string | null, sortKey: number }[]
+    mockUsers?: { name: string, feed: string | null, sortKey: number }[]
 };
 
 const defaultConfig: Config = {
@@ -73,7 +73,7 @@ const defaultConfig: Config = {
         position: [0.5, 0],
         layout: "row"
     },
-    mockUsers: []
+    mockUsers: undefined
 };
 
 export default {

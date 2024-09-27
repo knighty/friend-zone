@@ -69,7 +69,7 @@ export function serverSocket<T extends ServerSocket>(ws: WebSocket, opts?: Optio
         )
     }
 
-    const sendMessages$ = new Subject<{ type: string, data: any }>();
+    const sendMessages$ = new Subject<{ type: string, data: any, id: number }>();
     const events: Record<string, Observable<any>> = {};
     const eventSubscriptions$ = new Subject<string[]>();
 
@@ -97,6 +97,7 @@ export function serverSocket<T extends ServerSocket>(ws: WebSocket, opts?: Optio
         }
     }
 
+    let messageId = 0;
     merge(
         client$.pipe(
             switchMap(client => sendMessages$.pipe(
@@ -117,7 +118,7 @@ export function serverSocket<T extends ServerSocket>(ws: WebSocket, opts?: Optio
     ).subscribe();
 
     function send(type: string, data: any) {
-        sendMessages$.next({ type, data });
+        sendMessages$.next({ type, data, id: messageId++ });
     }
 
     function disconnect() {

@@ -10,12 +10,14 @@ import { green } from 'kolorist';
 import path from "path";
 import process from "process";
 import qs from "qs";
-import { BehaviorSubject, map, Observable, of, repeat, scan, Subject, switchMap, timer } from 'rxjs';
+import { map, Observable, Subject } from 'rxjs';
 import { logger } from 'shared/logger';
+import { InferObservable } from "shared/rx/utils";
+import { objectMapArray } from 'shared/utils';
 import config from "./config";
 import DiscordVoiceState from './data/discord-voice-state';
 import { ExternalFeeds } from './data/external-feeds';
-import { sentences } from './data/sentences';
+import { mockUsers } from './data/mock-users';
 import Subtitles from './data/subtitles';
 import { TwitchChat } from './data/twitch-chat';
 import { Users } from './data/users';
@@ -94,53 +96,8 @@ if (config.discord.voiceStatus) {
 }
 const webcam = new Webcam();
 const subtitles = new Subtitles();
-
-class Scene {
-    id: string;
-    feedSize$ = new BehaviorSubject<number>(30);
-    feedPosition$ = new BehaviorSubject<[number, number]>([0, 0.5]);
-    feedLayout$ = new BehaviorSubject<"row" | "column">("row");
-}
-
 const feeds = new ExternalFeeds();
-
-function mockUser(name: string, image: string, sort: number) {
-    users.addPerson(name.toLowerCase(), name, name, sort);
-    if (image) {
-        feeds.addFeed({
-            active: true,
-            focused: null,
-            aspectRatio: "16/9",
-            sourceAspectRatio: "16/9",
-            url: `image:${image}`,
-            user: name
-        });
-    };
-    of('').pipe(
-        switchMap(
-            () => timer(500 + Math.random() * 1000)
-        ),
-        repeat(),
-    ).subscribe(() => {
-        if (Math.random() > 0.5) {
-            discordVoiceState.startSpeaking$.next(name);
-        } else {
-            discordVoiceState.stopSpeaking$.next(name);
-        }
-    })
-    const timer$ = of('').pipe(
-        switchMap(
-            () => timer(2000 + Math.random() * 5000)
-        ),
-        repeat(),
-        scan((a, c) => ++a, 0),
-    );
-    timer$.subscribe(i => subtitles.handle(name.toLowerCase(), i, "final", sentences[Math.floor(sentences.length * Math.random())]))
-};
-
-for (let user of config.mockUsers) {
-    mockUser(user.name, user.feed, user.sortKey);
-}
+const mocks = mockUsers(config.mockUsers, users, feeds, discordVoiceState, subtitles);
 
 /*
 Logging
@@ -241,31 +198,24 @@ fastifyApp.get<{
         anchor: string
     }
 }>(`/stream-modules/friends`, async (req, res) => {
-    const anchorParts = (req.query.anchor ?? "")
-        .split(" ");
-    const anchorHorizontal = anchorParts
-        .map(pos => {
-            switch (pos) {
-                case "left": return "start"
-                case "center": return "center"
-                case "right": return "end"
-                default: return ""
+    const anchor = (req.query.anchor ?? "")
+        .split(" ")
+        .reduce((anchor, part) => {
+            switch (part) {
+                case "left": anchor.h = "start";
+                case "center": anchor.h = "center";
+                case "right": anchor.h = "end";
+                case "top": anchor.v = "start";
+                case "middle": anchor.v = "center";
+                case "bottom": anchor.v = "end";
             }
-        }).find(pos => pos != "") ?? "start"
-    const anchorVertical = anchorParts
-        .map(pos => {
-            switch (pos) {
-                case "top": return "start"
-                case "middle": return "center"
-                case "bottom": return "end"
-                default: return ""
-            }
-        }).find(pos => pos != "") ?? "end"
+            return anchor;
+        }, { h: "start", v: "end" });
 
     return res.viewAsync(`stream-modules/friends`, {
-        anchor: `${anchorVertical} ${anchorHorizontal}`,
-        anchorHorizontal: anchorHorizontal,
-        anchorVertical: anchorVertical,
+        anchor: `${anchor.v} ${anchor.h}`,
+        anchorHorizontal: anchor.h,
+        anchorVertical: anchor.v,
         socketUrl: `${config.socketHost}/websocket`,
         style: await getManifestPath("main.css"),
         scripts: await getManifestPath("main.js"),
@@ -279,40 +229,27 @@ registerStreamModule({
     id: "woth"
 });
 
-const dataSources = [
-    socketParam("woth", wordOfTheHour.observe()),
-    socketParam("webcam", webcam.observePosition()),
-    socketParam("voice", discordVoiceState.speaking$, map => ({
-        users: Object.fromEntries(map)
-    })),
-    socketParam("subtitles", subtitles.stream$),
-    socketParam("feed", feeds.observeFeeds(3)),
-    socketParam("users", users.observeUsers()),
-    socketParam("feedPosition", feeds.feedPosition$),
-    socketParam("feedSize", feeds.feedSize$),
-    socketParam("feedCount", feeds.feedCount$),
-    socketParam("feedLayout", feeds.feedLayout$),
-    socketParam("slideshowFrequency", feeds.slideshowFrequency$),
-];
+const dataSources = objectMapArray({
+    woth: wordOfTheHour.observe(),
+    webcam: webcam.observePosition(),
+    users: users.observe(),
+    voice: discordVoiceState.speaking.entries$,
+    subtitles: subtitles.stream$,
+    feed: feeds.observeFeeds(),
+    feedPosition: feeds.feedPosition$,
+    feedSize: feeds.feedSize$,
+    feedCount: feeds.feedCount$,
+    feedLayout: feeds.feedLayout$,
+    slideshowFrequency: feeds.slideshowFrequency$,
+}, (value, key) => {
+    return socketParam(key, value);
+});
+
 fastifyApp.register(socket(dataSources));
 fastifyApp.register(remoteControlSocket(subtitles, feeds, users));
-type InferObs<T> = T extends Subject<infer U> ? U : never;
-function observableReceiver<T extends Subject<any>, U extends InferObs<T>>(subject: T) {
+function observableReceiver<T extends Subject<any>, U extends InferObservable<T>>(subject: T) {
     return (data: U) => subject.next(data);
 }
-/*function receivers(receivers: Record<string, Subject<any>>) {
-    let r: Record<string, any> = {};
-    for(let receiver in receivers) {
-        r[receiver] = observableReceiver(receivers[receiver]);
-    }
-    return r;
-}
-const efwef = receivers({
-    "config/slideshowFrequency": feeds.slideshowFrequency$,
-    "config/feedPosition": feeds.feedPosition$,
-    "config/feedSize": feeds.feedSize$,
-    "config/feedLayout": feeds.feedLayout$,
-});*/
 fastifyApp.register(configSocket(dataSources, {
     "config/slideshowFrequency": observableReceiver(feeds.slideshowFrequency$),
     "config/feedPosition": observableReceiver(feeds.feedPosition$),

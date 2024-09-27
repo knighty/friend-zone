@@ -1,10 +1,11 @@
-import { BehaviorSubject, filter, finalize, map, Observable, share, shareReplay, Subject, switchMap, takeUntil, tap } from "rxjs";
+import { BehaviorSubject, filter, finalize, first, map, Observable, share, shareReplay, Subject, switchMap, takeUntil, tap } from "rxjs";
 import { logger } from "../logger";
-import { retryWithBackoff } from "../rxutils";
+import { retryWithBackoff } from "../rx/utils";
 
 type SocketMessage<D> = {
     type: string,
     data: D;
+    id: number;
 }
 
 type Options = {
@@ -127,15 +128,22 @@ export function connectGenericClient(socketFactory: (url: string) => Socket) {
             share()
         );
 
-        function socketMessages<D>(type: string): Observable<D> {
+        type AddCallback<T> = T & { _callback: (data: any) => void };
+        function addCallback(message: SocketMessage<any>) {
+            const data = message.data;
+            data._callback = (data: any) => {
+                sendMessages$.next({ type: message.type, data, id: -message.id });
+            }
+            return data;
+        }
+
+        function socketMessages<D>(type: string): Observable<AddCallback<D>> {
             return new Observable(subscriber => {
                 const socketSubscription = subscriptions.subscribe(type);
                 const sub = websocketMessages$.pipe(
                     filter(message => message.type == type),
-                    map<SocketMessage<D>, D>(message => message.data as D),
-                    finalize(() => {
-                        socketSubscription.unsubscribe();
-                    }),
+                    map(message => addCallback(message) as AddCallback<D>),
+                    finalize(() => socketSubscription.unsubscribe()),
                 ).subscribe(m => {
                     subscriber.next(m);
                 })
@@ -143,12 +151,19 @@ export function connectGenericClient(socketFactory: (url: string) => Socket) {
             })
         }
 
-        const sendMessages$ = new Subject<{ type: string, data: any }>();
+        const sendMessages$ = new Subject<{ type: string, data: any, id: number }>();
 
         const connected$ = client$;
 
+        let messageId = 0;
         function send(type: string, data: any) {
-            sendMessages$.next({ type, data });
+            const id = messageId++;
+            sendMessages$.next({ type, data, id });
+            return websocketMessages$.pipe(
+                filter(message => message.id == -id),
+                first(),
+                map(message => message.data)
+            );
         }
 
         function disconnect() {

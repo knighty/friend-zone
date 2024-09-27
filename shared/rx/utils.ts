@@ -1,15 +1,7 @@
-import { animationFrames, filter, map, merge, Observable, pairwise, retry, scan, share, shareReplay, skip, Subject, tap, timer } from "rxjs";
-import { Logger } from "./logger";
+import { merge, Observable, of, repeat, retry, scan, share, shareReplay, Subject, switchMap, tap, timer } from "rxjs";
+import { Logger } from "../logger";
 
-export const renderLoop$ = animationFrames().pipe(
-    skip(1),
-    pairwise(),
-    map(([a, b]) => {
-        return { dt: (b.timestamp - a.timestamp) / 1000, timestamp: b.timestamp / 1000 };
-    }),
-    filter(frame => frame.dt < 0.1),
-    share()
-);
+export type InferObservable<T> = T extends Observable<infer U> ? U : never;
 
 type RetryOptions = {
     base: number,
@@ -91,4 +83,18 @@ export function observableMap<K, V>(add: Observable<{ key: K, value: V }>, remov
     return o$.pipe(
         shareReplay(1)
     );
+}
+
+export function randomInterval(time: () => number): Observable<number>;
+export function randomInterval(min: number, max: number): Observable<number>;
+export function randomInterval(min: number | ((iteration: number) => number), max?: number): Observable<number> {
+    const timefn = typeof min == "number" ? () => min + (max - min) * Math.random() : min;
+    let i = 0;
+    return of('').pipe(
+        switchMap(
+            () => timer(timefn(i++))
+        ),
+        repeat(),
+        scan((a, c) => ++a, 0),
+    )
 }

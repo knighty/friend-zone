@@ -1,7 +1,7 @@
 import RPC, { RPCEvents } from "discord-rpc";
-import { filter, map, merge, Observable, shareReplay, Subject, switchMap, tap } from "rxjs";
+import { filter, merge, Observable, shareReplay, switchMap, tap } from "rxjs";
 import { logger } from "shared/logger";
-import { updateableState } from "shared/rxutils";
+import { ObservableMap } from "shared/rx/observable-map";
 import config from "../config";
 
 type DiscordUser = string;
@@ -37,16 +37,7 @@ namespace Events {
 }
 
 export default class DiscordVoiceState {
-    speaking$: Observable<SpeakingMap>;
-    startSpeaking$ = new Subject<string>();
-    stopSpeaking$ = new Subject<string>();
-
-    constructor() {
-        this.speaking$ = updateableState(new Map<DiscordUser, boolean>(), [
-            this.startSpeaking$.pipe(map(userId => speakers => speakers.set(userId, true))),
-            this.stopSpeaking$.pipe(map(userId => speakers => (speakers.delete(userId), speakers)))
-        ]);
-    }
+    speaking: ObservableMap<DiscordUser, boolean> = new ObservableMap<DiscordUser, boolean>();
 
     connectToChannel(channelId: string) {
         function watch<T>(event: RPCEvents, data: any) {
@@ -69,10 +60,10 @@ export default class DiscordVoiceState {
 
         return merge(
             watch<Events.Speaking>("SPEAKING_START", { channel_id: channelId }).pipe(
-                tap(e => this.startSpeaking$.next(e.user_id))
+                tap(e => this.speaking.set(e.user_id, true))
             ),
             watch<Events.Speaking>("SPEAKING_STOP", { channel_id: channelId }).pipe(
-                tap(e => this.stopSpeaking$.next(e.user_id))
+                tap(e => this.speaking.delete(e.user_id))
             ),
             watch<Events.Message>("MESSAGE_CREATE", { channel_id: channelId }).pipe(
                 filter(e => e.channel_id == channelId),

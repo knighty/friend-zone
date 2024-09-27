@@ -7,9 +7,7 @@ namespace Message {
         counts: Record<string, number>,
         word: string
     }
-    export type Voice = {
-        users: Record<string, boolean>
-    }
+    export type Voice = Record<string, boolean>
     export type Subtitles = {
         subtitleId: number,
         text: string,
@@ -28,7 +26,7 @@ export default class FriendsModule extends HTMLElement {
         const users$ = socket.receive<Message.Users>("users");
         const wothCounts$ = socket.receive<Message.Woth>("woth").pipe(map(woth => woth.counts), share());
         const subtitles$ = socket.receive<Message.Subtitles>("subtitles").pipe(share());
-        const voices$ = socket.receive<Message.Voice>("voice").pipe(map(data => data.users), share());
+        const voices$ = socket.receive<Message.Voice>("voice").pipe(share());
 
         const friendList = document.querySelector(".friend-list");
 

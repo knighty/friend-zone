@@ -1,13 +1,13 @@
-import { map, startWith, Subject } from "rxjs";
+import { BehaviorSubject, combineLatest, map } from "rxjs";
 import { logger } from "shared/logger";
+import { ObservableMap } from "shared/rx/observable-map";
 import { TwitchChat } from "./twitch-chat";
 
 const log = logger("woth");
 
 export class WordOfTheHour {
-    word: string | null = null;
-    counts = new Map<string, number>();
-    update$ = new Subject<void>();
+    word$ = new BehaviorSubject<string | null>(null);
+    counts = new ObservableMap<string, number>();
 
     constructor(twitchChat: TwitchChat) {
         twitchChat.observeCommand("woth").subscribe(command => {
@@ -32,41 +32,28 @@ export class WordOfTheHour {
     }
 
     observe() {
-        return this.update$.pipe(
-            startWith(null),
-            map(() => ({
-                word: this.word,
-                counts: Object.fromEntries(this.counts)
-            }))
+        return combineLatest([this.word$, this.counts.entries$]).pipe(
+            map(([word, counts]) => ({ word, counts }))
         );
     }
 
     setWord(word: string | null) {
-        this.word = word;
-        log.info(`Set to "${this.word}"`);
-        this.update$.next();
+        this.word$.next(word);
+        log.info(`Set to "${word}"`);
     }
 
     incrementUserCount(user: string) {
-        const count = this.counts.get(user) || 0;
-        this.counts.set(user, count + 1);
-        log.info(`Set ${user} to "${count + 1}"`);
-        this.update$.next();
+        const count = this.counts.atomicSet(user, value => value + 1, 0);
+        log.info(`Set ${user} to ${count + 1}`);
     }
 
     setUserCount(user: string, count: number) {
-        log.info(`Set ${user} to "${Number(count)}"`);
-        this.counts.set(user, Number(count));
-        this.update$.next();
+        log.info(`Set ${user} to ${count}`);
+        this.counts.set(user, count);
     }
 
     reset() {
-        const newMap = new Map<string, number>();
-        for (let key in this.counts) {
-            newMap.set(key, 0);
-        }
-        this.counts = newMap;
+        this.counts.empty();
         log.info(`Reset all counts`);
-        this.update$.next();
     }
 }

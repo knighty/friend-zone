@@ -83,7 +83,7 @@ export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds, 
             userId = data.id;
             userName = data.name;
             log.info(`${data.name} registered`);
-            users.addPerson(userId, data.discordId, data.name, data.sortKey);
+            users.add(userId, data);
         });
 
         socket.receive("subtitles").subscribe(data => {
@@ -118,7 +118,7 @@ export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds, 
 
         function disconnect() {
             feeds.removeFeed(userId);
-            users.removePerson(userId);
+            users.remove(userId);
             log.info(`${userName} disconnected`);
         }
         socket.connection$.subscribe({

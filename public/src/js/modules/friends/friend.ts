@@ -2,11 +2,11 @@ import { CustomElement } from "shared/html/custom-element";
 import { SubtitlesElement } from "./subtitles";
 
 const template = `<div class="user">
-    <span class="name"></span>
-    <span class="count">0</span>
+    <span class="name" data-element="name"></span>
+    <span class="count" data-element="count">0</span>
     <div class="speaker"></div>
 </div>
-<x-subtitles class="subtitles"></x-subtitles>`
+<x-subtitles class="subtitles" data-element="subtitles"></x-subtitles>`
 
 type Sub = { id: number, text: string };
 
@@ -21,15 +21,11 @@ export class FriendElement extends CustomElement<{
         name: HTMLElement,
         count: HTMLElement,
         subtitles: SubtitlesElement,
+        test: HTMLInputElement
     }
 }> {
     setup() {
         this.innerHTML = template;
-        this.elements = {
-            name: this.querySelector(".name"),
-            count: this.querySelector(".count"),
-            subtitles: this.querySelector<SubtitlesElement>("x-subtitles")
-        };
         this.elements.subtitles.bindData("subtitles", this.registerHandler("subtitles"));
     }
 
@@ -42,5 +38,6 @@ export class FriendElement extends CustomElement<{
             this.element("count").textContent = (count ?? 0).toString();
         });
         this.registerHandler("voice").subscribe(speaking => this.classList.toggle("speaking", speaking));
+        this.observeValue("test");
     }
 }

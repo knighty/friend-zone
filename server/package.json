@@ -25,8 +25,8 @@
         "kolorist": "^1.8.0",
         "nodemon": "^3.1.4",
         "qs": "^6.13.0",
-        "tmi.js": "^1.8.5",
-        "shared": "../shared"
+        "shared": "file:../shared",
+        "tmi.js": "^1.8.5"
     },
     "devDependencies": {
         "@types/node": "^22.5.4",
