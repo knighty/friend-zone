@@ -3,7 +3,7 @@ import child_process from "node:child_process";
 import path from "path";
 import { Observable } from "rxjs";
 import { logger } from "shared/logger";
-import { config } from "./config";
+import { WhisperConfig } from "../config";
 
 const subtitleLog = logger("subtitles");
 
@@ -12,15 +12,15 @@ type Subtitle = {
     text: string
 }
 
-export function observeSubtitles() {
+export function observeSubtitles(config: WhisperConfig) {
     return new Observable<Subtitle>(subscriber => {
         subtitleLog.info("Starting up speech to text service");
         const pythonProcess = child_process.spawn('python', [
             path.join(__dirname, "/../../whisper/transcribe_demo.py"),
-            `--model=${config.whisper.model}`,
-            `--phrase_timeout=${config.whisper.phrase_timeout}`,
-            `--energy_threshold=${config.whisper.energy_threshold}`,
-            `--min_probability=${config.whisper.min_probability}`
+            `--model=${config.model}`,
+            `--phrase_timeout=${config.phrase_timeout}`,
+            `--energy_threshold=${config.energy_threshold}`,
+            `--min_probability=${config.min_probability}`
         ]);
         pythonProcess.stdout.on('data', (data: string) => {
             const lines = data.toString().split(/[\r\n]/g);
@@ -36,12 +36,12 @@ export function observeSubtitles() {
                         probability: number
                     }[];
                     const text = segments
-                        .filter(segment => segment.probability < config.whisper.min_probability)
+                        .filter(segment => segment.probability < config.min_probability)
                         .map(segment => segment.text)
                         .join("")
                         .trim();
                     const ignored = segments
-                        .filter(segment => segment.probability >= config.whisper.min_probability)
+                        .filter(segment => segment.probability >= config.min_probability)
                         .map(segment => `${segment.text} (${Math.floor(segment.probability * 100)}%) `)
                         .join("")
                         .trim();

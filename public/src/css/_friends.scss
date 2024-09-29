@@ -101,40 +101,6 @@ friends-module {
             );
         }
 
-        /*&[data-voice-level="1"] {
-            .speaker {
-                background: radial-gradient(
-                    circle at 5px 33px,
-                    var(--c) 0px var(--r),
-                    transparent calc(var(--r) * 1 + 1px) calc(var(--r) * 2)
-                );
-            }
-        }
-        &[data-voice-level="2"] {
-            .speaker {
-                background: radial-gradient(
-                    circle at 5px 33px,
-                    var(--c) 0px var(--r),
-                    transparent calc(var(--r) * 1 + 1px) calc(var(--r) * 2),
-                    var(--c) calc(var(--r) * 2 + 1px) calc(var(--r) * 3),
-                    transparent calc(var(--r) * 3 + 1px) calc(var(--r) * 4)
-                );
-            }
-        }
-        &[data-voice-level="3"] {
-            .speaker {
-                background: radial-gradient(
-                    circle at 5px 33px,
-                    var(--c) 0px var(--r),
-                    transparent calc(var(--r) * 1 + 1px) calc(var(--r) * 2),
-                    var(--c) calc(var(--r) * 2 + 1px) calc(var(--r) * 3),
-                    transparent calc(var(--r) * 3 + 1px) calc(var(--r) * 4),
-                    var(--c) calc(var(--r) * 4 + 1px) calc(var(--r) * 5),
-                    transparent calc(var(--r) * 5 + 1px) calc(var(--r) * 6)
-                );
-            }
-        }*/
-
         &.speaking {
             .speaker {
                 opacity: 1;
@@ -145,16 +111,18 @@ friends-module {
     .subtitles {
         overflow: hidden;
         min-height: 1em;
-        max-height: 2em;
+        max-height: 2.1em;
         font-size: 0.8em;
         font-family: "Balsamiq Sans";
-        line-height: 1em;
+        line-height: 1.2em;
         color: #fff;
-        text-shadow: 2px 2px 1px rgba(0, 0, 0, 1);
+        text-shadow: 1px 1px 2px rgba(0, 0, 0, 1);
         opacity: 0;
         transition:
             opacity 0.3s,
             transform 0.3s;
+        padding: 3px;
+        box-sizing: content-box;
 
         &.show {
             opacity: 1;

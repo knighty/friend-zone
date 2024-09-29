@@ -23,7 +23,7 @@ export type GenericSocket = {
 
 const log = logger("web-socket-server");
 export function socket<T extends Socket>(client$: Observable<GenericSocket>, eventProvider?: EventProvider) {
-    type Messages = T["Events"] & { "subscribe": string[] };
+    type Messages = T["Events"];
     type AddCallback<T> = readonly [T, (data: any) => void];
 
     const sendMessages$ = new Subject<SocketMessage<any>>();

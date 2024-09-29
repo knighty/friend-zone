@@ -4,11 +4,9 @@
 		<path id="path2" d="M 8 4 L 80 4 L 72 20 L 0 20 Z"></path>
 	</defs>
 	<use xlink:href="#path2" fill="none" stroke="#c829f1" stroke-width="1" stroke-linejoin="round" stroke-linecap="round"></use>
-	<use xlink:href="#path" fill="#111">
-		<animate attributeName="stroke-dashoffset" values="0;200" dur="10s" repeatCount="indefinite" />
-	</use>
+	<use xlink:href="#path" fill="#111"></use>
 	<use xlink:href="#path" fill="none" stroke="#32a8a8" stroke-width="0.6" stroke-linejoin="round" stroke-linecap="round"></use>
-	<use xlink:href="#path" fill="none" stroke="#45f1f0" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="100" stroke-dashoffset="200">
-		<animate attributeName="stroke-dashoffset" values="0;200" dur="10s" repeatCount="indefinite" />
+	<use xlink:href="#path" fill="none" stroke="#45f1f0" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="82">
+		<animate attributeName="stroke-dashoffset" values="0;164" dur="8s" repeatCount="indefinite" />
 	</use>
 </svg>

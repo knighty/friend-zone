@@ -65,7 +65,7 @@ if (window.webkitSpeechRecognition) {
 
 const socket = connectBrowserSocket<{
     Events: {
-        connectionStatus: { isConnected: boolean }
+        connectionStatus: boolean
         config: { key: string, value: any }
     }
 }>(`${document.location.protocol == "https:" ? "wss:" : "ws:"}//${document.location.host}/websocket`);
@@ -105,8 +105,8 @@ fromDomEvent(document.getElementById("updateFeedButton"), "click").subscribe(e =
     })
 })
 
-socket.on("connectionStatus").subscribe(data => {
-    document.querySelector(".server-connection-status").classList.toggle("connected", data.isConnected);
+socket.on("connectionStatus").subscribe(isConnected => {
+    document.querySelector(".server-connection-status").classList.toggle("connected", isConnected);
 });
 
 socket.on("config").subscribe(data => {
