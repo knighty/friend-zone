@@ -1,7 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { BehaviorSubject, catchError, EMPTY, map, Observable, of, switchMap, takeUntil, tap } from "rxjs";
 import { logger } from "shared/logger";
-import { serverSocket } from "shared/websocket/server";
+import { ObservableEventProvider, serverSocket } from "shared/websocket/server";
 import { ExternalFeeds } from "../data/external-feeds";
 import Subtitles from "../data/subtitles";
 import { Users } from "../data/users";
@@ -33,9 +33,7 @@ namespace Messages {
         sourceAspectRatio: string
     }
 
-    export type Active = {
-        isActive: boolean
-    }
+    export type Active = boolean
 }
 
 export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds, users: Users) => async (fastify: FastifyInstance, options: {}) => {
@@ -52,7 +50,9 @@ export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds, 
                 "feed/register": Messages.RegisterFeed,
                 "feed/active": Messages.Active
             }
-        }>(ws);
+        }>(ws, new ObservableEventProvider({
+            subtitles: of({ enabled: true })
+        }));
 
         const feed$ = new BehaviorSubject<{ url: string, aspectRatio: string, sourceAspectRatio: string } | null>(null);
         const feedActive$ = new BehaviorSubject(false);
@@ -79,18 +79,19 @@ export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds, 
             ))
         );
 
-        socket.receive("user").subscribe(data => {
-            userId = data.id;
-            userName = data.name;
-            log.info(`${data.name} registered`);
-            users.add(userId, data);
+        socket.on("user", true).subscribe(([user, callback]) => {
+            userId = user.id;
+            userName = user.name;
+            log.info(`${user.name} registered`);
+            users.add(userId, user);
+            callback({ message: `You were successfully registered with id ${userId}` })
         });
 
-        socket.receive("subtitles").subscribe(data => {
+        socket.on("subtitles").subscribe(data => {
             subtitles.handle(userId, data.id, data.type, data.text);
         });
 
-        socket.receive("feed/register").subscribe(data => {
+        socket.on("feed/register").subscribe(data => {
             if (data) {
                 log.info(`${userName} set their feed to ${data.url} (${data.aspectRatio})`);
             } else {
@@ -99,22 +100,20 @@ export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds, 
             feed$.next(data);
         });
 
-        socket.receive("feed/focus").subscribe(data => {
+        socket.on("feed/focus").subscribe(data => {
             feeds.focusFeed(userId, true);
             log.info(`${userName} focused their feed`);
         });
 
-        socket.receive("feed/unfocus").subscribe(data => {
+        socket.on("feed/unfocus").subscribe(data => {
             feeds.focusFeed(userId, false);
             log.info(`${userName} unfocused their feed`);
         });
 
-        socket.receive("feed/active").subscribe(data => {
-            feedActive$.next(data.isActive);
-            log.info(`${userName} is now ${data.isActive ? "active" : "inactive"}`);
+        socket.on("feed/active").subscribe(active => {
+            feedActive$.next(active);
+            log.info(`${userName} is now ${active ? "active" : "inactive"}`);
         });
-
-        socket.addEvent("subtitles", of({ enabled: true }));
 
         function disconnect() {
             feeds.removeFeed(userId);

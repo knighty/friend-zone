@@ -18,7 +18,7 @@ export default class WordOfTheHourModule extends CustomElement<{
     }
 }> {
     setup() {
-        this.bindData("woth", socket.receive<Message.Woth>("woth").pipe(
+        this.bindData("woth", socket.on("woth").pipe(
             map(woth => woth.word),
         ));
         this.elements = {

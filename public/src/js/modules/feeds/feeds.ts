@@ -31,11 +31,11 @@ export default class FeedsModule extends CustomElement<{
     Elements: {}
 }> {
     setup() {
-        this.bindData("position", socket.receive<Message.FeedPosition>("feedPosition"));
-        this.bindData("size", socket.receive<Message.FeedSize>("feedSize"));
-        this.bindData("layout", socket.receive<Message.FeedLayout>("feedLayout"));
-        this.bindData("count", socket.receive<Message.FeedCount>("feedCount"));
-        this.bindData("feeds", socket.receive<Message.FocusedFeed[]>("feed").pipe(
+        this.bindData("position", socket.on("feedPosition"));
+        this.bindData("size", socket.on("feedSize"));
+        this.bindData("layout", socket.on("feedLayout"));
+        this.bindData("count", socket.on("feedCount"));
+        this.bindData("feeds", socket.on("feed").pipe(
             debounceTime(100),
             shareReplay(1),
         ));

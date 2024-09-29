@@ -1,5 +1,6 @@
-import { filter, map, Observable, share, shareReplay, switchMap } from "rxjs";
+import { filter, Observable, share, shareReplay, switchMap } from "rxjs";
 import { logger } from "shared/logger";
+import { filterMap } from "shared/rx/utils";
 import tmi from "tmi.js";
 import config from "../config";
 
@@ -64,16 +65,17 @@ export class TwitchChat {
         );
 
         this.commands$ = this.messages$.pipe(
-            filter(message => message.text.startsWith("!")),
-            filter(message => isUserAdmin(message.user)),
-            map(message => {
-                const args = message.text.slice(1).split(' ');
-                const command = args[0];
-                return {
-                    type: command,
-                    arguments: args.slice(1),
+            filterMap(
+                message => message.text.startsWith("!") && isUserAdmin(message.user),
+                message => {
+                    const args = message.text.slice(1).split(' ');
+                    const command = args[0];
+                    return {
+                        type: command,
+                        arguments: args.slice(1),
+                    }
                 }
-            }),
+            ),
             share()
         )
     }

@@ -4,9 +4,10 @@ import websocket from "@fastify/websocket";
 import Fastify, { FastifyInstance } from "fastify";
 import fs from "fs";
 import path from "node:path";
-import { BehaviorSubject, debounceTime, EMPTY, filter, firstValueFrom, map, merge, Observable, scan, shareReplay, switchMap, takeUntil, tap } from "rxjs";
+import { BehaviorSubject, EMPTY, filter, firstValueFrom, map, merge, Observable, of, scan, shareReplay, Subject, switchMap, tap } from "rxjs";
 import { log, logger } from 'shared/logger';
-import { serverSocket } from 'shared/websocket/server';
+import { filterMap } from 'shared/rx/utils';
+import { ObservableEventProvider, serverSocket } from 'shared/websocket/server';
 import { config } from "./config";
 import { hotkey } from "./hotkeys";
 import { initSocket } from "./socket";
@@ -22,7 +23,6 @@ declare module 'fastify' {
 }
 
 const publicDir = path.join(__dirname, "../");
-const remoteControl = initSocket(config.socket, config.user, config.userName, config.discordId, config.userSortKey);
 
 function dynamicConfig<T>(initial: T) {
     const subject$ = new BehaviorSubject<T>(initial);
@@ -41,16 +41,34 @@ const [setFeed, feed$] = dynamicConfig<Feed | null>({
     url: null
 });
 const [setFeedActive, feedActive$] = dynamicConfig(false);
+const subtitles$ = new Subject<{ id: number, text: string }>();
 
-if (config.hotkeys.enabled) {
-    hotkey(config.hotkeys.focus).pipe(
-        scan((a, c) => !a, false)
-    ).subscribe(focus => {
-        remoteControl.feed(focus ? "focus" : "unfocus");
-        sound.play(`C:/windows/media/${focus ? "Speech On.wav" : "Speech Off.wav"}`);
-    });
+const focus$ = new Observable<boolean>(subscriber => {
+    if (config.hotkeys.enabled) {
+        return hotkey(config.hotkeys.focus).pipe(
+            scan((a, c) => !a, false)
+        ).subscribe(focus => {
+            subscriber.next(focus);
+            sound.play(`C:/windows/media/${focus ? "Speech On.wav" : "Speech Off.wav"}`);
+        });
+    }
+}).pipe(
+    shareReplay(1)
+);
 
-}
+const remoteControl = initSocket(config.socket, {
+    user: of({
+        id: config.user,
+        name: config.userName,
+        discordId: config.discordId,
+        sortKey: config.userSortKey
+    }),
+    subtitles: subtitles$,
+    "feed/register": feed$,
+    "feed/focus": focus$.pipe(filter(focus => focus == true)),
+    "feed/unfocus": focus$.pipe(filter(focus => focus == false)),
+    "feed/active": feedActive$
+});
 
 const fastifyApp = Fastify();
 fastifyApp.register(fastifyView, {
@@ -72,19 +90,6 @@ fastifyApp.register(fastifyStatic, {
     prefix: "/static",
 });
 
-remoteControl.isConnected$.pipe(
-    debounceTime(500),
-    switchMap(isConnected => {
-        if (isConnected) {
-            return merge(
-                feed$.pipe(tap(feed => remoteControl.feed("register", feed))),
-                feedActive$.pipe(tap(isActive => remoteControl.feed("active", { isActive })))
-            );
-        }
-        return EMPTY
-    })
-).subscribe();
-
 type SocketMessage<D> = {
     type: string,
     data: D;
@@ -97,55 +102,43 @@ fastifyApp.register(async (fastify: FastifyInstance) => {
             Events: {
                 "config": { key: string, value: any }
             }
-        }>(ws);
+        }>(ws, new ObservableEventProvider({
+            config: merge(
+                feed$.pipe(map(feed => ({ key: "feed", value: feed }))),
+                feedActive$.pipe(map(active => ({ key: "feedActive", value: active }))),
+            ),
+            connectionStatus: remoteControl.isConnected$.pipe(
+                map(isConnected => ({ isConnected }))
+            )
+        }));
 
         function configMessage<ConfigValue>(config: string): Observable<ConfigValue> {
-            return socket.receive("config").pipe(
-                filter(message => message.key == config),
-                map(message => message.value)
+            return socket.on("config").pipe(
+                filterMap(message => message.key == config, message => message.value)
             )
         }
 
-        const configSetters$ = merge(
-            configMessage<{
-                url: string,
-                aspectRatio: string,
-                sourceAspectRatio: string
-            }>("feed").pipe(
-                tap(feed => {
-                    if (feed.url != "") {
-                        setFeed({
-                            url: feed.url,
-                            aspectRatio: feed.aspectRatio,
-                            sourceAspectRatio: feed.sourceAspectRatio,
-                        });
-                    } else {
-                        setFeed(null);
-                    }
-                })
-            ),
+        configMessage<{
+            url: string,
+            aspectRatio: string,
+            sourceAspectRatio: string
+        }>("feed").subscribe(
+            feed => {
+                if (feed.url != "") {
+                    setFeed({
+                        url: feed.url,
+                        aspectRatio: feed.aspectRatio,
+                        sourceAspectRatio: feed.sourceAspectRatio,
+                    });
+                } else {
+                    setFeed(null);
+                }
+            }
+        )
 
-            configMessage<boolean>("feedActive").pipe(
-                tap(active => {
-                    setFeedActive(active);
-                })
-            )
-        );
-
-        socket.addEvent("config", merge(
-            feed$.pipe(map(feed => ({ key: "feed", value: feed }))),
-            feedActive$.pipe(map(active => ({ key: "feedActive", value: active }))),
-        ));
-
-        socket.addEvent("connectionStatus", remoteControl.isConnected$.pipe(
-            map(isConnected => ({ isConnected }))
-        ));
-
-        merge(
-            configSetters$
-        ).pipe(
-            takeUntil(socket.disconnected$)
-        ).subscribe();
+        configMessage<boolean>("feedActive").subscribe(active => {
+            setFeedActive(active);
+        });
     })
 });
 
@@ -187,7 +180,7 @@ remoteControl.subtitlesEnabled$.pipe(
     switchMap(enabled => {
         if (enabled && config.subtitles == "whisper") {
             return observeSubtitles().pipe(
-                tap(subtitle => remoteControl.subtitles(subtitle.id, "final", subtitle.text))
+                tap(subtitle => subtitles$.next(subtitle))
             )
         }
         return EMPTY;

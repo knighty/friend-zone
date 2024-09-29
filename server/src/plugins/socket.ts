@@ -1,5 +1,6 @@
 import { FastifyInstance } from "fastify";
-import { serverSocket } from "shared/websocket/server";
+import { Observable } from "rxjs";
+import { ObservableEventProvider, serverSocket } from "shared/websocket/server";
 
 export type WebsocketEvent = {
     type: string,
@@ -8,7 +9,11 @@ export type WebsocketEvent = {
 
 export const socket = (events: WebsocketEvent[], url: string = "/websocket") => async (fastify: FastifyInstance, options: {}) => {
     fastify.get(url, { websocket: true }, (ws, req) => {
-        const socket = serverSocket(ws);
-        events.forEach(stream => socket.addEvent(stream.type, stream.data));
+        const socket = serverSocket(ws, new ObservableEventProvider(
+            events.reduce((a, stream) => {
+                a[stream.type] = stream.data
+                return a;
+            }, {} as Record<string, Observable<any>>)
+        ));
     })
 }

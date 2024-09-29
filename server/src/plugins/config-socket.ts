@@ -1,5 +1,6 @@
 import { FastifyInstance } from "fastify";
-import { serverSocket } from "shared/websocket/server";
+import { Observable } from "rxjs";
+import { ObservableEventProvider, serverSocket } from "shared/websocket/server";
 import { WebsocketEvent } from "./socket";
 
 type Events<T extends Recievers> = {
@@ -14,11 +15,15 @@ export const configSocket = <R extends Recievers, T extends Events<R>>(events: W
     fastify.get('/config/websocket', { websocket: true }, (ws, req) => {
         let socket = serverSocket<{
             Events: T
-        }>(ws);
+        }>(ws, new ObservableEventProvider(
+            events.reduce((a, stream) => {
+                a[stream.type] = stream.data
+                return a;
+            }, {} as Record<string, Observable<any>>)
+        ));
 
         for (let type in receivers) {
-            socket.receive(type).subscribe((data: any) => receivers[type](data));
+            socket.on(type).subscribe((data: any) => receivers[type](data));
         }
-        events.forEach(stream => socket.addEvent(stream.type, stream.data));
     })
 }

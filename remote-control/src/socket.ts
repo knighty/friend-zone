@@ -1,28 +1,26 @@
 
-import { map, of, startWith, switchMap, tap } from "rxjs";
+import { map, Observable, of, startWith, switchMap } from "rxjs";
+import { logger } from "shared/logger";
 import { connectClient } from "shared/websocket/client";
+import { ObservableEventProvider } from "shared/websocket/event-provider";
 
-export function initSocket(url: string, userId: string, userName: string, discordId: string, sortKey: number) {
-    const socket = connectClient(url);
+const log = logger("remote-control");
+export function initSocket(url: string, data: Record<string, Observable<any>>) {
+    const socket = connectClient<{
+        Events: {
+            subtitles: { enabled: boolean }
+        }
+    }>(url, new ObservableEventProvider(data));
 
-    socket.connected$.pipe(
-        tap(() => socket.send("user", { id: userId, name: userName, discordId: discordId, sortKey: sortKey }))
-    ).subscribe();
-
-    function subtitles(id: number, type: "interim" | "final", text: string) {
-        socket.send("subtitles", {
-            type, text, id
-        });
-    }
-
-    function feed(action: string, data?: object | string) {
-        socket.send(`feed/${action}`, data);
-    }
+    /*socket.connected$.pipe(
+        switchMap(() => socket.send<{ message: string }>("user", { id, name, discordId, sortKey }, true)),
+        tap(message => log.info(`Registered: ${message.message}`))
+    ).subscribe();*/
 
     const subtitlesEnabled$ = socket.isConnected$.pipe(
         switchMap(connected => {
             if (connected) {
-                return socket.receive<{ enabled: boolean }>("subtitles").pipe(
+                return socket.on("subtitles").pipe(
                     map(e => e.enabled),
                     startWith(false)
                 );
@@ -32,8 +30,6 @@ export function initSocket(url: string, userId: string, userName: string, discor
     );
 
     return {
-        subtitles: subtitles,
-        feed,
         connection$: socket.connected$,
         isConnected$: socket.isConnected$,
         subtitlesEnabled$

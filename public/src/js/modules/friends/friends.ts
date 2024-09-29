@@ -1,40 +1,23 @@
-import { distinctUntilChanged, filter, map, of, scan, share } from "rxjs"
-import { socket } from "../../socket"
-import { FriendElement } from "./friend"
-
-namespace Message {
-    export type Woth = {
-        counts: Record<string, number>,
-        word: string
-    }
-    export type Voice = Record<string, boolean>
-    export type Subtitles = {
-        subtitleId: number,
-        text: string,
-        userId: string
-    }
-    export type Users = Record<string, {
-        id: string,
-        name: string,
-        discordId: string,
-        sortKey: number
-    }>
-}
+import { distinctUntilChanged, filter, map, of, scan, share } from "rxjs";
+import { socket } from "../../socket";
+import { FriendElement } from "./friend";
 
 export default class FriendsModule extends HTMLElement {
     connectedCallback() {
-        const users$ = socket.receive<Message.Users>("users");
-        const wothCounts$ = socket.receive<Message.Woth>("woth").pipe(map(woth => woth.counts), share());
-        const subtitles$ = socket.receive<Message.Subtitles>("subtitles").pipe(share());
-        const voices$ = socket.receive<Message.Voice>("voice").pipe(share());
+        const users$ = socket.on("users");
+        const wothCounts$ = socket.on("woth").pipe(map(woth => woth.counts), share());
+        const subtitles$ = socket.on("subtitles").pipe(share());
+        const voices$ = socket.on("voice").pipe(share());
 
         const friendList = document.querySelector(".friend-list");
 
         users$.pipe(
             scan((elements, users) => {
                 let newElements: HTMLElement[] = [];
+                console.log(users);
                 for (let userId in users) {
                     let user = users[userId];
+                    console.log(user);
                     let element: FriendElement = elements.find(element => element.dataset.person == userId.toLowerCase()) as FriendElement;
                     if (!element) {
                         element = new FriendElement();

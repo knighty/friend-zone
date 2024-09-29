@@ -26,7 +26,7 @@ export class FriendElement extends CustomElement<{
 }> {
     setup() {
         this.innerHTML = template;
-        this.elements.subtitles.bindData("subtitles", this.registerHandler("subtitles"));
+        this.element("subtitles").bindData("subtitles", this.registerHandler("subtitles"));
     }
 
     connect() {
@@ -38,6 +38,5 @@ export class FriendElement extends CustomElement<{
             this.element("count").textContent = (count ?? 0).toString();
         });
         this.registerHandler("voice").subscribe(speaking => this.classList.toggle("speaking", speaking));
-        this.observeValue("test");
     }
 }

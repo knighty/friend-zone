@@ -87,7 +87,6 @@ serverLog.info("Creating dependencies");
 const users = new Users();
 const twitchChat = new TwitchChat(config.twitch.channel);
 const wordOfTheHour = new WordOfTheHour(twitchChat);
-wordOfTheHour.setWord("Bespoke");
 const discordVoiceState = new DiscordVoiceState();
 if (config.discord.voiceStatus) {
     for (let channel of config.discord.channels) {
@@ -97,7 +96,9 @@ if (config.discord.voiceStatus) {
 const webcam = new Webcam();
 const subtitles = new Subtitles();
 const feeds = new ExternalFeeds();
-const mocks = mockUsers(config.mockUsers, users, feeds, discordVoiceState, subtitles);
+if (config.mockUsers) {
+    const mocks = mockUsers(config.mockUsers, users, feeds, discordVoiceState, subtitles);
+}
 
 /*
 Logging
@@ -196,7 +197,7 @@ function registerStreamModule(module: StreamModule) {
 fastifyApp.get<{
     Querystring: {
         anchor: string
-    }
+    },
 }>(`/stream-modules/friends`, async (req, res) => {
     const anchor = (req.query.anchor ?? "")
         .split(" ")

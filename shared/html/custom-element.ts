@@ -19,7 +19,7 @@ export class CustomElement<T extends CustomElementType> extends HTMLElement {
     public disconnected$ = new Subject<void>();
     private dataSources = new ObservableMap<keyof T["Data"], Observable<any>>();
     protected elements: T["Elements"];
-    private cachedElements: T["Elements"];
+    private cachedElements: T["Elements"] = {};
 
     element<K extends keyof T["Elements"]>(key: K) {
         if (!this.cachedElements[key])

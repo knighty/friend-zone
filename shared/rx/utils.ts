@@ -1,4 +1,4 @@
-import { merge, Observable, of, repeat, retry, scan, share, shareReplay, Subject, switchMap, tap, timer } from "rxjs";
+import { EMPTY, merge, Observable, of, repeat, retry, scan, share, shareReplay, Subject, switchMap, tap, timer } from "rxjs";
 import { Logger } from "../logger";
 
 export type InferObservable<T> = T extends Observable<infer U> ? U : never;
@@ -8,6 +8,31 @@ type RetryOptions = {
     max: number,
     subject$?: Subject<boolean>,
 }
+
+export function filterMap<In, Out>(predicate: (value: In) => boolean, map: (value: In) => Out, startValue?: Out) {
+    return (source: Observable<In>) => {
+        return new Observable<Out>(subscriber => {
+            const sub = source.subscribe({
+                next: value => {
+                    if (predicate(value)) {
+                        subscriber.next(map(value))
+                    }
+                },
+                error: error => subscriber.error(error),
+                complete: () => subscriber.complete()
+            })
+            if (startValue) {
+                subscriber.next(startValue);
+            }
+
+            return () => sub.unsubscribe();
+        })
+    }
+}
+
+export function switchMapToggle<In, Out>(predicate: (value: In) => boolean, projectTrue: (value: In) => Observable<Out>, projectFalse: (value: In) => Observable<Out> = () => EMPTY) {
+    return switchMap((value: In) => predicate(value) ? projectTrue(value) : projectFalse(value))
+};
 
 export function retryWithBackoff<T>(log: Logger, options: Partial<RetryOptions>) {
     const config: RetryOptions = {

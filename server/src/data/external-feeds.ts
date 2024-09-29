@@ -44,7 +44,7 @@ export class ExternalFeeds {
         )
     }
 
-    observeFeeds(count?: number) {
+    observeFeeds(count: number = 3) {
         return this.sortedFeeds$.pipe(
             count === undefined ? undefined : map(feeds => feeds.slice(0, count))
         );

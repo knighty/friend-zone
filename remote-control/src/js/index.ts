@@ -63,7 +63,12 @@ if (window.webkitSpeechRecognition) {
     }
 }
 
-const socket = connectBrowserSocket(`${document.location.protocol == "https:" ? "wss:" : "ws:"}//${document.location.host}/websocket`);
+const socket = connectBrowserSocket<{
+    Events: {
+        connectionStatus: { isConnected: boolean }
+        config: { key: string, value: any }
+    }
+}>(`${document.location.protocol == "https:" ? "wss:" : "ws:"}//${document.location.host}/websocket`);
 socket.isConnected$.subscribe(isConnected => document.body.classList.toggle("connected", isConnected));
 
 function element<T extends HTMLElement>(id: string) {
@@ -100,11 +105,11 @@ fromDomEvent(document.getElementById("updateFeedButton"), "click").subscribe(e =
     })
 })
 
-socket.receive<{ isConnected: boolean }>("connectionStatus").subscribe(data => {
+socket.on("connectionStatus").subscribe(data => {
     document.querySelector(".server-connection-status").classList.toggle("connected", data.isConnected);
 });
 
-socket.receive<{ key: string, value: any }>("config").subscribe(data => {
+socket.on("config").subscribe(data => {
     switch (data.key) {
         case "feed": {
             element<HTMLInputElement>("feedUrl").value = data.value?.url ?? "";

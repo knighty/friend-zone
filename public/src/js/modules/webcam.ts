@@ -1,5 +1,3 @@
-import { interval } from "rxjs";
-import { socket } from "../socket";
 
 namespace SocketMessageData {
     export type Woth = {
@@ -13,7 +11,7 @@ namespace SocketMessageData {
 
 export default class WebcamModule extends HTMLElement {
     connectedCallback() {
-        socket.receive<SocketMessageData.Webcam>("webcam").subscribe(cam => {
+        /*socket.on("webcam").subscribe(cam => {
             const webcam = this.querySelector<HTMLElement>(".webcam");
             webcam.style.setProperty("--left", cam.position[0].toString());
             webcam.style.setProperty("--top", cam.position[1].toString());
@@ -30,6 +28,6 @@ export default class WebcamModule extends HTMLElement {
 
         window.addEventListener('obsSceneChanged', function (event) {
             document.body.dataset.scene = event.detail.name;
-        });
+        });*/
     }
 }

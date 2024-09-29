@@ -1,4 +1,5 @@
-import { Observable, Subject, filter, map, merge, shareReplay, startWith } from "rxjs";
+import { Observable, Subject, map, merge, shareReplay, startWith } from "rxjs";
+import { filterMap } from "./utils";
 
 export class ObservableMap<Key, Value> {
     private data = new Map<Key, Value>();
@@ -36,9 +37,7 @@ export class ObservableMap<Key, Value> {
     get(key: Key): Observable<Value> {
         const current = this.data.get(key);
         return this.keyUpdated$.pipe(
-            filter(updatedKey => updatedKey == key),
-            map(() => this.data.get(key)),
-            current === undefined ? undefined : startWith(current)
+            filterMap(updatedKey => updatedKey == key, () => this.data.get(key), current),
         );
     }
 
