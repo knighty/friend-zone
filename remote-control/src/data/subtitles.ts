@@ -16,7 +16,7 @@ export function observeSubtitles(config: WhisperConfig) {
     return new Observable<Subtitle>(subscriber => {
         subtitleLog.info("Starting up speech to text service");
         const pythonProcess = child_process.spawn('python', [
-            path.join(__dirname, "/../../whisper/transcribe_demo.py"),
+            path.join(__dirname, "/../../../whisper/transcribe_demo.py"),
             `--model=${config.model}`,
             `--phrase_timeout=${config.phrase_timeout}`,
             `--energy_threshold=${config.energy_threshold}`,
@@ -59,10 +59,9 @@ export function observeSubtitles(config: WhisperConfig) {
                     subtitleLog.info(subtitle);
                 }
             }
-            //console.log(data.toString());
         });
         pythonProcess.stderr.on('data', (data: string) => {
-            //subtitleLog.error(data.toString());
+            //console.log(data.toString());
         });
 
         return () => {
