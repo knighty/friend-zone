@@ -92,9 +92,9 @@ select {
 .server-connection-status {
     color: #fff;
     background: red;
-    padding: 1em;
-    border-radius: 1000px;
-    margin: 1em 0;
+    padding: 0.5em 1em;
+    border-radius: 3px;
+    margin-bottom: var(--inline-spacing);
 
     &:before {
         content: "Not Connected";

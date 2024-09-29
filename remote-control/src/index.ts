@@ -3,7 +3,7 @@ import fastifyView from "@fastify/view";
 import websocket from "@fastify/websocket";
 import Fastify, { FastifyInstance } from "fastify";
 import path from "node:path";
-import { EMPTY, filter, map, merge, Observable, of, Subject, switchMap, tap } from "rxjs";
+import { BehaviorSubject, combineLatest, distinctUntilChanged, EMPTY, filter, map, merge, Observable, of, Subject, switchMap, tap } from "rxjs";
 import { filterMap } from 'shared/rx/utils';
 import { ObservableEventProvider, serverSocket } from 'shared/websocket/server';
 import { Config } from "./config";
@@ -53,7 +53,10 @@ const remoteControl = initSocket(config.socket, {
     "feed/unfocus": focus$.pipe(filter(focus => focus == false)),
     "feed/active": feedSettings.active$
 });
-remoteControl.subtitlesEnabled$.pipe(
+const subtitlesEnabled$ = new BehaviorSubject(true);
+combineLatest([remoteControl.subtitlesEnabled$, subtitlesEnabled$]).pipe(
+    map(([a, b]) => a && b),
+    distinctUntilChanged(),
     switchMap(enabled => {
         if (enabled && config.subtitles == "whisper") {
             return observeSubtitles(config.whisper).pipe(
@@ -108,6 +111,7 @@ fastifyApp.register(async (fastify: FastifyInstance) => {
             config: merge(
                 feedSettings.feed$.pipe(map(feed => ({ key: "feed", value: feed }))),
                 feedSettings.active$.pipe(map(active => ({ key: "feedActive", value: active }))),
+                subtitlesEnabled$.pipe(map(enabled => ({ key: "subtitlesEnabled", value: enabled }))),
             ),
             connectionStatus: remoteControl.isConnected$
         }));
@@ -123,6 +127,7 @@ fastifyApp.register(async (fastify: FastifyInstance) => {
         }>("feed").subscribe(feed => feedSettings.feed$.next(feed.url != "" ? feed : null))
 
         configMessage<boolean>("feedActive").subscribe(active => feedSettings.active$.next(active));
+        configMessage<boolean>("subtitlesEnabled").subscribe(enabled => subtitlesEnabled$.next(enabled));
     })
 });
 
