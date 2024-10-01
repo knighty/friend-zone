@@ -20,6 +20,10 @@ module.exports = {
     // Sort Key
     userSortKey: 0,
 
+    // Prompt to send for AI requests
+    // eg. [user] likes to play video games and watch tv
+    userPrompt: "",
+
     // Discord ID use for voice monitoring (right click user -> copy user id with dev mode in Discord)
     discordId: "",
 
@@ -38,7 +42,10 @@ module.exports = {
         energy_threshold: 1000,
 
         // Minimum probability to ignore speech
-        min_probability: 0.4
+        min_probability: 0.4,
+
+        // Threshold for whisper to consider something speech
+        no_speech_threshold: 0.6,
     },
 
     // Subtitle mode. Can be off/whisper/browser(non functional)

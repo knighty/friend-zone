@@ -20,7 +20,8 @@ export function observeSubtitles(config: WhisperConfig) {
             `--model=${config.model}`,
             `--phrase_timeout=${config.phrase_timeout}`,
             `--energy_threshold=${config.energy_threshold}`,
-            `--min_probability=${config.min_probability}`
+            `--min_probability=${config.min_probability}`,
+            `--no_speech_threshold=${config.no_speech_threshold}`
         ]);
         pythonProcess.stdout.on('data', (data: string) => {
             const lines = data.toString().split(/[\r\n]/g);
@@ -40,20 +41,18 @@ export function observeSubtitles(config: WhisperConfig) {
                         .map(segment => segment.text)
                         .join("")
                         .trim();
-                    const ignored = segments
-                        .filter(segment => segment.probability >= config.min_probability)
-                        .map(segment => `${segment.text} (${Math.floor(segment.probability * 100)}%) `)
+                    const debugText = segments
+                        .map(segment => segment.probability < config.min_probability ? green(`${segment.text} (${Math.floor(segment.probability * 100)}%)`) : yellow(`${segment.text} (${Math.floor(segment.probability * 100)}%)`))
                         .join("")
                         .trim();
                     if (text.length > 0) {
-                        subtitleLog.info(green(text));
                         subscriber.next({
                             id: Number(id),
                             text
                         });
                     }
-                    if (ignored.length > 0) {
-                        subtitleLog.info(yellow(ignored));
+                    if (debugText.length > 0) {
+                        subtitleLog.info(debugText);
                     }
                 } else {
                     subtitleLog.info(subtitle);
@@ -61,7 +60,7 @@ export function observeSubtitles(config: WhisperConfig) {
             }
         });
         pythonProcess.stderr.on('data', (data: string) => {
-            //console.log(data.toString());
+            console.log(data.toString());
         });
 
         return () => {

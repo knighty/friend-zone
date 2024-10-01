@@ -1,6 +1,6 @@
 import { BehaviorSubject, Observable, shareReplay, Subject, takeUntil } from "rxjs";
 import { logger } from "../logger";
-import { retryWithBackoff } from "../rx/utils";
+import { retryWithBackoff } from "../rx/operators/retry-with-backoff";
 import { EventProvider } from "./event-provider";
 import { GenericSocket, Socket, socket } from "./socket";
 
@@ -22,20 +22,24 @@ export function connectGenericClient(socketFactory: (url: string) => GenericSock
         const log = logger("web-socket-client");
 
         const disconnect$ = new Subject<void>();
+        const isConnected$ = new BehaviorSubject(false);
 
         const clientConnection$ = new Observable<GenericSocket>(subscriber => {
             const ws = socketFactory(url);
             log.info(`Connecting to ${url}...`);
             function error(e: any) {
                 log.error("Socket error");
+                isConnected$.next(false);
                 subscriber.error(e);
             };
             function open(e: any) {
                 log.info("Socket open");
+                isConnected$.next(true);
                 subscriber.next(ws);
             }
             function close(e: any) {
                 log.info("Socket closed")
+                isConnected$.next(false);
                 subscriber.error(e);
             }
             ws.addListener("error", error);
@@ -51,10 +55,8 @@ export function connectGenericClient(socketFactory: (url: string) => GenericSock
             shareReplay(1)
         );
 
-        const isConnected$ = new BehaviorSubject(false);
         const client$ = clientConnection$.pipe(
             options.retry ? retryWithBackoff(log, {
-                subject$: isConnected$,
                 base: options.retryBase,
                 max: options.retryMax
             }) : undefined,

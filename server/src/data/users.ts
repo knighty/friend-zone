@@ -1,12 +1,13 @@
-import { ObservableMap } from "shared/rx/observable-map";
+import { ObservableMap } from "shared/rx/observables/map";
 
 export type User = {
     name: string;
     discordId: string;
     sortKey: number;
+    prompt: string;
 }
 
-export class Users {
+export default class Users {
     users = new ObservableMap<string, User>();
 
     add(id: string, user: User) {

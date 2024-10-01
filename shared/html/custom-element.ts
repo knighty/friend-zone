@@ -1,5 +1,5 @@
 import { map, Observable, Subject, switchMap, takeUntil } from "rxjs";
-import { ObservableMap } from "../rx/observable-map";
+import { ObservableMap } from "../rx/observables/map";
 import { Events, observeScopedEvent } from "../utils";
 
 type CustomElementType = {

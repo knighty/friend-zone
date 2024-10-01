@@ -2,9 +2,9 @@ import { FastifyInstance } from "fastify";
 import { BehaviorSubject, catchError, EMPTY, map, Observable, of, switchMap, takeUntil, tap } from "rxjs";
 import { logger } from "shared/logger";
 import { ObservableEventProvider, serverSocket } from "shared/websocket/server";
-import { ExternalFeeds } from "../data/external-feeds";
+import ExternalFeeds from "../data/external-feeds";
 import Subtitles from "../data/subtitles";
-import { Users } from "../data/users";
+import Users from "../data/users";
 
 type WebsocketMessageStream = Observable<{
     type: string,
@@ -18,7 +18,8 @@ namespace Messages {
         id: string,
         name: string,
         sortKey: number,
-        discordId: string
+        discordId: string,
+        prompt: string
     }
 
     export type Subtitles = {

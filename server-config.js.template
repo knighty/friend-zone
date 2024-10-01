@@ -11,7 +11,10 @@ module.exports = {
     // Twitch settings
     twitch: {
         // Twitch channel to pull word of the hour information from
-        channel: ""
+        channel: "",
+
+        // Broadcaster ID of twitch channel for mippy, etc
+        broadcasterId: ""
     },
 
     // Discord settings
@@ -49,4 +52,27 @@ module.exports = {
         // row/column
         layout: "row"
     },
+
+    // Mippy
+    mippy: {
+        // Whether mippy should be enabled or not
+        enabled: false,
+
+        // Which brain to use. "dumb" | "chatgpt"
+        brain: "",
+
+        // Global prompt sent before anything else
+        prompt: ``,
+
+        // Events
+        prompts: {
+            wothSetWord: ``,
+            wothSetCount: ``,
+            question: ``,
+            setCategory: ``,
+            newFollower: ``,
+            newSubscriber: ``,
+            adBreak: ``
+        }
+    }
 }

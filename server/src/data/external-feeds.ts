@@ -1,6 +1,6 @@
 import { BehaviorSubject, combineLatest, map, Observable, shareReplay, switchMap, timer } from "rxjs";
 import { logger } from "shared/logger";
-import { ObservableMap } from "shared/rx/observable-map";
+import { ObservableMap } from "shared/rx/observables/map";
 import config from "../config";
 
 type Feed = {
@@ -13,7 +13,7 @@ type Feed = {
 }
 
 const log = logger("feeds");
-export class ExternalFeeds {
+export default class ExternalFeeds {
     slideshowFrequency$ = new BehaviorSubject<number>(config.feeds.slideshowFrequency);
     feedCount$ = new BehaviorSubject<number>(config.feeds.count);
     feedSize$ = new BehaviorSubject<number>(config.feeds.size);

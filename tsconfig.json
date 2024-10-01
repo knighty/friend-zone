@@ -9,5 +9,8 @@
         "strict": true, /* Enable all strict type-checking options. */
         "skipLibCheck": true,
         "strictNullChecks": false
-    }
+    },
+    "exclude": [
+        "node_modules"
+    ]
 }

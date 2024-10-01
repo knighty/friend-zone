@@ -1,6 +1,8 @@
-import { filter, Observable, share, shareReplay, switchMap } from "rxjs";
+import { green } from "kolorist";
+import { filter, Observable, share, shareReplay } from "rxjs";
 import { logger } from "shared/logger";
-import { filterMap } from "shared/rx/utils";
+import filterMap from "shared/rx/operators/filter-map";
+import { switchMapComplete } from "shared/rx/operators/switch-map-complete";
 import tmi from "tmi.js";
 import config from "../config";
 
@@ -16,7 +18,7 @@ type Command = {
     arguments: any[]
 }
 
-export class TwitchChat {
+export default class TwitchChat {
     private messages$: Observable<Message>;
     private commands$: Observable<Command>;
     private client$: Observable<tmi.Client>;
@@ -38,18 +40,21 @@ export class TwitchChat {
             });
             subscriber.next(client);
             client.on("connecting", e => {
-                log.info(`Connecting IRC client to "${twitchChannel}"...`);
+                log.info(`Connecting IRC client to ${green(twitchChannel)}`);
             });
             client.on("connected", e => {
-                log.info(`IRC client connected to "${twitchChannel}"`);
+                log.info(`IRC client connected to ${green(twitchChannel)}`);
             });
             client.connect();
+            client.on("disconnected", e => {
+                subscriber.complete();
+            });
         }).pipe(
             shareReplay(1)
         );
 
         this.messages$ = this.client$.pipe(
-            switchMap(client => {
+            switchMapComplete(client => {
                 return new Observable<{ user: string, text: string }>(subscriber => {
                     const fn = (channel: string, tags: any, message: any) => {
                         const chatName = tags['display-name'];

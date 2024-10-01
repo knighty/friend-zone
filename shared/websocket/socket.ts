@@ -1,6 +1,7 @@
-import { finalize, fromEvent, interval, map, merge, Observable, share, Subject, Subscription, switchMap, take, tap } from "rxjs";
+import { finalize, fromEvent, interval, map, merge, Observable, share, Subject, Subscription, take, tap } from "rxjs";
 import { logger } from "../logger";
-import { filterMap } from "../rx/utils";
+import filterMap from "../rx/operators/filter-map";
+import { switchMapComplete } from "../rx/operators/switch-map-complete";
 import { EventProvider } from "./event-provider";
 import { subscriptionHandler } from "./event-subscriptions";
 
@@ -28,7 +29,7 @@ export function socket<T extends Socket>(client$: Observable<GenericSocket>, eve
 
     const sendMessages$ = new Subject<SocketMessage<any>>();
     const websocketMessages$ = client$.pipe(
-        switchMap(client => fromEvent<MessageEvent>(client, "message")),
+        switchMapComplete(client => fromEvent<MessageEvent>(client, "message")),
         map<MessageEvent, SocketMessage<any>>(event => JSON.parse(event.data)),
         share()
     );
@@ -99,7 +100,7 @@ export function socket<T extends Socket>(client$: Observable<GenericSocket>, eve
     }
 
     client$.pipe(
-        switchMap(client => {
+        switchMapComplete(client => {
             const ping$ = interval(30000).pipe(
                 tap(i => client.ping()),
             );

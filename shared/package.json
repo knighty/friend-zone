@@ -4,7 +4,6 @@
     "type": "commonjs",
     "description": "",
     "author": "",
-    "main": "index.ts",
     "license": "ISC",
     "dependencies": {
         "kolorist": "^1.8.0",

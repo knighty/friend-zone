@@ -17,13 +17,15 @@ from sys import platform
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", default="medium", help="Model to use",
-                        choices=["tiny", "base", "small", "medium", "large"])
+                        choices=["tiny", "base", "small", "medium", "large", "turbo"])
     parser.add_argument("--non_english", action='store_true',
                         help="Don't use the english model.")
     parser.add_argument("--energy_threshold", default=1000,
                         help="Energy level for mic to detect.", type=int)
     parser.add_argument("--min_probability", default=0.5,
                         help="Energy level for mic to detect.", type=float)
+    parser.add_argument("--no_speech_threshold", default=0.6,
+                        help="Speech threshold for whisper.", type=float)
     parser.add_argument("--record_timeout", default=2,
                         help="How real time the recording is in seconds.", type=float)
     parser.add_argument("--phrase_timeout", default=3,
@@ -66,7 +68,7 @@ def main():
 
     # Load / Download model
     model = args.model
-    if args.model != "large" and not args.non_english:
+    if args.model != "large" and args.model != "turbo" and not args.non_english:
         model = model + ".en"
     audio_model = whisper.load_model(model, in_memory=True)
 
@@ -127,7 +129,7 @@ def main():
                 # Read the transcription.
                 print("transcribing " + str(round(len(audio_data) / 1000,0)) + "kb...\n", flush=True);
                 start = time();
-                result = audio_model.transcribe(audio_np, fp16=torch.cuda.is_available(), initial_prompt='A conversation between friends called Knighty, Lethallin, Megadanxzero, Dan, PHN, Leth, Graeme, Peter, Alan')
+                result = audio_model.transcribe(audio_np, no_speech_threshold=args.no_speech_threshold, fp16=torch.cuda.is_available(), initial_prompt='A conversation between friends called Knighty, Lethallin, Megadanxzero, Dan, PHN, Leth, Graeme, Peter, Alan')
                 end = time();
                 print("transcribed in " + str(round(end - start, 2)) + "s\n", flush=True);
                 #print(result);

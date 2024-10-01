@@ -1,15 +1,26 @@
-import { BehaviorSubject, combineLatest, map } from "rxjs";
+import { BehaviorSubject, combineLatest, map, Observable, Subject } from "rxjs";
 import { logger } from "shared/logger";
-import { ObservableMap } from "shared/rx/observable-map";
-import { TwitchChat } from "./twitch-chat";
+import { ObservableMap } from "shared/rx/observables/map";
+import { Mippy } from "../mippy/mippy";
+import TwitchChat from "./twitch-chat";
 
 const log = logger("woth");
 
-export class WordOfTheHour {
+type Subtitle = {
+    subtitleId: number,
+    userId: string,
+    text: string;
+}
+
+export default class WordOfTheHour {
     word$ = new BehaviorSubject<string | null>(null);
     counts = new ObservableMap<string, number>();
+    subtitleWordEvent$ = new Subject<Subtitle>();
+    mippy: Mippy;
 
-    constructor(twitchChat: TwitchChat) {
+    constructor(twitchChat: TwitchChat, mippy: Mippy) {
+        this.mippy = mippy;
+
         twitchChat.observeCommand("woth").subscribe(command => {
             const name = command.arguments[0].toLowerCase();
             switch (name) {
@@ -29,6 +40,36 @@ export class WordOfTheHour {
                 }
             }
         });
+
+        function throttle() {
+            const users: Record<string, number> = {};
+            return (source: Observable<Subtitle>) => {
+                return new Observable<Subtitle>(subscriber => {
+                    source.subscribe({
+                        next: value => {
+                            const key = value.userId;
+                            if (!(key in users) || value.subtitleId != users[key]) {
+                                subscriber.next(value);
+                                users[key] = value.subtitleId;
+                            }
+                        },
+                        error: (error) => subscriber.error(error),
+                        complete: () => subscriber.complete(),
+                    })
+                })
+            }
+        }
+
+        this.subtitleWordEvent$.pipe(
+            //throttleGroup(subtitle => `${subtitle.userId}_${subtitle.subtitleId}`, 20000)
+            throttle()
+        ).subscribe(subtitle => {
+            this.handleUser(subtitle.userId);
+        });
+    }
+
+    handleUser(user: string) {
+        this.incrementUserCount(user);
     }
 
     observe() {
@@ -40,11 +81,14 @@ export class WordOfTheHour {
     setWord(word: string | null) {
         this.word$.next(word);
         log.info(`Set to "${word}"`);
+        if (word != null)
+            this.mippy.ask("wothSetWord", { user: "", word });
     }
 
     incrementUserCount(user: string) {
         const count = this.counts.atomicSet(user, value => value + 1, 0);
-        log.info(`Set ${user} to ${count + 1}`);
+        log.info(`Set ${user} to ${count}`);
+        this.mippy.ask("wothSetCount", { user: user, count, word: this.word$.getValue() });
     }
 
     setUserCount(user: string, count: number) {
@@ -55,5 +99,14 @@ export class WordOfTheHour {
     reset() {
         this.counts.empty();
         log.info(`Reset all counts`);
+    }
+
+    hookSubtitles(subtitles$: Observable<Subtitle>) {
+        combineLatest([subtitles$, this.word$]).subscribe(([subtitle, word]) => {
+            const text = subtitle.text.toLowerCase();
+            if (text.includes(word)) {
+                this.subtitleWordEvent$.next(subtitle);
+            }
+        })
     }
 }

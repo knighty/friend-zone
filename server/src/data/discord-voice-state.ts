@@ -1,11 +1,10 @@
 import RPC, { RPCEvents } from "discord-rpc";
 import { filter, merge, Observable, shareReplay, switchMap, tap } from "rxjs";
 import { logger } from "shared/logger";
-import { ObservableMap } from "shared/rx/observable-map";
+import { ObservableMap } from "shared/rx/observables/map";
 import config from "../config";
 
 type DiscordUser = string;
-type SpeakingMap = Map<DiscordUser, boolean>;
 const log = logger("discord-voice-status");
 
 const client$ = (new Observable<RPC.Client>(subscriber => {

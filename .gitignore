@@ -4,3 +4,5 @@ dist
 /.env
 /remote-control-config.js
 /server-config.js
+/tts
+/twitch.json

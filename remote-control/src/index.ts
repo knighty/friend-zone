@@ -4,7 +4,7 @@ import websocket from "@fastify/websocket";
 import Fastify, { FastifyInstance } from "fastify";
 import path from "node:path";
 import { BehaviorSubject, combineLatest, distinctUntilChanged, EMPTY, filter, map, merge, Observable, of, Subject, switchMap, tap } from "rxjs";
-import { filterMap } from 'shared/rx/utils';
+import filterMap from 'shared/rx/operators/filter-map';
 import { ObservableEventProvider, serverSocket } from 'shared/websocket/server';
 import { Config } from "./config";
 import { FeedSettings } from './data/feed';
@@ -16,8 +16,9 @@ import { initSocket } from "./socket";
 /*
 Config
 */
-const config = {
+const config: Config = {
     userSortKey: 0,
+    userPrompt: "",
     hotkeys: {
         enabled: true,
         focus: ["Left Control", "Left Alt", "F"],
@@ -29,24 +30,27 @@ const config = {
         phrase_timeout: 3,
         energy_threshold: 500,
         min_probability: 0.5,
+        no_speech_threshold: 0.6
     },
     subtitles: "off",
     ...require(path.join(__dirname, "../../remote-control-config.js"))
-} as Config;
+};
 
 /*
 Dependencies
 */
+const user = {
+    id: config.user,
+    name: config.userName,
+    discordId: config.discordId,
+    sortKey: config.userSortKey,
+    prompt: config.userPrompt
+};
 const subtitles$ = new Subject<{ id: number, text: string }>();
 const focus$ = focusFeed(config);
 const feedSettings = new FeedSettings();
 const remoteControl = initSocket(config.socket, {
-    user: of({
-        id: config.user,
-        name: config.userName,
-        discordId: config.discordId,
-        sortKey: config.userSortKey
-    }),
+    user: of(user),
     subtitles: subtitles$,
     "feed/register": feedSettings.feed$,
     "feed/focus": focus$.pipe(filter(focus => focus == true)),

@@ -13,8 +13,8 @@
     "license": "ISC",
     "dependencies": {
         "@types/obs-studio": "^2.17.2",
-        "ws": "^8.18.0",
-        "shared": "../shared"
+        "shared": "file:../shared",
+        "ws": "^8.18.0"
     },
     "devDependencies": {
         "ts-loader": "^9.4.4"

@@ -1,5 +1,5 @@
 import { Observable, Subject, map, merge, shareReplay, startWith } from "rxjs";
-import { filterMap } from "./utils";
+import filterMap from "../operators/filter-map";
 
 export class ObservableMap<Key, Value> {
     private data = new Map<Key, Value>();
@@ -14,17 +14,19 @@ export class ObservableMap<Key, Value> {
     );
 
     get values$() {
-        return this.changed$;
+        return this.changed$.pipe(
+            map(entries => Array.from(entries.values()))
+        );
     }
 
     get entries$() {
-        return this.values$.pipe(
+        return this.changed$.pipe(
             map(map => Object.fromEntries(map) as Record<Key extends PropertyKey ? Key : string, Value>)
         );
     }
 
     get keys$() {
-        return this.values$.pipe(
+        return this.changed$.pipe(
             map(map => Array.from(map.keys()))
         );
     }

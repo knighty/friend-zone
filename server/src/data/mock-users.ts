@@ -1,21 +1,20 @@
+import { randomInterval } from "shared/rx/observables/random-interval";
 import Subscriptions from "shared/rx/subscriptions";
-import { randomInterval } from "shared/rx/utils";
 import DiscordVoiceState from "./discord-voice-state";
-import { ExternalFeeds } from "./external-feeds";
+import ExternalFeeds from "./external-feeds";
 import { sentences } from "./sentences";
 import Subtitles from "./subtitles";
-import { Users } from "./users";
+import Users, { User } from "./users";
 
-export function mockUsers(mockUsers: { name: string, feed: string | null, sortKey: number }[], users: Users, feeds: ExternalFeeds, discordVoiceState: DiscordVoiceState, subtitles: Subtitles) {
+export default function mockUsers(mockUsers: (User & { feed: string })[], users: Users, feeds: ExternalFeeds, discordVoiceState: DiscordVoiceState, subtitles: Subtitles) {
     const subscriptions = new Subscriptions();
     for (let user of mockUsers) {
         const id = user.name.toLowerCase();
         const name = user.name;
-        const discordId = id;
-        const sortKey = user.sortKey;
+        const discordId = user.discordId;
         const image = user.feed;
 
-        users.add(id, { name, discordId, sortKey });
+        users.add(id, user);
         if (image) {
             feeds.addFeed({
                 active: true,

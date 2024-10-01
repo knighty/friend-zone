@@ -14,25 +14,31 @@ import { map, Observable, Subject } from 'rxjs';
 import { logger } from 'shared/logger';
 import { InferObservable } from "shared/rx/utils";
 import { objectMapArray } from 'shared/utils';
-import config from "./config";
+import config, { isMippyEnabledConfig } from "./config";
 import DiscordVoiceState from './data/discord-voice-state';
-import { ExternalFeeds } from './data/external-feeds';
-import { mockUsers } from './data/mock-users';
+import ExternalFeeds from './data/external-feeds';
+import mockUsers from './data/mock-users';
+import { StreamEventWatcher } from './data/stream-event-watcher';
 import Subtitles from './data/subtitles';
-import { TwitchChat } from './data/twitch-chat';
-import { Users } from './data/users';
+import TwitchChat from './data/twitch-chat';
+import { UserAuthTokenSource } from './data/twitch/auth-tokens';
+import Users from './data/users';
 import Webcam from './data/webcam';
-import { WordOfTheHour } from './data/word-of-the-hour';
+import WordOfTheHour from './data/word-of-the-hour';
 import { MissingError } from './errors';
+import ejsLayout from './layout';
+import { ChatGPTMippyBrain } from './mippy/chat-gpt-brain';
+import { DumbMippyBrain } from './mippy/dumb-brain';
+import { Mippy } from './mippy/mippy';
+import { MippyBrain } from './mippy/mippy-brain';
 import { configSocket } from './plugins/config-socket';
 import { errorHandler } from './plugins/errors';
 import { fastifyFavicon } from "./plugins/favicon";
 import { fastifyLogger } from './plugins/logger';
 import { remoteControlSocket } from './plugins/remote-control-socket';
 import { socket } from './plugins/socket';
+import twitchRouter from './routes/twitch/auth';
 import { getManifestPath } from './utils';
-
-//const RPC = require("discord-rpc");
 
 const publicDir = path.join(__dirname, `/../../public`);
 
@@ -63,7 +69,11 @@ fastifyApp.register(fastifyView, {
     asyncPropertyName: 'viewAsync',
     viewExt: 'ejs',
 });
-
+fastifyApp.addHook('onRequest', ejsLayout("stream-modules/stream-module", async (req, res) => ({
+    style: await getManifestPath("main.css"),
+    scripts: await getManifestPath("main.js"),
+    socketUrl: `${config.socketHost}/websocket`,
+})));
 fastifyApp.register(fastifyFormBody, { parser: str => qs.parse(str) });
 fastifyApp.register(multipart, {
     limits: {
@@ -85,8 +95,16 @@ Dependencies
 */
 serverLog.info("Creating dependencies");
 const users = new Users();
+let brain: MippyBrain = null;
+if (isMippyEnabledConfig(config.mippy)) {
+    brain = config.mippy.brain == "chatgpt" ? new ChatGPTMippyBrain(config.openai.key, config.mippy, users) : new DumbMippyBrain();
+}
+const mippy = new Mippy(brain, config.mippy);
 const twitchChat = new TwitchChat(config.twitch.channel);
-const wordOfTheHour = new WordOfTheHour(twitchChat);
+const subtitles = new Subtitles(mippy);
+const wordOfTheHour = new WordOfTheHour(twitchChat, mippy);
+wordOfTheHour.hookSubtitles(subtitles.stream$);
+//wordOfTheHour.setWord("bespoke");
 const discordVoiceState = new DiscordVoiceState();
 if (config.discord.voiceStatus) {
     for (let channel of config.discord.channels) {
@@ -94,10 +112,15 @@ if (config.discord.voiceStatus) {
     }
 }
 const webcam = new Webcam();
-const subtitles = new Subtitles();
 const feeds = new ExternalFeeds();
 if (config.mockUsers) {
     const mocks = mockUsers(config.mockUsers, users, feeds, discordVoiceState, subtitles);
+}
+if (isMippyEnabledConfig(config.mippy)) {
+    const eventWatcher = new StreamEventWatcher();
+    if (config.twitch.broadcasterId) {
+        eventWatcher.watch(new UserAuthTokenSource(path.join(__dirname, "../../twitch.json")), config.twitch.broadcasterId, mippy);
+    }
 }
 
 /*
@@ -112,6 +135,8 @@ if (config.accessLogging) {
 Routes
 */
 serverLog.info("Adding routes");
+
+fastifyApp.register(twitchRouter(), { prefix: "/twitch" });
 
 // Request level dependencies 
 fastifyApp.addHook("onRequest", (req, res, done) => {
@@ -131,6 +156,15 @@ fastifyApp.register(fastifyStatic, {
     cacheControl: config.staticCaching,
     maxAge: 3600 * 1000,
     prefix: "/static",
+    decorateReply: true
+});
+fastifyApp.register(fastifyStatic, {
+    root: path.join(__dirname, "../../tts/output"),
+    constraints: {},
+    cacheControl: config.staticCaching,
+    maxAge: 3600 * 1000,
+    prefix: "/tts/files",
+    decorateReply: false
 });
 
 fastifyApp.get("/robots.txt", async (req, res) => {
@@ -186,11 +220,7 @@ type StreamModule = {
 
 function registerStreamModule(module: StreamModule) {
     fastifyApp.get(`/stream-modules/${module.id}`, async (req, res) => {
-        return res.viewAsync(`stream-modules/${module.id}`, {
-            socketUrl: `${config.socketHost}/websocket`,
-            style: await getManifestPath("main.css"),
-            scripts: await getManifestPath("main.js"),
-        })
+        return res.viewAsync(`stream-modules/${module.id}`, {})
     })
 }
 
@@ -217,9 +247,6 @@ fastifyApp.get<{
         anchor: `${anchor.v} ${anchor.h}`,
         anchorHorizontal: anchor.h,
         anchorVertical: anchor.v,
-        socketUrl: `${config.socketHost}/websocket`,
-        style: await getManifestPath("main.css"),
-        scripts: await getManifestPath("main.js"),
     })
 })
 
@@ -228,6 +255,9 @@ registerStreamModule({
 });
 registerStreamModule({
     id: "woth"
+});
+registerStreamModule({
+    id: "mippy"
 });
 
 const dataSources = objectMapArray({
@@ -242,6 +272,7 @@ const dataSources = objectMapArray({
     feedCount: feeds.feedCount$,
     feedLayout: feeds.feedLayout$,
     slideshowFrequency: feeds.slideshowFrequency$,
+    mippySpeech: mippy.listen()
 }, (value, key) => {
     return socketParam(key, value);
 });

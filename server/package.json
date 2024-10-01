@@ -8,6 +8,7 @@
     },
     "author": "",
     "license": "ISC",
+    "type": "commonjs",
     "dependencies": {
         "@fastify/caching": "^8.4.0",
         "@fastify/cookie": "^9.3.1",
@@ -24,13 +25,16 @@
         "fastify-tsconfig": "^2.0.0",
         "kolorist": "^1.8.0",
         "nodemon": "^3.1.4",
+        "openai": "^4.65.0",
         "qs": "^6.13.0",
         "shared": "file:../shared",
-        "tmi.js": "^1.8.5"
+        "tmi.js": "^1.8.5",
+        "ws": "^8.18.0"
     },
     "devDependencies": {
         "@types/node": "^22.5.4",
         "@types/qs": "^6.9.15",
-        "@types/tmi.js": "^1.8.6"
+        "@types/tmi.js": "^1.8.6",
+        "@types/ws": "^8.5.12"
     }
 }
