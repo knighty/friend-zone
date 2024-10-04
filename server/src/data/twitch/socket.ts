@@ -38,29 +38,49 @@ type SubscriptionPayload<Condition> = {
 const log = logger("twitch-api-socket");
 export function twitchSocket(authTokenSource: UserAuthTokenSource, url = "wss://eventsub.wss.twitch.tv/ws") {
     const clientConnection$ = new Observable<WebSocket>(subscriber => {
-        const ws = new WebSocket(url);
-        log.info(`Connecting to ${url}...`);
         function error(e: Error) {
             log.error(`Socket closed: ${e.message}`);
             subscriber.error(e);
         };
-        function open(e: any) {
-            log.info("Socket open");
-            unsubscribeDisconnected(authTokenSource);
-            subscriber.next(ws);
-        }
         function close(code: number, reason: Buffer) {
             log.info(`Socket closed (${code} - ${reason.toString()})`)
             subscriber.complete();
         }
-        ws.onerror = (e) => log.error(e);
-        ws.addListener("error", error);
-        ws.addListener("open", open);
-        ws.addListener("close", close);
-        return () => {
+        function open(ws: WebSocket) {
+            log.info("Socket open");
+            unsubscribeDisconnected(authTokenSource);
+            subscriber.next(ws);
+        }
+        function bindHandlers(ws: WebSocket) {
+            ws.addListener("open", () => open(ws));
+            ws.addListener("error", error);
+            ws.addListener("close", close);
+        }
+        function unBindHandlers(ws: WebSocket) {
+            ws.removeAllListeners("open");
             ws.removeListener("error", error);
-            ws.removeListener("open", open);
             ws.removeListener("close", close);
+        }
+
+        function connect(url: string) {
+            const ws = new WebSocket(url);
+            log.info(`Connecting to ${url}...`);
+
+            ws.addEventListener("message", (e) => {
+                const event = JSON.parse(e.data.toString());
+                if (event == "session_reconnect") {
+                    const reconnectUrl = event.payload.session.reconnect_url;
+                    unBindHandlers(ws);
+                    socket = connect(reconnectUrl);
+                }
+            });
+            bindHandlers(ws);
+            return ws;
+        }
+        let socket = connect(url);
+
+        return () => {
+            unBindHandlers(socket);
         }
     }).pipe(
         shareReplay(1)
