@@ -10,7 +10,8 @@ const log = logger("twitch-chat");
 
 type Message = {
     user: string,
-    text: string
+    text: string,
+    highlighted: boolean
 }
 
 type Command = {
@@ -55,12 +56,14 @@ export default class TwitchChat {
 
         this.messages$ = this.client$.pipe(
             switchMapComplete(client => {
-                return new Observable<{ user: string, text: string }>(subscriber => {
+                return new Observable<Message>(subscriber => {
                     const fn = (channel: string, tags: any, message: any) => {
+                        const highlighted = tags['msg-id'] == 'highlighted-message';
                         const chatName = tags['display-name'];
                         subscriber.next({
                             user: chatName,
-                            text: message
+                            text: message,
+                            highlighted
                         });
                     }
                     client.on("message", fn);

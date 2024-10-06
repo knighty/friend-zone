@@ -1,0 +1,67 @@
+mippy-module {
+    display: grid;
+    grid-template-columns: 1fr min-content;
+    grid-template-rows: min-content min-content;
+    grid-template-areas: "audio avatar" "subtitles subtitles";
+    gap: 1em;
+
+    audio {
+        grid-area: audio;
+        opacity: 0;
+
+        &:hover {
+            opacity: 1;
+        }
+    }
+
+    .subtitles {
+        grid-area: subtitles;
+        overflow: hidden;
+        min-height: 1em;
+        max-height: 2.1em;
+        font-size: 1em;
+        font-family: "Balsamiq Sans";
+        line-height: 1.2em;
+        color: #fff;
+        text-shadow: 1px 1px 2px rgba(0, 0, 0, 1);
+        opacity: 0;
+        transition:
+            opacity 0.3s,
+            transform 0.3s;
+        padding: 3px;
+        box-sizing: content-box;
+
+        &.visible {
+            opacity: 1;
+        }
+    }
+
+    .avatar {
+        grid-area: avatar;
+        --size: 100px;
+        --image-size: calc(0.8 * var(--size));
+
+        opacity: 0;
+        transition:
+            opacity 0.3s,
+            transform 0.3s;
+
+        place-self: end;
+        display: grid;
+        width: var(--size);
+        height: var(--size);
+        background: url("../images/mippy-border.svg");
+
+        .image {
+            background: black;
+            place-self: center center;
+            width: var(--image-size);
+            height: var(--image-size);
+            object-position: 0px calc(var(--animation) * -8px);
+        }
+
+        &.visible {
+            opacity: 1;
+        }
+    }
+}

@@ -1,8 +1,8 @@
-import { concatMap, EMPTY, map, Observable, share } from "rxjs";
+import { concatMap, EMPTY, map, merge, Observable, share, Subject } from "rxjs";
 import { logger } from 'shared/logger';
 import { MippyConfig } from "../config";
 import { synthesizeVoice } from '../data/text-to-speech';
-import { MippyBrain, MippyMessage, MippyPrompts } from "./mippy-brain";
+import { MippyBrain, MippyPrompts } from "./mippy-brain";
 
 const log = logger("mippy");
 
@@ -21,37 +21,47 @@ export type MippyStreamEvent = {
         filename: string,
         duration: number
     },
-    message: MippyMessage
+    message: {
+        text: string
+    }
 }
 
 export class Mippy {
     enabled: boolean;
     brain: MippyBrain;
     messages$: Observable<MippyStreamEvent>;
+    manualMessage$ = new Subject<{ text: string }>();
 
     constructor(brain: MippyBrain, config: MippyConfig) {
         this.brain = brain;
         log.info("Created Mippy");
         if (this.brain) {
             this.brain.receive().subscribe();
+            const brainMessage$ = this.brain.receive().pipe(
+                map(message => ({ text: message.text }))
+            )
+            this.messages$ = merge(brainMessage$, this.manualMessage$).pipe(
+                concatMap(
+                    message => synthesizeVoice(message.text).pipe(
+                        map(result => ({
+                            audio: result,
+                            message
+                        }))
+                    )
+                ),
+                share()
+            );
         }
-        this.messages$ = this.brain.receive().pipe(
-            concatMap(
-                message => synthesizeVoice(message.text).pipe(
-                    map(result => ({
-                        audio: result,
-                        message: message
-                    }))
-                )
-            ),
-            share()
-        );
         this.enabled = config.enabled;
     }
 
-    ask<Event extends keyof MippyPrompts, Data extends MippyPrompts[Event]>(event: Event, data: Data) {
+    say(text: string) {
+        this.manualMessage$.next({ text });
+    }
+
+    ask<Event extends keyof MippyPrompts, Data extends MippyPrompts[Event]>(event: Event, data: Data, source: string = "") {
         if (this.enabled)
-            this.brain.ask(event, data);
+            this.brain.ask(event, data, source);
     }
 
     listen() {

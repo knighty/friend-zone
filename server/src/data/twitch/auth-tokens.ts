@@ -88,6 +88,8 @@ export class UserAuthTokenSource implements AuthTokenSource {
     refreshToken: string = "";
     id: string = "";
     file: string;
+    lastRefresh: number = null;
+    refreshPromise: Promise<void> = null;
 
     constructor(file: string, token: string = "", refreshToken: string = "") {
         this.file = file;
@@ -106,14 +108,20 @@ export class UserAuthTokenSource implements AuthTokenSource {
     }
 
     async refresh(): Promise<string> {
-        const tokenResponse = await requestUserToken(this.refreshToken);
-        const data = JSON.parse((await fs.readFile(this.file)).toString());
-        data.accessToken = tokenResponse.access_token;
-        data.refreshToken = tokenResponse.refresh_token;
-        await fs.writeFile(this.file, JSON.stringify(data));
-        this.token = tokenResponse.access_token;
-        this.refreshToken = tokenResponse.refresh_token;
-        log.info(`Got a new user access token ${this.token}`, "twitch");
+        if (this.refreshPromise == null) {
+            this.refreshPromise = new Promise(async (resolve, reject) => {
+                const tokenResponse = await requestUserToken(this.refreshToken);
+                const data = JSON.parse((await fs.readFile(this.file)).toString());
+                data.accessToken = tokenResponse.access_token;
+                data.refreshToken = tokenResponse.refresh_token;
+                await fs.writeFile(this.file, JSON.stringify(data));
+                this.token = tokenResponse.access_token;
+                this.refreshToken = tokenResponse.refresh_token;
+                log.info(`Got a new user access token ${this.token}`, "twitch");
+                this.refreshPromise = null;
+            });
+        }
+        await this.refreshPromise;
         return Promise.resolve(this.token);
     }
 }

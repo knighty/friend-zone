@@ -3,7 +3,7 @@ import fs from "fs";
 import { green } from "kolorist";
 import { exec } from "node:child_process";
 import path from "node:path";
-import { from, map, mergeMap, Observable, of, Subject } from "rxjs";
+import { EMPTY, from, map, mergeMap, Observable, of, Subject } from "rxjs";
 import { logger } from "shared/logger";
 
 const log = logger("piper");
@@ -76,11 +76,15 @@ async function generateLipShapes(filepath: string) {
 }
 
 export function synthesizeVoice(text: string, lipShapes = false): Observable<SynthesisResult> {
+    if (!text)
+        return EMPTY;
+
     return new Observable<Omit<SynthesisResult, "phonemes">>(subscriber => {
         const tempFileName = path.join(outputDir, "temp.txt");
         const id = makeid(10);
         const filename = `output-${id}.wav`;
         const filepath = path.join(outputDir, filename);
+        text = text.replaceAll("*", "");
         fs.writeFileSync(tempFileName, text);
         //log.info(`Synthesizing text...`);
         const startTime = performance.now();

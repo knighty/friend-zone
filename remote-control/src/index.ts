@@ -4,6 +4,7 @@ import websocket from "@fastify/websocket";
 import Fastify, { FastifyInstance } from "fastify";
 import path from "node:path";
 import { BehaviorSubject, combineLatest, distinctUntilChanged, EMPTY, filter, map, merge, Observable, of, Subject, switchMap, tap } from "rxjs";
+import { log } from 'shared/logger';
 import filterMap from 'shared/rx/operators/filter-map';
 import { ObservableEventProvider, serverSocket } from 'shared/websocket/server';
 import { Config } from "./config";
@@ -32,6 +33,7 @@ const config: Config = {
         min_probability: 0.5,
         no_speech_threshold: 0.6
     },
+    subtitlesEnabled: true,
     subtitles: "off",
     ...require(path.join(__dirname, "../../remote-control-config.js"))
 };
@@ -47,6 +49,7 @@ const user = {
     prompt: config.userPrompt
 };
 const subtitles$ = new Subject<{ id: number, text: string }>();
+const askMippy$ = new Subject<string>();
 const focus$ = focusFeed(config);
 const feedSettings = new FeedSettings();
 const remoteControl = initSocket(config.socket, {
@@ -55,9 +58,10 @@ const remoteControl = initSocket(config.socket, {
     "feed/register": feedSettings.feed$,
     "feed/focus": focus$.pipe(filter(focus => focus == true)),
     "feed/unfocus": focus$.pipe(filter(focus => focus == false)),
-    "feed/active": feedSettings.active$
+    "feed/active": feedSettings.active$,
+    "mippy/ask": askMippy$
 });
-const subtitlesEnabled$ = new BehaviorSubject(true);
+const subtitlesEnabled$ = new BehaviorSubject(config.subtitlesEnabled);
 combineLatest([remoteControl.subtitlesEnabled$, subtitlesEnabled$]).pipe(
     map(([a, b]) => a && b),
     distinctUntilChanged(),
@@ -109,7 +113,8 @@ fastifyApp.register(async (fastify: FastifyInstance) => {
     fastify.get('/websocket', { websocket: true }, (ws, req) => {
         const socket = serverSocket<{
             Events: {
-                config: { key: string, value: any }
+                config: { key: string, value: any },
+                "mippy/ask": string
             }
         }>(ws, new ObservableEventProvider({
             config: merge(
@@ -132,6 +137,11 @@ fastifyApp.register(async (fastify: FastifyInstance) => {
 
         configMessage<boolean>("feedActive").subscribe(active => feedSettings.active$.next(active));
         configMessage<boolean>("subtitlesEnabled").subscribe(enabled => subtitlesEnabled$.next(enabled));
+
+        socket.on("mippy/ask").subscribe(question => {
+            log.info(`Ask question: ${question}`, "mippy");
+            askMippy$.next(question);
+        });
     })
 });
 

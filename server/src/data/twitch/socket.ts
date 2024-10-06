@@ -1,3 +1,4 @@
+import { green } from "kolorist";
 import { filter, first, fromEvent, map, Observable, share, shareReplay, tap } from "rxjs";
 import { logger } from "shared/logger";
 import { switchMapComplete } from "shared/rx/operators/switch-map-complete";
@@ -38,6 +39,7 @@ type SubscriptionPayload<Condition> = {
 const log = logger("twitch-api-socket");
 export function twitchSocket(authTokenSource: UserAuthTokenSource, url = "wss://eventsub.wss.twitch.tv/ws") {
     const clientConnection$ = new Observable<WebSocket>(subscriber => {
+        let openMode = "new";
         function error(e: Error) {
             log.error(`Socket closed: ${e.message}`);
             subscriber.error(e);
@@ -48,7 +50,9 @@ export function twitchSocket(authTokenSource: UserAuthTokenSource, url = "wss://
         }
         function open(ws: WebSocket) {
             log.info("Socket open");
-            unsubscribeDisconnected(authTokenSource);
+            if (openMode == "new") {
+                unsubscribeDisconnected(authTokenSource);
+            }
             subscriber.next(ws);
         }
         function bindHandlers(ws: WebSocket) {
@@ -66,14 +70,19 @@ export function twitchSocket(authTokenSource: UserAuthTokenSource, url = "wss://
             const ws = new WebSocket(url);
             log.info(`Connecting to ${url}...`);
 
-            ws.addEventListener("message", (e) => {
+            function messageEvent(e: any) {
                 const event = JSON.parse(e.data.toString());
                 if (event == "session_reconnect") {
                     const reconnectUrl = event.payload.session.reconnect_url;
+                    log.info(`Reconnecting to ${green(reconnectUrl)}`);
+                    openMode = "reconnect";
                     unBindHandlers(ws);
+                    ws.removeEventListener("message", messageEvent);
                     socket = connect(reconnectUrl);
                 }
-            });
+            }
+
+            ws.addEventListener("message", messageEvent);
             bindHandlers(ws);
             return ws;
         }

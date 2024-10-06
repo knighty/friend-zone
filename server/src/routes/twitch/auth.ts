@@ -12,7 +12,10 @@ const scopes = [
     "channel:read:redemptions",
     "channel:read:subscriptions",
     "channel:read:ads",
-    "user:read:chat"
+    "user:read:chat",
+    "channel:read:redemptions",
+    "channel:manage:polls",
+    "channel:manage:redemptions",
 ]
 
 interface TokenResponse {

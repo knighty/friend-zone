@@ -13,7 +13,9 @@ export class DumbMippyBrain implements MippyBrain {
             map(text => {
                 log.info(text)
                 return {
+                    prompt: text,
                     text,
+                    source: ""
                 }
             }),
             share(),
@@ -41,7 +43,7 @@ export class DumbMippyBrain implements MippyBrain {
         }
     }
 
-    ask<Event extends keyof MippyPrompts, Data extends MippyPrompts[Event]>(event: Event, data: Data) {
+    ask<Event extends keyof MippyPrompts, Data extends MippyPrompts[Event]>(event: Event, data: Data, source: string = "") {
         const prompt = this.getPrompt(event, data);
         this.prompt$.next(prompt);
     }

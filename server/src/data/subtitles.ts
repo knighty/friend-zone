@@ -1,4 +1,4 @@
-import { debounceTime, Subject } from "rxjs";
+import { debounceTime, Subject, throttleTime } from "rxjs";
 import { Mippy } from "../mippy/mippy";
 
 type SubtitlesUser = {
@@ -12,7 +12,7 @@ type SubtitleStreamEvent = SubtitlesUser;
 export default class Subtitles {
     stream$ = new Subject<SubtitleStreamEvent>();
     mippy: Mippy;
-    questions$ = new Subject<string>();
+    questions$ = new Subject<{ user: string, text: string }>();
 
     constructor(mippy: Mippy) {
         this.mippy = mippy;
@@ -20,7 +20,8 @@ export default class Subtitles {
         if (mippy) {
             this.questions$.pipe(
                 debounceTime(5000),
-            ).subscribe(question => this.mippy.ask("question", { question }))
+                throttleTime(15000),
+            ).subscribe(question => this.mippy.ask("question", { question: question.text, user: question.user }, "admin"))
         }
     }
 
@@ -31,9 +32,14 @@ export default class Subtitles {
             text: text
         })
 
-        if (text.startsWith("Mippy,")) {
-            const q = text.slice("Mippy,".length);
-            this.questions$.next(q);
+        const regex = /(?:[\.\?]|^)(?:.{0,10})(?:mippy|mipi|mippie),(.*)/i
+        const match = text.match(regex);
+        if (match) {
+            const q = match[1];
+            this.questions$.next({
+                user: userId,
+                text: q
+            });
         }
     }
 }

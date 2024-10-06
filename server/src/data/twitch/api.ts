@@ -50,6 +50,50 @@ export type StreamResponse = {
     is_mature: false
 }
 
+export type PollResponse = {
+    id: string,
+    broadcaster_id: string,
+    broadcaster_name: string,
+    broadcaster_login: string,
+    title: string,
+    choices: {
+        id: string,
+        title: string,
+        votes: number,
+        channel_points_votes: number,
+        bits_votes: number
+    }[],
+    bits_voting_enabled: boolean,
+    bits_per_vote: number,
+    channel_points_voting_enabled: boolean,
+    channel_points_per_vote: number,
+    status: "ACTIVE" | "COMPLETED" | "TERMINATED" | "ARCHIVED" | "MODERATED" | "INVALID";
+    duration: number,
+    started_at: string
+}
+
+export type PredictionResponse = {
+    id: string,
+    broadcaster_id: string,
+    broadcaster_name: string,
+    broadcaster_login: string,
+    title: string,
+    winning_outcome_id: number | null,
+    outcomes: {
+        id: string,
+        title: string,
+        users: number,
+        channel_points: number,
+        top_predictors: null,
+        color: string
+    }[],
+    prediction_window: number,
+    status: "ACTIVE" | "CANCELED" | "LOCKED" | "RESOLVED",
+    created_at: string,
+    ended_at: null,
+    locked_at: null
+}
+
 export type FollowersResponse = {
     total: number
 }
@@ -144,16 +188,21 @@ export async function twitchApiCall<T>(options: {
         if (options.method == "GET") {
             return new Promise((resolve, reject) => {
                 const request = https.get(o, function (res) {
-                    if (res.statusCode == 401) {
-                        reject(new InvalidTokenError("Access token invalid"));
-                        return;
-                    }
                     res.setEncoding('utf8');
                     let data = "";
                     res.on('data', function (chunk) {
                         data += chunk;
                     });
                     res.on("end", function () {
+                        if (res.statusCode == 401) {
+                            const json = JSON.parse(data);
+                            if (json.message == "Invalid access token") {
+                                reject(new InvalidTokenError("Access token invalid"));
+                            } else {
+                                reject(new APICallError(json.message));
+                            }
+                            return;
+                        }
                         if (json) {
                             const json = JSON.parse(data);
                             resolve(<T>json);
@@ -177,16 +226,21 @@ export async function twitchApiCall<T>(options: {
                         'Content-Length': Buffer.byteLength(data)
                     }
                 }, function (res) {
-                    if (res.statusCode == 401) {
-                        reject(new InvalidTokenError("Access token invalid"));
-                        return;
-                    }
                     res.setEncoding('utf8');
                     let data = "";
                     res.on('data', function (chunk) {
                         data += chunk;
                     });
                     res.on("end", function () {
+                        if (res.statusCode == 401) {
+                            const json = JSON.parse(data);
+                            if (json.message == "Invalid access token") {
+                                reject(new InvalidTokenError("Access token invalid"));
+                            } else {
+                                reject(new APICallError(json.message));
+                            }
+                            return;
+                        }
                         if (json) {
                             const json = JSON.parse(data);
                             resolve(<T>json);
@@ -206,16 +260,21 @@ export async function twitchApiCall<T>(options: {
                 const request = https.request({
                     ...o
                 }, function (res) {
-                    if (res.statusCode == 401) {
-                        reject(new InvalidTokenError("Access token invalid"));
-                        return;
-                    }
                     res.setEncoding('utf8');
                     let data = "";
                     res.on('data', function (chunk) {
                         data += chunk;
                     });
                     res.on("end", function () {
+                        if (res.statusCode == 401) {
+                            const json = JSON.parse(data);
+                            if (json.message == "Invalid access token") {
+                                reject(new InvalidTokenError("Access token invalid"));
+                            } else {
+                                reject(new APICallError(json.message));
+                            }
+                            return;
+                        }
                         if (json) {
                             console.log(data);
                             const json = JSON.parse(data);
@@ -239,10 +298,8 @@ export async function twitchApiCall<T>(options: {
             await authToken.refresh();
             return await makeRequest();
         }
+        throw e;
     }
-
-    twitchLog.info(`Request failed`);
-    throw new APICallError()
 }
 
 type JSONResponse<T> = {
@@ -289,6 +346,32 @@ export async function getFollowers(authToken: AuthTokenSource, userId: number): 
     }, authToken, true);
 
     return { total: streamResponse.total };
+}
+
+export async function createPoll(authToken: AuthTokenSource, broadcasterId: string, title: string, choices: string[], duration: 60): Promise<PollResponse> {
+    const streamResponse = await twitchApiCall<JSONResponse<PollResponse>>({
+        method: "POST",
+        path: `/helix/polls`,
+    }, authToken, true, {
+        broadcaster_id: broadcasterId,
+        title,
+        choices: choices.map(choice => ({ title: choice })),
+        duration,
+    });
+    return streamResponse.data[0];
+}
+
+export async function createPrediction(authToken: AuthTokenSource, broadcasterId: string, title: string, outcomes: string[], duration: 60): Promise<PredictionResponse> {
+    const streamResponse = await twitchApiCall<JSONResponse<PredictionResponse>>({
+        method: "POST",
+        path: `/helix/polls`,
+    }, authToken, true, {
+        broadcaster_id: broadcasterId,
+        title,
+        outcomes: outcomes.map(choice => ({ title: choice })),
+        prediction_window: duration,
+    });
+    return streamResponse.data[0];
 }
 
 export async function eventSub<Condition extends EventSub<any>>(authToken: AuthTokenSource, payload: Condition) {

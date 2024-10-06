@@ -22,7 +22,7 @@ function logFactory(type: LogType, color: (s: string | number) => string) {
     const typeString = type.padStart(7, " ");
     return (message: string | any, category?: string) => {
 
-        const text = `${color(`${typeString}: ${category ? yellow(`[${category}] `) : ``}${message}`)}`;
+        const text = `${color(`${typeString}: ${category ? yellow(`[${category}] `) : ``}${message instanceof Error ? message.message : message}`)}`;
         for (let hook of hooks) {
             hook(text);
         }

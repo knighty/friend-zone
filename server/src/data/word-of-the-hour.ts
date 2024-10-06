@@ -1,4 +1,4 @@
-import { BehaviorSubject, combineLatest, map, Observable, Subject } from "rxjs";
+import { BehaviorSubject, combineLatest, EMPTY, filter, map, Observable, Subject, switchMap } from "rxjs";
 import { logger } from "shared/logger";
 import { ObservableMap } from "shared/rx/observables/map";
 import { Mippy } from "../mippy/mippy";
@@ -102,11 +102,18 @@ export default class WordOfTheHour {
     }
 
     hookSubtitles(subtitles$: Observable<Subtitle>) {
-        combineLatest([subtitles$, this.word$]).subscribe(([subtitle, word]) => {
-            const text = subtitle.text.toLowerCase();
-            if (text.includes(word)) {
-                this.subtitleWordEvent$.next(subtitle);
-            }
+        this.word$.pipe(
+            switchMap(word => {
+                if (word == null) {
+                    return EMPTY
+                }
+                word = word.toLowerCase();
+                return subtitles$.pipe(
+                    filter(subtitle => subtitle.text.toLowerCase().includes(word))
+                )
+            })
+        ).subscribe(subtitle => {
+            this.subtitleWordEvent$.next(subtitle);
         })
     }
 }

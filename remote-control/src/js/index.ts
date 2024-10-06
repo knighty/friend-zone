@@ -105,6 +105,11 @@ fromDomEvent(document.getElementById("updateFeedButton"), "click").subscribe(e =
     })
 })
 
+fromDomEvent(document.getElementById("askMippyButton"), "click").subscribe(e => {
+    socket.send("mippy/ask", element<HTMLInputElement>("askMippy").value);
+    element<HTMLInputElement>("askMippy").value = "";
+})
+
 socket.on("connectionStatus").subscribe(isConnected => {
     document.querySelector(".server-connection-status").classList.toggle("connected", isConnected);
 });

@@ -5,6 +5,7 @@ import { ObservableEventProvider, serverSocket } from "shared/websocket/server";
 import ExternalFeeds from "../data/external-feeds";
 import Subtitles from "../data/subtitles";
 import Users from "../data/users";
+import { Mippy } from "../mippy/mippy";
 
 type WebsocketMessageStream = Observable<{
     type: string,
@@ -37,7 +38,7 @@ namespace Messages {
     export type Active = boolean
 }
 
-export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds, users: Users) => async (fastify: FastifyInstance, options: {}) => {
+export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds, users: Users, mippy: Mippy) => async (fastify: FastifyInstance, options: {}) => {
     fastify.get('/remote-control/websocket', { websocket: true }, (ws, req) => {
         let userId: string | undefined;
         let userName: string | undefined;
@@ -49,7 +50,8 @@ export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds, 
                 "feed/focus": void,
                 "feed/unfocus": void,
                 "feed/register": Messages.RegisterFeed,
-                "feed/active": Messages.Active
+                "feed/active": Messages.Active,
+                "mippy/ask": string
             }
         }>(ws, new ObservableEventProvider({
             subtitles: of({ enabled: true })
@@ -115,6 +117,10 @@ export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds, 
             feedActive$.next(active);
             log.info(`${userName} is now ${active ? "active" : "inactive"}`);
         });
+
+        socket.on("mippy/ask").subscribe(question => {
+            mippy.ask("question", { question, user: userName }, "admin");
+        })
 
         function disconnect() {
             feeds.removeFeed(userId);

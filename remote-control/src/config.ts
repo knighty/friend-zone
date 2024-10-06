@@ -20,5 +20,6 @@ export type Config = {
     discordId: string,
     socket: string,
     whisper: WhisperConfig,
+    subtitlesEnabled: boolean,
     subtitles: "off" | "whisper" | "browser"
 }

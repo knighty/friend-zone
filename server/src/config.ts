@@ -4,10 +4,14 @@ function env<T>(key: string) {
     return process.env[key] ? <T>process.env[key] : undefined;
 }
 
-type MippyEnabledConfig = {
+export type MippyChatGPTConfig = {
     enabled: true,
-    brain: "dumb" | "chatgpt"
-    prompt?: string,
+    brain: "chatgpt"
+    systemPrompt: {
+        prompt: string,
+        personality: string,
+        tools: Record<string, string>,
+    },
     prompts: Partial<{
         wothSetWord: string,
         wothSetCount: string,
@@ -16,17 +20,25 @@ type MippyEnabledConfig = {
         newFollower: string,
         newSubscriber: string,
         adBreak: string,
-        setEmojiOnly: string
+        setEmojiOnly: string,
+        askMippy: string,
+        pollEnd: string,
+        predictionEnd: string
     }>
+}
+
+export type MippyDumbConfig = {
+    enabled: true,
+    brain: "dumb"
 }
 
 type MippyDisabledConfig = {
     enabled: false
 }
 
-export type MippyConfig = MippyDisabledConfig | MippyEnabledConfig;
+export type MippyConfig = MippyDisabledConfig | MippyChatGPTConfig | MippyDumbConfig;
 
-export function isMippyEnabledConfig(config: MippyConfig): config is MippyEnabledConfig {
+export function isMippyChatGPT(config: MippyConfig): config is MippyChatGPTConfig {
     return config.enabled;
 }
 
@@ -52,6 +64,7 @@ export type Config = {
         vdoNinjaUrl?: string
     },
     twitch: {
+        streamEvents: boolean,
         channel?: string,
         clientId?: string,
         secret?: string,
@@ -98,6 +111,7 @@ const defaultConfig: Config = {
         vdoNinjaUrl: null
     },
     twitch: {
+        streamEvents: false
     },
     discord: {
     },
