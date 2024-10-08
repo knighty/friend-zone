@@ -1,6 +1,6 @@
 import { Observable, Subject, map, share } from "rxjs";
 import { logger } from "shared/logger";
-import { MippyBrain, MippyMessage, MippyPrompts } from "./mippy-brain";
+import { MippyBrain, MippyMessage, MippyPrompts, Prompt } from "./mippy-brain";
 
 const log = logger("dumb-mippy-brain");
 
@@ -13,10 +13,13 @@ export class DumbMippyBrain implements MippyBrain {
             map(text => {
                 log.info(text)
                 return {
-                    prompt: text,
-                    text,
-                    source: ""
-                }
+                    prompt: {
+                        text: text,
+                        source: "chat",
+                        store: true,
+                    },
+                    text
+                } as const
             }),
             share(),
         );
@@ -41,10 +44,12 @@ export class DumbMippyBrain implements MippyBrain {
             case "adBreak": return handle("adBreak", data => `Ad playinf for ${data.duration} seconds`)
             case "setEmojiOnly": return handle("setEmojiOnly", data => `Emoji only mode set to ${data.emojiOnly}`)
         }
+
+        return "";
     }
 
-    ask<Event extends keyof MippyPrompts, Data extends MippyPrompts[Event]>(event: Event, data: Data, source: string = "") {
-        const prompt = this.getPrompt(event, data);
-        this.prompt$.next(prompt);
+    ask<Event extends keyof MippyPrompts, Data extends MippyPrompts[Event]>(event: Event, data: Data, prompt: Omit<Prompt, "text">) {
+        const p = this.getPrompt(event, data);
+        this.prompt$.next(p);
     }
 }

@@ -88,8 +88,8 @@ export class UserAuthTokenSource implements AuthTokenSource {
     refreshToken: string = "";
     id: string = "";
     file: string;
-    lastRefresh: number = null;
-    refreshPromise: Promise<void> = null;
+    lastRefresh: number | null = null;
+    refreshPromise: Promise<void> | null = null;
 
     constructor(file: string, token: string = "", refreshToken: string = "") {
         this.file = file;

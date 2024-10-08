@@ -6,7 +6,7 @@ import { sentences } from "./sentences";
 import Subtitles from "./subtitles";
 import Users, { User } from "./users";
 
-export default function mockUsers(mockUsers: (User & { feed: string })[], users: Users, feeds: ExternalFeeds, discordVoiceState: DiscordVoiceState, subtitles: Subtitles) {
+export default function mockUsers(mockUsers: (User & { feed: string | null })[], users: Users, feeds: ExternalFeeds, discordVoiceState: DiscordVoiceState, subtitles: Subtitles) {
     const subscriptions = new Subscriptions();
     for (let user of mockUsers) {
         const id = user.name.toLowerCase();

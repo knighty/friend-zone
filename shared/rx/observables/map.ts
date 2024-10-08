@@ -36,7 +36,7 @@ export class ObservableMap<Key, Value> {
      * @param key 
      * @returns 
      */
-    get(key: Key): Observable<Value> {
+    get(key: Key): Observable<Value | undefined> {
         const current = this.data.get(key);
         return this.keyUpdated$.pipe(
             filterMap(updatedKey => updatedKey == key, () => this.data.get(key), current),
@@ -64,9 +64,9 @@ export class ObservableMap<Key, Value> {
     * @param def 
     * @returns The new value that was set
     */
-    atomicSet(key: Key, fn: (value: Value) => Value, def?: Value): Value {
+    atomicSet<Default extends Value | undefined>(key: Key, fn: (value: Default extends Value ? Value : Value | undefined) => Value, def?: Default): Default extends Value ? Value : Value | undefined {
         const value = this.data.get(key);
-        const newValue = fn(value === undefined ? def : value);
+        const newValue = fn((value === undefined ? def : value) as Default extends Value ? Value : Value | undefined);
         this.set(key, newValue);
         return newValue;
     }
@@ -90,8 +90,11 @@ export class ObservableMap<Key, Value> {
      */
     update(key: Key, value: Partial<Value>) {
         if (this.data.has(key)) {
+            const data = this.data.get(key);
+            if (data == undefined)
+                return;
             this.data.set(key, {
-                ...this.data.get(key),
+                ...data,
                 ...value
             });
             this.updated$.next();
@@ -103,8 +106,11 @@ export class ObservableMap<Key, Value> {
         let updated = false;
         for (let item of items) {
             if (this.data.has(item.key)) {
+                const data = this.data.get(item.key);
+                if (data == undefined)
+                    return;
                 this.data.set(item.key, {
-                    ...this.data.get(item.key),
+                    ...data,
                     ...item.value
                 });
                 this.keyUpdated$.next(item.key);

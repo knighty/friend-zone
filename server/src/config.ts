@@ -4,6 +4,10 @@ function env<T>(key: string) {
     return process.env[key] ? <T>process.env[key] : undefined;
 }
 
+function checkProps<T extends object, P extends keyof T>(o: T, props: P[]) {
+    return props.reduce((a, c) => (c in o) && a, true);
+}
+
 export type MippyChatGPTConfig = {
     enabled: true,
     brain: "chatgpt"
@@ -12,6 +16,10 @@ export type MippyChatGPTConfig = {
         personality: string,
         tools: Record<string, string>,
     },
+    permissions: Partial<{
+        createPoll: boolean,
+        createPrediction: boolean,
+    }>,
     prompts: Partial<{
         wothSetWord: string,
         wothSetCount: string,
@@ -23,7 +31,8 @@ export type MippyChatGPTConfig = {
         setEmojiOnly: string,
         askMippy: string,
         pollEnd: string,
-        predictionEnd: string
+        predictionEnd: string,
+        highlightedMessage: string
     }>
 }
 
@@ -39,7 +48,36 @@ type MippyDisabledConfig = {
 export type MippyConfig = MippyDisabledConfig | MippyChatGPTConfig | MippyDumbConfig;
 
 export function isMippyChatGPT(config: MippyConfig): config is MippyChatGPTConfig {
-    return config.enabled;
+    return config.enabled && config.brain == "chatgpt";
+}
+
+export function isMippyDumb(config: MippyConfig): config is MippyDumbConfig {
+    return config.enabled && config.brain == "dumb";
+}
+
+type TwitchConfig = {
+    streamEvents: boolean,
+    channel: string,
+    clientId: string,
+    secret: string,
+    redirectUrl: string,
+    broadcasterId: string
+}
+
+export function isTwitchConfig(config: Partial<TwitchConfig>): config is TwitchConfig {
+    return checkProps(config, ["streamEvents", "channel", "clientId", "secret", "redirectUrl", "broadcasterId"]);
+}
+
+type DiscordConfig = {
+    voiceStatus: boolean,
+    channels: string[],
+    clientId: string,
+    clientSecret: string,
+    redirectUri: string,
+}
+
+export function isDiscordConfig(config: Partial<DiscordConfig>): config is DiscordConfig {
+    return checkProps(config, ["voiceStatus", "channels", "clientId", "clientSecret", "redirectUri"]);
 }
 
 export type Config = {
@@ -63,21 +101,8 @@ export type Config = {
         webcam: boolean,
         vdoNinjaUrl?: string
     },
-    twitch: {
-        streamEvents: boolean,
-        channel?: string,
-        clientId?: string,
-        secret?: string,
-        redirectUrl?: string,
-        broadcasterId?: string
-    },
-    discord: {
-        voiceStatus?: boolean,
-        channels?: string[],
-        clientId?: string,
-        clientSecret?: string,
-        redirectUri?: string,
-    },
+    twitch: Partial<TwitchConfig>,
+    discord: Partial<DiscordConfig>,
     socketHost: string,
     feeds: {
         slideshowFrequency: number,
@@ -108,7 +133,6 @@ const defaultConfig: Config = {
     },
     video: {
         webcam: false,
-        vdoNinjaUrl: null
     },
     twitch: {
         streamEvents: false

@@ -21,7 +21,7 @@ export default class Subtitles {
             this.questions$.pipe(
                 debounceTime(5000),
                 throttleTime(15000),
-            ).subscribe(question => this.mippy.ask("question", { question: question.text, user: question.user }, "admin"))
+            ).subscribe(question => this.mippy.ask("question", { question: question.text, user: question.user }, { name: question.user, source: "admin" }))
         }
     }
 
@@ -32,7 +32,7 @@ export default class Subtitles {
             text: text
         })
 
-        const regex = /(?:[\.\?]|^)(?:.{0,10})(?:mippy|mipi|mippie),(.*)/i
+        const regex = /(?:[\.\?]|^)(?:.{0,10})(?:mippy|mipi|mippie)[,!](.*)/i
         const match = text.match(regex);
         if (match) {
             const q = match[1];

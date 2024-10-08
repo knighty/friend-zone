@@ -2,7 +2,7 @@ import RPC, { RPCEvents } from "discord-rpc";
 import { filter, merge, Observable, shareReplay, switchMap, tap } from "rxjs";
 import { logger } from "shared/logger";
 import { ObservableMap } from "shared/rx/observables/map";
-import config from "../config";
+import config, { isDiscordConfig } from "../config";
 
 type DiscordUser = string;
 const log = logger("discord-voice-status");
@@ -14,12 +14,16 @@ const client$ = (new Observable<RPC.Client>(subscriber => {
         log.info(`RPC client ready`);
         subscriber.next(client);
     });
-    client.login({
-        clientId: config.discord.clientId,
-        clientSecret: config.discord.clientSecret,
-        redirectUri: config.discord.redirectUri,
-        scopes: ['rpc']
-    });
+    if (isDiscordConfig(config.discord)) {
+        client.login({
+            clientId: config.discord.clientId,
+            clientSecret: config.discord.clientSecret,
+            redirectUri: config.discord.redirectUri,
+            scopes: ['rpc']
+        });
+    } else {
+        throw new Error("Invalid Discord config");
+    }
     return () => client.destroy();
 })).pipe(shareReplay(1))
 

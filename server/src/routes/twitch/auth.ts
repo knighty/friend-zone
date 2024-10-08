@@ -16,6 +16,7 @@ const scopes = [
     "channel:read:redemptions",
     "channel:manage:polls",
     "channel:manage:redemptions",
+    "channel:manage:predictions",
 ]
 
 interface TokenResponse {

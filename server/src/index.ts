@@ -10,19 +10,19 @@ import { green } from 'kolorist';
 import path from "path";
 import process from "process";
 import qs from "qs";
-import { EMPTY, exhaustMap, filter, map, merge, Observable, share, Subject, tap, throttleTime } from 'rxjs';
+import { catchError, EMPTY, exhaustMap, filter, from, map, merge, Observable, share, Subject, tap, throttleTime } from 'rxjs';
 import { logger } from 'shared/logger';
 import filterMap from 'shared/rx/operators/filter-map';
 import { InferObservable } from "shared/rx/utils";
 import { objectMapArray } from 'shared/utils';
-import config, { isMippyChatGPT } from "./config";
+import config, { isDiscordConfig, isMippyChatGPT, isMippyDumb, isTwitchConfig } from "./config";
 import DiscordVoiceState from './data/discord-voice-state';
 import ExternalFeeds from './data/external-feeds';
 import mockUsers from './data/mock-users';
 import { StreamEventWatcher } from './data/stream-event-watcher';
 import Subtitles from './data/subtitles';
 import TwitchChat from './data/twitch-chat';
-import { createPrediction } from './data/twitch/api';
+import { createPoll, createPrediction } from './data/twitch/api';
 import { UserAuthTokenSource } from './data/twitch/auth-tokens';
 import Users from './data/users';
 import Webcam from './data/webcam';
@@ -33,6 +33,9 @@ import { ChatGPTMippyBrain } from './mippy/chat-gpt-brain';
 import { DumbMippyBrain } from './mippy/dumb-brain';
 import { Mippy } from './mippy/mippy';
 import { MippyBrain } from './mippy/mippy-brain';
+import { MippyMessageRepository } from './mippy/storage';
+import { ToolArguments } from './mippy/tools';
+import { audioSocket, StreamingTTS } from './plugins/audio-socket';
 import { configSocket } from './plugins/config-socket';
 import { errorHandler } from './plugins/errors';
 import { fastifyFavicon } from "./plugins/favicon";
@@ -54,8 +57,8 @@ declare module 'fastify' {
     }
 }
 
-serverLog.info("Config:");
-serverLog.info(JSON.stringify(config));
+/*serverLog.info("Config:");
+serverLog.info(JSON.stringify(config));*/
 
 /*
 Fastify Init
@@ -97,41 +100,54 @@ Dependencies
 */
 serverLog.info("Creating dependencies");
 const users = new Users();
-let brain: MippyBrain = null;
-if (isMippyChatGPT(config.mippy)) {
-    brain = config.mippy.brain == "chatgpt" ? new ChatGPTMippyBrain(config.openai.key, config.mippy, users) : new DumbMippyBrain();
-}
-const mippy = new Mippy(brain, config.mippy);
-const twitchChat = new TwitchChat(config.twitch.channel);
-const subtitles = new Subtitles(mippy);
-const wordOfTheHour = new WordOfTheHour(twitchChat, mippy);
-wordOfTheHour.hookSubtitles(subtitles.stream$);
-//wordOfTheHour.setWord("bespoke");
-const discordVoiceState = new DiscordVoiceState();
-if (config.discord.voiceStatus) {
-    for (let channel of config.discord.channels) {
-        discordVoiceState.connectToChannel(channel);
+function getBrain(): MippyBrain {
+    if (isMippyChatGPT(config.mippy)) {
+        const mippyHistoryRepository = new MippyMessageRepository(path.join(__dirname, "../../data/history.json"));
+        if (!config.openai.key) {
+            throw new Error("No OpenAI key provided");
+        }
+        return new ChatGPTMippyBrain(config.openai.key, config.mippy, users, mippyHistoryRepository);
     }
+    if (isMippyDumb(config.mippy)) {
+        return new DumbMippyBrain();
+    }
+    throw new Error("No valid brain for Mippy");
 }
+let brain = getBrain();
+const streamingTTS = new StreamingTTS();
+const mippy = new Mippy(brain, config.mippy, streamingTTS);
+const subtitles = new Subtitles(mippy);
+const wordOfTheHour = new WordOfTheHour(mippy);
+wordOfTheHour.hookSubtitles(subtitles.stream$);
+const discordVoiceState = new DiscordVoiceState();
 const webcam = new Webcam();
 const feeds = new ExternalFeeds();
 if (config.mockUsers) {
     const mocks = mockUsers(config.mockUsers, users, feeds, discordVoiceState, subtitles);
 }
 
-type Tools = {
-    createPoll: {
-        title: string,
-        options: string[],
-        duration: number
-    },
-    createPrediction: {
-        title: string,
-        options: string[]
-    },
-    changePersonality: {
-        personality: string
+if (isDiscordConfig(config.discord)) {
+    for (let channel of config.discord.channels) {
+        discordVoiceState.connectToChannel(channel);
     }
+}
+
+if (isTwitchConfig(config.twitch)) {
+    const twitchChat = new TwitchChat(config.twitch.channel);
+
+    twitchChat.observeMessages().pipe(
+        filter(message => message.highlighted)
+    ).subscribe(message => {
+        const regex = /(?:fuck?|bitch|niggers?|shits?)/i
+        const prompt = { source: "chat", store: false, name: message.user } as const;
+        if (message.text.match(regex)) {
+            mippy.ask("highlightedMessage", { message: "(the message was filtered, tell the user to be careful with their word usage)", user: message.user }, prompt)
+        } else {
+            mippy.ask("highlightedMessage", { message: message.text.substring(0, 1000), user: message.user }, prompt)
+        }
+    });
+
+    wordOfTheHour.watchTwitchChat(twitchChat);
 }
 
 const mippyTwitchLog = logger("mippy-twitch-integration");
@@ -143,64 +159,77 @@ if (isMippyChatGPT(config.mippy)) {
         if (config.twitch.broadcasterId) {
             eventWatcher.watch(authToken, config.twitch.broadcasterId, mippy);
         }
-
-        twitchChat.observeMessages().pipe(
-            filter(message => message.highlighted)
-        ).subscribe(message => {
-            const regex = /(?:fuck?|bitch|niggers?|shits?)/i
-            if (message.text.match(regex)) {
-                mippy.ask("askMippy", { question: "(the message was filtered, tell the user to be careful with their word usage)", user: message.user })
-            } else {
-                mippy.ask("askMippy", { question: message.text, user: message.user })
-            }
-        })
     }
 
     if (mippy.brain instanceof ChatGPTMippyBrain) {
         const brain = mippy.brain;
         const toolCall$ = brain.receiveToolCalls().pipe(share());
-        function tool<T extends keyof Tools>(toolName: T): Observable<Tools[T]> {
+        function tool<T extends keyof ToolArguments>(toolName: T, permission: string = "admin"): Observable<ToolArguments[T]> {
+            const checkPermission = (source?: string) => {
+                if (permission == "admin") {
+                    return source == permission;
+                }
+                return true;
+            }
             return toolCall$.pipe(
-                filterMap(tool => tool.function.name == toolName && tool.source == "admin", tool => tool.function.arguments)
+                filterMap(tool => tool.function.name == toolName && checkPermission(tool.prompt.source), tool => tool.function.arguments)
             );
         }
 
-        merge(
-            tool("createPoll").pipe(
-                throttleTime(60000),
-                exhaustMap(args => {
-                    mippy.say(`I just set up a poll titled "${args.title}" for ${args.duration} seconds`);
-                    mippyTwitchLog.info(`Creating a poll (${args.duration} seconds): \n${args.title} \n${args.options.map((option, i) => `${i}. ${option}`).join("\n")}`);
-                    /*return from(createPoll(authToken, config.twitch.broadcasterId, args.title, args.options, 60)).pipe(
-                        tap(result => console.log(result)),
-                        catchError(err => { mippyTwitchLog.error(err); return EMPTY; })
-                    );*/
-                    return EMPTY;
-                })
-            ),
-
-            tool("createPrediction").pipe(
-                tap(args => {
-                    mippy.say(`I just set up a prediction titled "${args.title}"`);
-                    createPrediction(authToken, config.twitch.broadcasterId, args.title, args.options, 60);
-                    mippyTwitchLog.info(`Creating a prediction: \n${args.title} \n${args.options.map((option, i) => `${i}. ${option}`).join("\n")}`);
-                })
-            ),
-
-            tool("changePersonality").pipe(
-                tap(args => {
-                    mippy.say("I got asked to change my personality");
-                    brain.setPersonality(args.personality);
-                    mippyTwitchLog.info(`Changing personality:\n${args.personality}`);
-                })
-            )
-        ).pipe(
-            //retry()
-        ).subscribe({
-            error(err) {
-                mippyTwitchLog.error(err);
+        function durationToSpeech(duration: number) {
+            if (duration >= 60) {
+                const minutes = Math.floor(duration / 60);
+                return `${minutes} minute${minutes == 1 ? "" : "s"}`;
             }
-        });
+            return `${duration} seconds`;
+        }
+
+        const permissions = config.mippy.permissions;
+
+        if (isTwitchConfig(config.twitch)) {
+            const twitchConfig = config.twitch;
+            merge(
+                tool("createPoll").pipe(
+                    throttleTime(60000),
+                    exhaustMap(args => {
+                        mippy.say(`I just set up a poll titled "${args.title}" for ${durationToSpeech(args.duration)}`);
+                        mippyTwitchLog.info(`Creating a poll (${args.duration} seconds): \n${args.title} \n${args.options.map((option, i) => `${i}. ${option}`).join("\n")}`);
+                        if (!permissions.createPoll)
+                            return EMPTY;
+                        return from(createPoll(authToken, twitchConfig.broadcasterId, args.title, args.options, args.duration)).pipe(
+                            tap(result => mippyTwitchLog.info("Successfully set up poll")),
+                            catchError(err => { mippyTwitchLog.error(err); return EMPTY; })
+                        );
+                    })
+                ),
+
+                tool("createPrediction").pipe(
+                    throttleTime(60000),
+                    exhaustMap(args => {
+                        mippy.say(`I just set up a prediction titled "${args.title}" for ${durationToSpeech(args.duration)}`);
+                        mippyTwitchLog.info(`Creating a prediction: \n${args.title} \n${args.options.map((option, i) => `${i}. ${option}`).join("\n")}`);
+                        if (!permissions.createPrediction)
+                            return EMPTY;
+                        return from(createPrediction(authToken, twitchConfig.broadcasterId, args.title, args.options, args.duration)).pipe(
+                            tap(result => mippyTwitchLog.info("Successfully set up prediction")),
+                            catchError(err => { mippyTwitchLog.error(err); return EMPTY; })
+                        );
+                    })
+                ),
+
+                tool("changePersonality").pipe(
+                    tap(args => {
+                        mippy.say("I got asked to change my personality");
+                        brain.setPersonality(args.personality);
+                        mippyTwitchLog.info(`Changing personality:\n${args.personality}`);
+                    })
+                )
+            ).subscribe({
+                error(err) {
+                    mippyTwitchLog.error(err);
+                }
+            });
+        }
     }
 }
 
@@ -285,6 +314,7 @@ fastifyApp.all("/*", async (req, res) => {
 });
 
 fastifyApp.register(websocket);
+fastifyApp.register(audioSocket(streamingTTS));
 
 function socketParam<T, D>(type: string, observable$: Observable<T>, project?: (data: T) => D) {
     return {

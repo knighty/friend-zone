@@ -136,26 +136,26 @@ export class StreamEventWatcher {
             map(e => e.category_name),
             distinctUntilChanged()
         ).subscribe(category => {
-            mippy.ask("setCategory", { category });
+            mippy.ask("setCategory", { category }, { allowTools: false });
         });
 
         onEvent("channel.follow", {
             broadcaster_user_id: broadcasterId,
             moderator_user_id: broadcasterId
         }, "2").subscribe(e => {
-            mippy.ask("newFollower", { user: e.user_name });
+            mippy.ask("newFollower", { user: e.user_name }, { allowTools: false });
         });
 
         onEvent("channel.subscribe", {
             broadcaster_user_id: broadcasterId,
         }).subscribe(e => {
-            mippy.ask("newSubscriber", { user: e.user_name });
+            mippy.ask("newSubscriber", { user: e.user_name }, { allowTools: false });
         });
 
         onEvent("channel.ad_break.begin", {
             broadcaster_user_id: broadcasterId,
         }).subscribe(e => {
-            mippy.ask("adBreak", { duration: e.duration_seconds });
+            mippy.ask("adBreak", { duration: e.duration_seconds }, { allowTools: false });
         });
 
         onEvent("channel.chat_settings.update", {
@@ -165,7 +165,7 @@ export class StreamEventWatcher {
             map(e => e.emote_mode),
             distinctUntilChanged(),
         ).subscribe(emojiOnly => {
-            mippy.ask("setEmojiOnly", { emojiOnly: emojiOnly });
+            mippy.ask("setEmojiOnly", { emojiOnly: emojiOnly }, { allowTools: false });
         });
 
         onEvent("channel.poll.end", {
@@ -178,7 +178,7 @@ export class StreamEventWatcher {
                 title: e.title,
                 won: won.title,
                 votes: won.votes
-            });
+            }, { allowTools: false });
         });
 
         onEvent("channel.prediction.end", {
@@ -188,30 +188,33 @@ export class StreamEventWatcher {
             if (winningOutcome == null)
                 return;
 
-            const topWinner = winningOutcome.top_predictors.reduce((winner, predictor) => {
+            const losingOutcomes = e.outcomes.filter(outcome => outcome.id != winningOutcome.id);
+            const topWinner = winningOutcome.top_predictors.reduce((winner: null | { user_name: string, channel_points_won: number }, predictor) => {
                 if (winner == null || predictor.channel_points_won > winner.channel_points_won) {
                     return predictor;
                 }
                 return winner;
-            }, null as { user_name: string, channel_points_won: number });
-            const topLoser = e.outcomes.reduce((loser, outcome) => {
+            }, null);
+            const topLoser = losingOutcomes.reduce((loser: null | { user_name: string, channel_points_used: number }, outcome) => {
                 outcome.top_predictors.forEach(predictor => {
                     if (loser == null || predictor.channel_points_used > loser.channel_points_used) {
                         loser = predictor;
                     }
                 })
                 return loser;
-            }, null as { user_name: string, channel_points_used: number });
+            }, null);
             const pointsUsed = e.outcomes.reduce((points, outcome) => points + outcome.channel_points, 0);
+            const winnerString = topWinner != null ? `The biggest winner was ${topWinner.user_name} who won ${topWinner.channel_points_won}.` : ``;
+            const loserString = topLoser != null ? `The biggest loser was ${topLoser.user_name} who lost ${topLoser.channel_points_used}.` : ``;
             mippy.ask("predictionEnd", {
                 title: e.title,
-                data: `The biggest winner was ${topWinner.user_name} who won ${topWinner.channel_points_won}. The biggest loser was ${topLoser.user_name} who lost ${topLoser.channel_points_used}`,
+                data: `${winnerString} ${loserString}`,
                 points: pointsUsed,
-                topWinner: topWinner.user_name,
-                topWinnerPoints: topWinner.channel_points_won,
-                topLoser: topLoser.user_name,
-                topLoserPoints: topLoser.channel_points_used,
-            });
+                topWinner: topWinner?.user_name ?? "",
+                topWinnerPoints: topWinner?.channel_points_won ?? "",
+                topLoser: topLoser?.user_name ?? "",
+                topLoserPoints: topLoser?.channel_points_used ?? 0,
+            }, { allowTools: false });
         });
 
         /*onEvent("channel.channel_points_custom_reward_redemption.add", {

@@ -1,90 +1,23 @@
+import { green } from 'kolorist';
 import OpenAI from 'openai';
-import { ChatCompletionMessageParam, ChatCompletionTool, FunctionParameters } from 'openai/resources/index.mjs';
-import { BehaviorSubject, catchError, combineLatest, concatMap, defer, EMPTY, filter, from, map, mergeMap, Observable, share, Subject, switchMap, tap, withLatestFrom } from "rxjs";
+import { BehaviorSubject, catchError, combineLatest, concatMap, debounceTime, EMPTY, exhaustMap, filter, from, map, mergeMap, Observable, share, Subject, switchMap, throttleTime, withLatestFrom } from "rxjs";
 import { logger } from "shared/logger";
+import { executionTimer } from 'shared/utils';
 import { isMippyChatGPT, MippyChatGPTConfig } from "../config";
 import Users from '../data/users';
 import { MippyBrain, MippyMessage, MippyPrompts, Prompt } from "./mippy-brain";
+import { MippyHistoryMessage, MippyMessageRepository } from './storage';
+import { toolsSchema } from './tools';
 
 const log = logger("mippy-chat-gpt-brain", true);
 
 export type ToolCall<Args = any> = {
     id: string,
     function: { name: string, arguments: Args },
-    source: string
+    prompt: Prompt
 }
 
-function toolFunction<Parameters extends FunctionParameters>(title: string, description: string, parameters: Parameters): ChatCompletionTool {
-    return {
-        function: {
-            name: title,
-            description: description,
-            parameters: parameters,
-            strict: true
-        },
-        type: "function"
-    };
-}
-
-const toolsSchema: ChatCompletionTool[] = [
-    toolFunction("createPoll", "Creates a poll", {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-            title: {
-                description: "The title of the poll",
-                type: "string"
-            },
-            options: {
-                type: "array",
-                description: "The list of options for the poll",
-                items: {
-                    type: "string"
-                }
-            },
-            duration: {
-                type: "number",
-                description: "The duration of the poll in seconds",
-            }
-        },
-        required: ["title", "options", "duration"]
-    }),
-    toolFunction("createPrediction", "Creates a prediction", {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-            title: {
-                description: "The title of the prediction",
-                type: "string"
-            },
-            options: {
-                type: "array",
-                description: "The list of options for the prediction",
-                items: {
-                    type: "string"
-                }
-            },
-            duration: {
-                type: "number",
-                description: "The duration of the poll in seconds",
-            }
-        },
-        required: ["title", "options", "duration"]
-    }),
-    toolFunction("changePersonality", "Changes Mippy's personality", {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-            personality: {
-                description: "The new personality prompt",
-                type: "string"
-            }
-        },
-        required: ["personality"]
-    })
-];
-
-function message(role: "system" | "user" | "assistant", content: string) {
+function chatgptMessage(role: "system" | "user" | "assistant", content: string) {
     return { role, content }
 }
 
@@ -95,14 +28,14 @@ export class ChatGPTMippyBrain implements MippyBrain {
     messages$: Observable<MippyMessage>;
     config: MippyChatGPTConfig;
     users: Users;
-    chatSummaries: ChatCompletionMessageParam[] = [];
-    chatHistory: ChatCompletionMessageParam[] = [];
-    personality$ = new BehaviorSubject<string>(null);
+    personality$ = new BehaviorSubject<string>("");
     tools$ = new BehaviorSubject<Record<string, string>>({});
+    messageRepository: MippyMessageRepository;
 
-    constructor(apiKey: string, config: MippyChatGPTConfig, users: Users) {
+    constructor(apiKey: string, config: MippyChatGPTConfig, users: Users, messageRepository: MippyMessageRepository) {
         this.config = config;
         this.users = users;
+        this.messageRepository = messageRepository;
 
         this.tools$.next(config.systemPrompt.tools);
 
@@ -132,72 +65,77 @@ export class ChatGPTMippyBrain implements MippyBrain {
         )
         const system$ = combineLatest([systemPrompt$, toolsSchema$]).pipe(
             map(([systemPrompt, toolsSchema]) => ({
-                message: message("system", systemPrompt),
+                message: chatgptMessage("system", systemPrompt),
                 toolsSchema: toolsSchema
             }))
         )
 
-        this.messages$ = this.prompt$.pipe(
-            withLatestFrom(system$),
-            concatMap(([prompt, system]) => {
-                log.info(`Prompt: ${prompt.text}`);
-                log.info(`History: ${this.chatHistory.length} messages. Tools: ${system.toolsSchema.map(tool => tool.function.name).join(", ")}`);
+        const history$ = from(messageRepository.getHistory()).pipe(
+            share()
+        )
 
-                // Handle summarising
-                let summariseObservable$: Observable<any> = null;
-                if (this.chatHistory.length > 100) {
-                    summariseObservable$ = defer(() => {
-                        const summariseMessages = this.chatHistory.slice(0, 50);
-                        log.info(`Summarising ${summariseMessages.length} messages`);
-                        const params: OpenAI.Chat.ChatCompletionCreateParams = {
+        history$.pipe(
+            switchMap(history => history.updated$),
+            debounceTime(5000),
+            throttleTime(60000, undefined, { leading: true, trailing: true }),
+            exhaustMap(history => this.messageRepository.persistHistory(history))
+        ).subscribe()
+
+        this.messages$ = history$.pipe(
+            switchMap(history => {
+                return this.prompt$.pipe(
+                    withLatestFrom(system$),
+                    concatMap(async ([prompt, system]) => {
+                        const store = prompt.store === undefined ? true : prompt.store;
+                        const userMessage = history.create("user", prompt.text, prompt.name);
+                        const allowTools = prompt.allowTools && prompt.source == "admin";
+
+                        log.info(`Prompt: ${green(prompt.text)}`);
+                        log.info(`History: ${green(history.messages.length)} messages. Tools: ${allowTools ? system.toolsSchema.map(tool => green(tool.function.name)).join(", ") : green("not allowed")}`);
+
+                        const chatGptTimer = executionTimer();
+                        const summarise = async (messages: MippyHistoryMessage[]) => {
+                            const params: OpenAI.Chat.ChatCompletionCreateParams = {
+                                messages: [
+                                    system.message,
+                                    ...messages,
+                                    history.create("user", "Summarise the important parts of the chat up until now in a few paragraphs"),
+                                ],
+                                model: "gpt-4o-mini",
+                            };
+                            const m = await client.chat.completions.create(params);
+                            return m.choices[0].message.content ?? "";
+                        }
+
+                        if (store) {
+                            await history.addMessage(userMessage, summarise);
+                        }
+
+                        const response = await client.chat.completions.create({
                             messages: [
                                 system.message,
-                                ...summariseMessages,
-                                message("user", "Summarise the important parts of the chat up until now")
+                                ...history.summaries,
+                                ...history.messages,
+                                ...(store ? [] : [userMessage])
                             ],
                             model: "gpt-4o-mini",
+                            tool_choice: allowTools ? "auto" : undefined,
+                            tools: allowTools ? system.toolsSchema : undefined
+                        });
+                        const message = response.choices[0].message;
+                        const result = {
+                            text: message.content ?? message.refusal ?? "",
+                            tool: message.tool_calls,
+                            prompt: prompt
                         };
-                        return from(client.chat.completions.create(params)).pipe(
-                            logError(),
-                            map(result => result.choices[0].message.content),
-                            tap(text => {
-                                this.chatHistory = this.chatHistory.slice(50);
-                                this.chatSummaries.push(message("assistant", text));
-                                log.info(`Summarised history: ${text}`);
-                            })
-                        );
-                    })
-                }
 
-                // Handle the new message
-                const obs$ = defer(() => {
-                    this.chatHistory.push(message("user", prompt.text));
-                    const params: OpenAI.Chat.ChatCompletionCreateParams = {
-                        messages: [
-                            system.message,
-                            ...this.chatSummaries,
-                            ...this.chatHistory,
-                        ],
-                        model: "gpt-4o-mini",
-                        tool_choice: "auto",
-                        tools: system.toolsSchema
-                    };
-                    return from(client.chat.completions.create(params)).pipe(
-                        logError(),
-                        map(result => ({
-                            text: result.choices[0].message.content,
-                            tool: result.choices[0].message.tool_calls,
-                            prompt: prompt.text,
-                            source: prompt.source
-                        })),
-                        tap(result => {
-                            this.chatHistory.push(message("assistant", result.text ?? ""));
-                            log.info(`Result: ${result.text}`)
-                        })
-                    );
-                })
-
-                return summariseObservable$ ? summariseObservable$.pipe(switchMap(() => obs$)) : obs$
+                        log.info(`Response (${green(chatGptTimer.end())} - ${green(response.usage?.total_tokens.toString() ?? "")} tokens): ${green(result.text)}`);
+                        if (store) {
+                            await history.addMessage(history.create("assistant", result.text ?? ""), summarise);
+                        }
+                        return result;
+                    }),
+                )
             }),
             share(),
         );
@@ -212,28 +150,32 @@ export class ChatGPTMippyBrain implements MippyBrain {
     }
 
     receive(): Observable<MippyMessage> {
-        return this.messages$;
+        return this.messages$.pipe(
+            filter(result => !!result.text)
+        );
     }
 
     receiveToolCalls() {
         return this.messages$.pipe(
-            filter(message => !!message.tool),
+            filter(message => message.tool != undefined),
             mergeMap(message => {
                 const tools: ToolCall[] = [];
-                for (let tool of message.tool) {
-                    try {
-                        const args = JSON.parse(tool.function.arguments);
-                        tools.push({
-                            id: tool.id,
-                            function: {
-                                name: tool.function.name,
-                                arguments: args,
-                            },
-                            source: message.source
+                if (message.tool != undefined) {
+                    for (let tool of message.tool) {
+                        try {
+                            const args = JSON.parse(tool.function.arguments);
+                            tools.push({
+                                id: tool.id,
+                                function: {
+                                    name: tool.function.name,
+                                    arguments: args,
+                                },
+                                prompt: message.prompt
 
-                        });
-                    } catch (e) {
-                        log.error("Error parsing arguments");
+                            });
+                        } catch (e) {
+                            log.error("Error parsing arguments");
+                        }
                     }
                 }
                 return from(tools);
@@ -241,19 +183,21 @@ export class ChatGPTMippyBrain implements MippyBrain {
         )
     }
 
-    ask<Event extends keyof MippyPrompts, Data extends MippyPrompts[Event]>(event: Event, data: Data, source?: string) {
+    ask<Event extends keyof MippyPrompts, Data extends MippyPrompts[Event]>(event: Event, data: Data, prompt: Omit<Prompt, "text">) {
         if (isMippyChatGPT(this.config)) {
-            let prompt = this.config.prompts[event];
-            if (!prompt)
+            let promptTemplate = this.config.prompts[event];
+            if (!promptTemplate)
                 return;
 
             for (let key in data) {
-                prompt = prompt.replace(`[${key}]`, data[key].toString());
+                if (data[key]) {
+                    promptTemplate = promptTemplate.replace(`[${key}]`, data[key].toString());
+                }
             }
 
             this.prompt$.next({
-                text: prompt,
-                source
+                ...prompt,
+                text: promptTemplate
             });
         }
     }

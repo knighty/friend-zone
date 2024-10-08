@@ -119,7 +119,7 @@ export function twitchSocket(authTokenSource: UserAuthTokenSource, url = "wss://
     function on<Payload, Condition>(type: string, condition: Condition, version = "2") {
         const sub$ = session$.pipe(
             switchMapComplete(session => new Observable<void>(subscriber => {
-                let id: string = null;
+                let id: string | null = null;
                 eventSub(authTokenSource, {
                     type: type,
                     version: version,

@@ -135,7 +135,7 @@ export function observeInput<T extends keyof InputEvents>(element: ValueElement 
  * Observe an input element's value
  */
 export function observeInputField<T extends keyof InputEvents>(element: ValueElement | null, event: T = ("input" as T)): Observable<string> {
-    return observeInput(element, event).pipe(startWith(element.value));
+    return observeInput(element, event).pipe(startWith(element?.value ?? ""));
 }
 
 export function observableToggle(setter$: Observable<boolean>, toggler$: Observable<void>, start: boolean = false): Observable<boolean> {
@@ -335,10 +335,11 @@ export function removeNode(node: any) {
  * @param element Element to calculate the position relative to. Can be empty for global position
  */
 export function observeMousePosition(element: HTMLElement | undefined) {
-    return fromDomEvent(element ?? document.documentElement, "mousemove").pipe(
+    const rootElement = element ?? document.documentElement;
+    return fromDomEvent(rootElement, "mousemove").pipe(
         map(e => ({
-            x: e.pageX - element.offsetLeft,
-            y: e.pageY - element.offsetTop,
+            x: e.pageX - rootElement.offsetLeft,
+            y: e.pageY - rootElement.offsetTop,
         }))
     )
 }
@@ -362,21 +363,6 @@ export function observeMouseMovedThreshold(element: HTMLElement, threshold = 5) 
     return observeMouseMove(element).pipe(
         scan((a, c) => a + Math.sqrt(c.x * c.x + c.y * c.y), 0),
         single(moved => moved > threshold),
-    )
-}
-
-export function observeMouseMovedThreshold2(element: HTMLElement, threshold = 5) {
-    return observeMousePosition(element).pipe(
-        scan((a, c) => {
-            a = a ?? c;
-            const x = a.x - c.x;
-            const y = a.y - c.y;
-            if (Math.sqrt(x * x + y * y) > threshold) {
-                return true;
-            }
-            return a;
-        }, null),
-        single(moved => moved === true)
     )
 }
 
@@ -417,7 +403,7 @@ export function observeKey(code: string, event: keyof KeyEvents = "keydown", rep
  * @param compare Test an item to see if it is the current
  * @returns 
  */
-export function findNext<T>(list: Iterable<T>, compare: (test: T) => boolean): T {
+export function findNext<T>(list: Iterable<T>, compare: (test: T) => boolean): T | null {
     let next = null;
     let found = false;
     for (let element of list) {
@@ -439,8 +425,8 @@ export function findNext<T>(list: Iterable<T>, compare: (test: T) => boolean): T
  * @param compare Test an item to see if it is the current
  * @returns 
  */
-export function findPrevious<T>(list: Iterable<T>, compare: (test: T) => boolean): T {
-    let previous: T = null;
+export function findPrevious<T>(list: Iterable<T>, compare: (test: T) => boolean): T | null {
+    let previous: T | null = null;
     for (let element of list) {
         if (compare(element) && previous !== null)
             break;
@@ -493,4 +479,35 @@ export function objectMapArray<T extends Record<string, any>, V>(obj: T, project
         a.push(project(obj[prop], prop));
     }
     return a as V[];
+}
+
+export function truncateString(input: string, length: number) {
+    if (length >= input.length)
+        return input;
+    let i = input.indexOf(" ", length);
+    if (i == -1) {
+        i = length;
+    }
+    return input.substring(0, i);
+}
+
+export function executionTimer(options?: Partial<{
+    format: "seconds" | "milliseconds" | "minutes"
+}>) {
+    const start = performance.now();
+    return {
+        end: () => {
+            const end = performance.now();
+            const duration = Math.floor(end - start);
+
+            switch (options?.format ?? "milliseconds") {
+                case "milliseconds":
+                    return duration.toLocaleString() + "ms";
+                case "seconds":
+                    return Math.floor(duration / 1000).toLocaleString() + "s";
+                case "minutes":
+                    return Math.floor(duration / 60000).toLocaleString() + "m";
+            }
+        }
+    }
 }

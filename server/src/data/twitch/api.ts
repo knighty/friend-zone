@@ -288,6 +288,7 @@ export async function twitchApiCall<T>(options: {
                 request.end();
             })
         }
+        return Promise.reject();
     };
 
     try {
@@ -348,7 +349,7 @@ export async function getFollowers(authToken: AuthTokenSource, userId: number): 
     return { total: streamResponse.total };
 }
 
-export async function createPoll(authToken: AuthTokenSource, broadcasterId: string, title: string, choices: string[], duration: 60): Promise<PollResponse> {
+export async function createPoll(authToken: AuthTokenSource, broadcasterId: string, title: string, choices: string[], duration = 60): Promise<PollResponse> {
     const streamResponse = await twitchApiCall<JSONResponse<PollResponse>>({
         method: "POST",
         path: `/helix/polls`,
@@ -361,10 +362,10 @@ export async function createPoll(authToken: AuthTokenSource, broadcasterId: stri
     return streamResponse.data[0];
 }
 
-export async function createPrediction(authToken: AuthTokenSource, broadcasterId: string, title: string, outcomes: string[], duration: 60): Promise<PredictionResponse> {
+export async function createPrediction(authToken: AuthTokenSource, broadcasterId: string, title: string, outcomes: string[], duration = 60): Promise<PredictionResponse> {
     const streamResponse = await twitchApiCall<JSONResponse<PredictionResponse>>({
         method: "POST",
-        path: `/helix/polls`,
+        path: `/helix/predictions`,
     }, authToken, true, {
         broadcaster_id: broadcasterId,
         title,

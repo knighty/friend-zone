@@ -3,19 +3,23 @@ import { Observable } from "rxjs";
 
 export interface MippyBrain {
     receive(): Observable<MippyMessage>;
-    ask<Event extends keyof MippyPrompts, Data extends MippyPrompts[Event]>(event: Event, data: Data, source: string): void;
+    ask<Event extends keyof MippyPrompts, Data extends MippyPrompts[Event]>(event: Event, data: Data, prompt: Omit<Prompt, "text">): void;
 }
 
 export type Prompt = {
     text: string,
-    source: string,
+    source?: "chat" | "admin",
+    name?: string,
+    store?: boolean,
+    allowTools?: boolean
 }
+
+export type PartialPrompt = Omit<Prompt, "text">;
 
 export type MippyMessage = {
     text: string;
-    prompt: string;
+    prompt: Prompt;
     tool?: Array<ChatCompletionMessageToolCall>,
-    source: string,
 }
 
 export type MippyPrompts = {
@@ -29,5 +33,6 @@ export type MippyPrompts = {
     setEmojiOnly: { emojiOnly: boolean },
     askMippy: { user: string, question: string },
     pollEnd: { title: string, won: string, votes: number },
-    predictionEnd: { title: string, data: string }
+    predictionEnd: { title: string, data: string },
+    highlightedMessage: { user: string, message: string }
 }

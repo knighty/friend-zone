@@ -1,10 +1,10 @@
 
-import fs from "fs";
 import { green } from "kolorist";
-import { exec } from "node:child_process";
+import child_process, { exec } from "node:child_process";
 import path from "node:path";
 import { EMPTY, from, map, mergeMap, Observable, of, Subject } from "rxjs";
 import { logger } from "shared/logger";
+import { executionTimer } from "shared/utils";
 
 const log = logger("piper");
 const rhubarbLog = logger("rhubarb");
@@ -80,33 +80,28 @@ export function synthesizeVoice(text: string, lipShapes = false): Observable<Syn
         return EMPTY;
 
     return new Observable<Omit<SynthesisResult, "phonemes">>(subscriber => {
-        const tempFileName = path.join(outputDir, "temp.txt");
         const id = makeid(10);
         const filename = `output-${id}.wav`;
         const filepath = path.join(outputDir, filename);
         text = text.replaceAll("*", "");
-        fs.writeFileSync(tempFileName, text);
-        //log.info(`Synthesizing text...`);
-        const startTime = performance.now();
-        const e = exec(
-            `type "${tempFileName}" | "${path.join(piperDir, "piper")}" --model "${path.join(piperDir, "en_US-ryan-high.onnx")}" --output_file "${filepath}"`,
-            function (error, stdout, stderr) {
-                if (error) {
-                    subscriber.error(error);
-                } else {
-                    const stats = fs.statSync(filepath);
-                    const bytesPerSecond = 352_000 / 8;
-                    const bytes = stats.size;
-                    const endTime = performance.now();
-                    log.info(`Synthesized text in ${green(Math.floor(endTime - startTime) + "ms")} to ${green(filename)}`);
-                    subscriber.next({
-                        filename,
-                        duration: bytes / bytesPerSecond * 1000
-                    });
-                    subscriber.complete();
-                }
-            }
-        )
+        const synthesisTimer = executionTimer();
+
+        const piper = child_process.spawn("piper", [
+            `--model`, "en_US-ryan-high.onnx",
+            `--output-file`, filepath
+        ], {
+            cwd: piperDir,
+        });
+        piper.stdin.end(text);
+
+        piper.addListener("exit", () => {
+            log.info(`Synthesized text in ${green(synthesisTimer.end())} to ${green(filename)}`);
+            subscriber.next({
+                filename,
+                duration: 0
+            });
+            subscriber.complete();
+        });
     }).pipe(
         mergeMap(result => {
             return lipShapes ? from(generateLipShapes(path.join(outputDir, result.filename))).pipe(
@@ -120,6 +115,54 @@ export function synthesizeVoice(text: string, lipShapes = false): Observable<Syn
             })
         })
     )
+
+    /*log.info(`--output_file=${path.join(__dirname, "../../../welcome.wav")}`);
+    const piper = child_process.spawn("piper", [
+        `--model=${path.join(__dirname, "../../../tts/piper/en_US-hfc_female-medium.onnx")}`,
+        `--output_file=${path.join(__dirname, "../../../welcome.wav")}`,
+        `--debug`,
+        '/dev/stdin',
+    ], {
+        cwd: path.join(__dirname, "../../../tts/piper"),
+    });
+    piper.stdin.end(text);*/
+}
+
+
+let id = 0;
+export function streamSynthesizeVoice(text: string, lipShapes = false): Observable<Int16Array> {
+    if (!text)
+        return EMPTY;
+
+    return new Observable<Int16Array>(subscriber => {
+        const synthesisTimer = executionTimer();
+        let segments = 0;
+        let size = 0;
+        id++;
+        text = text.replaceAll("*", "");
+        const piper = child_process.spawn("piper", [
+            `--model`, "en_US-ryan-high.onnx",
+            `--output-raw`, `-q`
+        ], {
+            cwd: piperDir,
+            stdio: ['pipe', 'pipe', 'pipe']
+        });
+        piper.stdin.end(text);
+
+        //piper.stdout.setEncoding("binary");
+        piper.stdout.addListener("data", data => {
+            const a = new Int16Array(data.buffer);
+            segments++;
+            size += a.length * 2;
+            subscriber.next(a);
+        });
+
+        piper.addListener("close", () => {
+            log.info(`Synthesized ${green(`${Math.floor(size / 1000)}kb`)} (${green(segments)} segments) of text in ${green(synthesisTimer.end())}`);
+
+            subscriber.complete();
+        });
+    })
 
     /*log.info(`--output_file=${path.join(__dirname, "../../../welcome.wav")}`);
     const piper = child_process.spawn("piper", [

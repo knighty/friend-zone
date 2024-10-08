@@ -57,15 +57,16 @@ export function socket<T extends Socket>(client$: Observable<GenericSocket>, eve
 
     function send(type: string, data: any): void;
     function send<Callback>(type: string, data: any, callback: true): Observable<Callback>;
-    function send<Callback>(type: string, data: any, callback = false): Callback extends never ? void : Observable<Callback> {
+    function send<Callback>(type: string, data: any, callback = false): Callback extends never ? undefined : Observable<Callback> {
         const id = messageId++;
         sendMessages$.next({ type, data, id });
         if (callback) {
             return websocketMessages$.pipe(
                 filterMap(message => message.id == -id, message => message.data),
                 take(1),
-            ) as Callback extends never ? void : Observable<Callback>;
+            ) as Callback extends never ? undefined : Observable<Callback>;
         }
+        return undefined as Callback extends never ? undefined : Observable<Callback>;
     }
 
     function eventSubs(eventProvider?: EventProvider) {

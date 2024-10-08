@@ -1,8 +1,9 @@
-import { concatMap, EMPTY, map, merge, Observable, share, Subject } from "rxjs";
+import { concatMap, EMPTY, filter, ignoreElements, merge, Observable, of, share, Subject, tap } from "rxjs";
 import { logger } from 'shared/logger';
 import { MippyConfig } from "../config";
-import { synthesizeVoice } from '../data/text-to-speech';
-import { MippyBrain, MippyPrompts } from "./mippy-brain";
+import { streamSynthesizeVoice } from '../data/text-to-speech';
+import { StreamingTTS } from "../plugins/audio-socket";
+import { MippyBrain, MippyPrompts, Prompt } from "./mippy-brain";
 
 const log = logger("mippy");
 
@@ -17,10 +18,7 @@ type MippyVoiceSynthesizer = {
 }
 
 export type MippyStreamEvent = {
-    audio: {
-        filename: string,
-        duration: number
-    },
+    audio: number,
     message: {
         text: string
     }
@@ -31,27 +29,40 @@ export class Mippy {
     brain: MippyBrain;
     messages$: Observable<MippyStreamEvent>;
     manualMessage$ = new Subject<{ text: string }>();
+    audioId = 0;
 
-    constructor(brain: MippyBrain, config: MippyConfig) {
+    constructor(brain: MippyBrain, config: MippyConfig, tts: StreamingTTS) {
         this.brain = brain;
+        let i = 0;
         log.info("Created Mippy");
-        if (this.brain) {
-            this.brain.receive().subscribe();
-            const brainMessage$ = this.brain.receive().pipe(
-                map(message => ({ text: message.text }))
-            )
-            this.messages$ = merge(brainMessage$, this.manualMessage$).pipe(
-                concatMap(
-                    message => synthesizeVoice(message.text).pipe(
-                        map(result => ({
-                            audio: result,
+        this.brain.receive().subscribe();
+        const brainMessage$ = this.brain.receive();
+        this.messages$ = merge(brainMessage$, this.manualMessage$).pipe(
+            filter(message => message.text != ""),
+            concatMap(
+                message => {
+                    const stream = tts.create();
+                    return merge(
+                        streamSynthesizeVoice(message.text).pipe(
+                            tap({
+                                next: (value) => {
+                                    stream.append(value)
+                                },
+                                complete: () => {
+                                    stream.complete()
+                                },
+                            }),
+                            ignoreElements(),
+                        ),
+                        of({
+                            audio: stream.id,
                             message
-                        }))
+                        })
                     )
-                ),
-                share()
-            );
-        }
+                }
+            ),
+            share()
+        );
         this.enabled = config.enabled;
     }
 
@@ -59,9 +70,11 @@ export class Mippy {
         this.manualMessage$.next({ text });
     }
 
-    ask<Event extends keyof MippyPrompts, Data extends MippyPrompts[Event]>(event: Event, data: Data, source: string = "") {
+    ask<Event extends keyof MippyPrompts, Data extends MippyPrompts[Event]>(event: Event, data: Data, prompt: Omit<Prompt, "text"> = {}) {
         if (this.enabled)
-            this.brain.ask(event, data, source);
+            this.brain.ask(event, data, {
+                ...prompt,
+            });
     }
 
     listen() {

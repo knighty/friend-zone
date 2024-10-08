@@ -3,7 +3,7 @@ import { Observable, Subscription } from "rxjs";
 export function switchMapComplete<In, T>(project: (value: In) => Observable<T>, debug = false) {
     return (source: Observable<In>) => {
         return new Observable<T>(subscriber => {
-            let innerSub: Subscription = null;
+            let innerSub: Subscription | null = null;
             const outerSub = source.subscribe({
                 next: (value: In) => {
                     const observable = project(value);

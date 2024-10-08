@@ -18,28 +18,8 @@ export default class WordOfTheHour {
     subtitleWordEvent$ = new Subject<Subtitle>();
     mippy: Mippy;
 
-    constructor(twitchChat: TwitchChat, mippy: Mippy) {
+    constructor(mippy: Mippy) {
         this.mippy = mippy;
-
-        twitchChat.observeCommand("woth").subscribe(command => {
-            const name = command.arguments[0].toLowerCase();
-            switch (name) {
-                case "reset": {
-                    this.reset();
-                } break;
-                case "set": {
-                    this.setWord(command.arguments[1] ?? null);
-                } break;
-                default: {
-                    const count = Number(command.arguments[1]);
-                    if (!isNaN(count)) {
-                        this.setUserCount(name, count);
-                    } else {
-                        this.incrementUserCount(name);
-                    }
-                }
-            }
-        });
 
         function throttle() {
             const users: Record<string, number> = {};
@@ -68,6 +48,28 @@ export default class WordOfTheHour {
         });
     }
 
+    watchTwitchChat(twitchChat: TwitchChat) {
+        twitchChat.observeCommand("woth").subscribe(command => {
+            const name = command.arguments[0].toLowerCase();
+            switch (name) {
+                case "reset": {
+                    this.reset();
+                } break;
+                case "set": {
+                    this.setWord(command.arguments[1] ?? null);
+                } break;
+                default: {
+                    const count = Number(command.arguments[1]);
+                    if (!isNaN(count)) {
+                        this.setUserCount(name, count);
+                    } else {
+                        this.incrementUserCount(name);
+                    }
+                }
+            }
+        });
+    }
+
     handleUser(user: string) {
         this.incrementUserCount(user);
     }
@@ -82,18 +84,19 @@ export default class WordOfTheHour {
         this.word$.next(word);
         log.info(`Set to "${word}"`);
         if (word != null)
-            this.mippy.ask("wothSetWord", { user: "", word });
+            this.mippy.ask("wothSetWord", { user: "", word }, { allowTools: false });
     }
 
     incrementUserCount(user: string) {
         const count = this.counts.atomicSet(user, value => value + 1, 0);
         log.info(`Set ${user} to ${count}`);
-        this.mippy.ask("wothSetCount", { user: user, count, word: this.word$.getValue() });
+        this.mippy.ask("wothSetCount", { user, count, word: this.word$.getValue() ?? "" }, { allowTools: false });
     }
 
     setUserCount(user: string, count: number) {
         log.info(`Set ${user} to ${count}`);
         this.counts.set(user, count);
+        this.mippy.ask("wothSetCount", { user, count, word: this.word$.getValue() ?? "" }, { allowTools: false });
     }
 
     reset() {

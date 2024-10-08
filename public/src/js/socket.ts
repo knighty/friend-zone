@@ -44,7 +44,7 @@ export type SocketEvents = {
     feedCount: number
     feedLayout: "row" | "column",
     mippySpeech: {
-        audio: SynthesisResult,
+        audio: number,
         message: {
             text: string
         },
