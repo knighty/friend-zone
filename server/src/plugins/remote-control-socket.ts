@@ -1,17 +1,12 @@
 import { FastifyInstance } from "fastify";
 import { green } from "kolorist";
-import { BehaviorSubject, catchError, EMPTY, map, Observable, of, Subject, switchMap, take, tap } from "rxjs";
+import { distinctUntilChanged, EMPTY, filter, finalize, map, merge, Observable, of, shareReplay, switchMap, take, takeUntil, tap } from "rxjs";
 import { logger } from "shared/logger";
 import { ObservableEventProvider, serverSocket } from "shared/websocket/server";
 import ExternalFeeds from "../data/external-feeds";
 import Subtitles from "../data/subtitles";
 import Users from "../data/users";
 import { Mippy } from "../mippy/mippy";
-
-type WebsocketMessageStream = Observable<{
-    type: string,
-    data: object | string
-}>
 
 const log = logger("remote-control");
 
@@ -34,9 +29,7 @@ namespace Messages {
         url: string;
         aspectRatio: string,
         sourceAspectRatio: string
-    }
-
-    export type Active = boolean
+    } | null
 }
 
 export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds, users: Users, mippy: Mippy) => async (fastify: FastifyInstance, options: {}) => {
@@ -48,7 +41,6 @@ export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds, 
                 "feed/focus": void,
                 "feed/unfocus": void,
                 "feed/register": Messages.RegisterFeed,
-                "feed/active": Messages.Active,
                 "mippy/ask": string
             }
         }>(ws, new ObservableEventProvider({
@@ -61,39 +53,18 @@ export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds, 
                 return new Observable(subscriber => {
                     const userId = user.id;
                     const userName = user.name;
-                    const feedActive$ = new BehaviorSubject(false);
-                    const feed$ = new Subject<{ url: string, aspectRatio: string, sourceAspectRatio: string }>();
+                    const feed$ = socket.on("feed/register").pipe(shareReplay(1));
+                    const feedFocused$ = merge(
+                        socket.on("feed/focus").pipe(map(() => true)),
+                        socket.on("feed/unfocus").pipe(map(() => false)),
+                    ).pipe(shareReplay(1));
 
                     log.info(`${green(user.name)} registered`);
-                    users.add(userId, user);
+                    const userRegistration = users.register(userId, user);
                     callback({ message: `You were successfully registered with id ${userId}` })
 
                     socket.on("subtitles").subscribe(data => {
                         subtitles.handle(userId, data.id, data.type, data.text);
-                    });
-
-                    socket.on("feed/register").subscribe(data => {
-                        if (data) {
-                            log.info(`${green(userName)} set their feed to ${green(data.url)} (${data.aspectRatio})`);
-                        } else {
-                            log.info(`${green(userName)} set their feed to empty`);
-                        }
-                        feed$.next(data);
-                    });
-
-                    socket.on("feed/focus").subscribe(data => {
-                        feeds.focusFeed(userId, true);
-                        log.info(`${green(userName)} focused their feed`);
-                    });
-
-                    socket.on("feed/unfocus").subscribe(data => {
-                        feeds.focusFeed(userId, false);
-                        log.info(`${green(userName)} unfocused their feed`);
-                    });
-
-                    socket.on("feed/active").subscribe(active => {
-                        feedActive$.next(active);
-                        log.info(`${green(userName)} is now ${green(active ? "active" : "inactive")}`);
                     });
 
                     socket.on("mippy/ask").subscribe(question => {
@@ -101,36 +72,63 @@ export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds, 
                         //mippy.say(question)
                     })
 
-                    const feedSubscription = feed$.pipe(
-                        switchMap(feed => of(feed).pipe(map(feed => ({ url: new URL(feed.url), aspectRatio: feed.aspectRatio, sourceAspectRatio: feed.sourceAspectRatio })), catchError(e => EMPTY))),
-                        tap(feed => {
-                            feeds.addFeed({
-                                user: userId,
-                                focused: null,
-                                active: true,
-                                aspectRatio: feed.aspectRatio,
-                                sourceAspectRatio: feed.sourceAspectRatio,
-                                url: feed.url.href
-                            });
-                            feeds.updateFeed(userId, {
-                                aspectRatio: feed.aspectRatio,
-                                sourceAspectRatio: feed.sourceAspectRatio,
-                                url: feed.url.href
-                            })
-                        }),
-                        switchMap(url => feedActive$.pipe(
-                            tap(active => feeds.activeFeed(userId, active))
-                        ))
-                    ).subscribe();
+                    return feed$.pipe(
+                        map(feed => feed != null),
+                        distinctUntilChanged(),
+                        switchMap(active => {
+                            if (!active) {
+                                return EMPTY;
+                            }
 
-                    return () => {
-                        feeds.removeFeed(userId);
-                        users.remove(userId);
-                        log.info(`${userName} unregistered`);
-                        feedSubscription.unsubscribe()
-                    }
+                            let feedRegistration: ReturnType<ExternalFeeds["addFeed"]> | null = null;
+                            return merge(
+                                feed$.pipe(
+                                    filter(feed => !!feed),
+                                    tap(feed => {
+                                        try {
+                                            const url = new URL(feed.url);
+                                            const feedData = {
+                                                aspectRatio: feed.aspectRatio,
+                                                sourceAspectRatio: feed.sourceAspectRatio,
+                                                url: url.href
+                                            };
+                                            log.info(`${green(userName)} set their feed to ${green(url.href)}`);
+                                            if (feedRegistration == null) {
+                                                feedRegistration = feeds.addFeed({
+                                                    user: userId,
+                                                    focused: null,
+                                                    active: true,
+                                                    ...feedData
+                                                });
+                                            } else {
+                                                feeds.updateFeed(userId, feedData);
+                                            }
+                                        } catch (e) {
+                                            log.error("Invalid Feed URL");
+                                        }
+                                    }),
+                                    finalize(() => {
+                                        if (feedRegistration) {
+                                            log.info(`${green(userName)} removed their feed`);
+                                            feedRegistration.unregister();
+                                        }
+                                    })
+                                ),
+                                feedFocused$.pipe(
+                                    tap(focused => {
+                                        feeds.focusFeed(userId, focused);
+                                    })
+                                )
+                            )
+                        }),
+                        finalize(() => {
+                            userRegistration.unregister();
+                            log.info(`${userName} unregistered`);
+                        })
+                    ).subscribe();
                 })
-            })
+            }),
+            takeUntil(socket.disconnected$)
         ).subscribe();
     })
 }

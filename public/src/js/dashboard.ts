@@ -1,6 +1,7 @@
 import { debounceTime } from "rxjs";
 import { fromDomEvent, observeScopedEvent } from "shared/utils";
 import { connectBrowserSocket } from "shared/websocket/browser";
+import { ObservableEventProvider } from "shared/websocket/event-provider";
 
 const socket = connectBrowserSocket<{
     Events: {
@@ -9,7 +10,7 @@ const socket = connectBrowserSocket<{
         slideshowFrequency: number,
         feedLayout: string
     }
-}>(document.body.dataset.socketUrl);
+}>(document.body.dataset.socketUrl, new ObservableEventProvider({}));
 socket.isConnected$.subscribe(isConnected => document.body.classList.toggle("connected", isConnected));
 
 class Dashboard extends HTMLElement {

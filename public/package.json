@@ -13,7 +13,9 @@
     "license": "ISC",
     "dependencies": {
         "@types/obs-studio": "^2.17.2",
+        "@types/tunajs": "^1.0.3",
         "shared": "file:../shared",
+        "tunajs": "^1.0.15",
         "ws": "^8.18.0"
     },
     "devDependencies": {

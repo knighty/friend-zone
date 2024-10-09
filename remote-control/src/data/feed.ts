@@ -7,11 +7,7 @@ type Feed = {
 }
 
 export class FeedSettings {
-    feed$ = new BehaviorSubject<Feed | null>({
-        aspectRatio: "16/9",
-        sourceAspectRatio: "16/9",
-        url: null
-    });
+    feed$ = new BehaviorSubject<Feed | null>(null);
     active$ = new BehaviorSubject(false);
 
     constructor() {

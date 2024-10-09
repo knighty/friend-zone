@@ -21,9 +21,6 @@ export default class WordOfTheHourModule extends CustomElement<{
         this.bindData("woth", socket.on("woth").pipe(
             map(woth => woth.word),
         ));
-        this.elements = {
-            word: this.querySelector(".word")
-        }
     }
     connect() {
         this.registerHandler("woth").subscribe(word => {

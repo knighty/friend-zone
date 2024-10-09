@@ -70,6 +70,10 @@ x-feed {
         }
     }
 
+    .feed {
+        height: calc((var(--size) / 100) * (100vh - 2em));
+    }
+
     &[data-orientation="column"] {
         @include flex.column();
 
@@ -83,6 +87,84 @@ x-feed {
 
         .feed {
             height: calc((var(--size) / 100) * (100vh - 2em));
+        }
+    }
+
+    &[data-mode="edges"] {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: 1fr 1fr;
+        grid-template-areas: "tl tr" "bl br";
+        width: calc(100% - 2em);
+        height: calc(100% - 2em);
+
+        @mixin place($edge) {
+            grid-area: $edge;
+            @if ($edge == "tl") {
+                place-self: start start;
+            }
+            @if ($edge == "tr") {
+                place-self: start end;
+            }
+            @if ($edge == "br") {
+                place-self: end end;
+            }
+            @if ($edge == "bl") {
+                place-self: end start;
+            }
+        }
+
+        &[data-edge="edges-tl"] {
+            feed-container {
+                &:nth-child(1) {
+                    @include place(tl);
+                }
+                &:nth-child(2) {
+                    @include place(tr);
+                }
+                &:nth-child(3) {
+                    @include place(bl);
+                }
+            }
+        }
+        &[data-edge="edges-tr"] {
+            feed-container {
+                &:nth-child(1) {
+                    @include place(tr);
+                }
+                &:nth-child(2) {
+                    @include place(tl);
+                }
+                &:nth-child(3) {
+                    @include place(br);
+                }
+            }
+        }
+        &[data-edge="edges-bl"] {
+            feed-container {
+                &:nth-child(1) {
+                    @include place(bl);
+                }
+                &:nth-child(2) {
+                    @include place(tl);
+                }
+                &:nth-child(3) {
+                    @include place(br);
+                }
+            }
+        }
+        &[data-edge="edges-br"] {
+            feed-container {
+                &:nth-child(1) {
+                    @include place(br);
+                }
+                &:nth-child(2) {
+                    @include place(tr);
+                }
+                &:nth-child(3) {
+                    @include place(bl);
+                }
+            }
         }
     }
 

@@ -14,7 +14,7 @@ export default function mockUsers(mockUsers: (User & { feed: string | null })[],
         const discordId = user.discordId;
         const image = user.feed;
 
-        users.add(id, user);
+        users.register(id, user);
         if (image) {
             feeds.addFeed({
                 active: true,

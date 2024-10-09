@@ -6,6 +6,7 @@ import path from "node:path";
 import { BehaviorSubject, combineLatest, distinctUntilChanged, EMPTY, filter, map, merge, Observable, of, Subject, switchMap, tap } from "rxjs";
 import { log } from 'shared/logger';
 import filterMap from 'shared/rx/operators/filter-map';
+import { switchMapToggle } from 'shared/rx/utils';
 import { ObservableEventProvider, serverSocket } from 'shared/websocket/server';
 import { Config } from "./config";
 import { FeedSettings } from './data/feed';
@@ -55,10 +56,9 @@ const feedSettings = new FeedSettings();
 const remoteControl = initSocket(config.socket, {
     user: of(user),
     subtitles: subtitles$,
-    "feed/register": feedSettings.feed$,
+    "feed/register": feedSettings.active$.pipe(switchMapToggle(active => active, () => feedSettings.feed$, () => of(null))),
     "feed/focus": focus$.pipe(filter(focus => focus == true)),
     "feed/unfocus": focus$.pipe(filter(focus => focus == false)),
-    "feed/active": feedSettings.active$,
     "mippy/ask": askMippy$
 });
 const subtitlesEnabled$ = new BehaviorSubject(config.subtitlesEnabled);

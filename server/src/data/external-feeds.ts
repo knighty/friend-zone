@@ -12,13 +12,15 @@ type Feed = {
     active: boolean,
 }
 
+export type FeedLayout = "row" | "column" | "edges-tl" | "edges-tr" | "edges-br" | "edges-bl";
+
 const log = logger("feeds");
 export default class ExternalFeeds {
     slideshowFrequency$ = new BehaviorSubject<number>(config.feeds.slideshowFrequency);
     feedCount$ = new BehaviorSubject<number>(config.feeds.count);
     feedSize$ = new BehaviorSubject<number>(config.feeds.size);
     feedPosition$ = new BehaviorSubject<[number, number]>(config.feeds.position);
-    feedLayout$ = new BehaviorSubject<"row" | "column">(config.feeds.layout);
+    feedLayout$ = new BehaviorSubject<FeedLayout>(config.feeds.layout);
     private feeds = new ObservableMap<string, Feed>();
     private sortedFeeds$: Observable<Feed[]>;
 
@@ -62,6 +64,9 @@ export default class ExternalFeeds {
 
     addFeed(feed: Feed) {
         this.feeds.set(feed.user, feed);
+        return {
+            unregister: () => this.feeds.delete(feed.user)
+        }
     }
 
     focusFeed(user: string, focus: boolean) {

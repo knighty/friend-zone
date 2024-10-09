@@ -36,10 +36,10 @@ export class ObservableMap<Key, Value> {
      * @param key 
      * @returns 
      */
-    get(key: Key): Observable<Value | undefined> {
+    get(key: Key): Observable<Value> {
         const current = this.data.get(key);
         return this.keyUpdated$.pipe(
-            filterMap(updatedKey => updatedKey == key, () => this.data.get(key), current),
+            filterMap(updatedKey => updatedKey == key, () => this.data.get(key) as Value, current),
         );
     }
 

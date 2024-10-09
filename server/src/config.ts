@@ -1,4 +1,5 @@
 import path from "path";
+import { FeedLayout } from "./data/external-feeds";
 
 function env<T>(key: string) {
     return process.env[key] ? <T>process.env[key] : undefined;
@@ -45,14 +46,12 @@ type MippyDisabledConfig = {
     enabled: false
 }
 
-export type MippyConfig = MippyDisabledConfig | MippyChatGPTConfig | MippyDumbConfig;
-
-export function isMippyChatGPT(config: MippyConfig): config is MippyChatGPTConfig {
-    return config.enabled && config.brain == "chatgpt";
-}
-
-export function isMippyDumb(config: MippyConfig): config is MippyDumbConfig {
-    return config.enabled && config.brain == "dumb";
+type DiscordConfig = {
+    voiceStatus: boolean,
+    channels: string[],
+    clientId: string,
+    clientSecret: string,
+    redirectUri: string,
 }
 
 type TwitchConfig = {
@@ -64,21 +63,7 @@ type TwitchConfig = {
     broadcasterId: string
 }
 
-export function isTwitchConfig(config: Partial<TwitchConfig>): config is TwitchConfig {
-    return checkProps(config, ["streamEvents", "channel", "clientId", "secret", "redirectUrl", "broadcasterId"]);
-}
-
-type DiscordConfig = {
-    voiceStatus: boolean,
-    channels: string[],
-    clientId: string,
-    clientSecret: string,
-    redirectUri: string,
-}
-
-export function isDiscordConfig(config: Partial<DiscordConfig>): config is DiscordConfig {
-    return checkProps(config, ["voiceStatus", "channels", "clientId", "clientSecret", "redirectUri"]);
-}
+export type MippyConfig = MippyDisabledConfig | MippyChatGPTConfig | MippyDumbConfig;
 
 export type Config = {
     port: number,
@@ -109,12 +94,37 @@ export type Config = {
         count: number,
         size: number,
         position: [number, number],
-        layout: "row" | "column"
+        layout: FeedLayout
     },
     mockUsers?: { name: string, discordId: string, feed: string | null, sortKey: number, prompt: string }[],
     mippy: MippyConfig
 };
 
+/*
+Type Guards
+*/
+export function isMippyChatGPT(config: MippyConfig): config is MippyChatGPTConfig {
+    return config.enabled
+        && config.brain == "chatgpt"
+        && checkProps(config, ["permissions", "prompts", "systemPrompt"])
+        && checkProps(config.systemPrompt, ["personality", "prompt"]);
+}
+
+export function isMippyDumb(config: MippyConfig): config is MippyDumbConfig {
+    return config.enabled && config.brain == "dumb";
+}
+
+export function isTwitchConfig(config: Partial<TwitchConfig>): config is TwitchConfig {
+    return checkProps(config, ["streamEvents", "channel", "clientId", "secret", "redirectUrl", "broadcasterId"]);
+}
+
+export function isDiscordConfig(config: Partial<DiscordConfig>): config is DiscordConfig {
+    return checkProps(config, ["voiceStatus", "channels", "clientId", "clientSecret", "redirectUri"]);
+}
+
+/*
+Default Config
+*/
 const defaultConfig: Config = {
     port: 3000,
     staticCaching: true,

@@ -10,8 +10,11 @@ export type User = {
 export default class Users {
     users = new ObservableMap<string, User>();
 
-    add(id: string, user: User) {
+    register(id: string, user: User) {
         this.users.set(id, user);
+        return {
+            unregister: () => this.users.delete(id)
+        }
     }
 
     remove(id: string) {

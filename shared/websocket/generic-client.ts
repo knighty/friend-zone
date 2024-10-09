@@ -1,4 +1,4 @@
-import { BehaviorSubject, Observable, shareReplay, Subject, takeUntil } from "rxjs";
+import { BehaviorSubject, Observable, shareReplay, Subject, takeUntil, tap } from "rxjs";
 import { logger } from "../logger";
 import { retryWithBackoff } from "../rx/operators/retry-with-backoff";
 import { EventProvider } from "./event-provider";
@@ -59,7 +59,7 @@ export function connectGenericClient(socketFactory: (url: string) => GenericSock
             options.retry ? retryWithBackoff(log, {
                 base: options.retryBase,
                 max: options.retryMax
-            }) : undefined,
+            }) : tap(),
             shareReplay(1),
         )
 

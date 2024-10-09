@@ -14,8 +14,13 @@ mippy-module {
         }
     }
 
-    canvas {
+    frequency-graph {
         grid-area: frequencies;
+        place-self: center center;
+
+        canvas {
+            display: block;
+        }
     }
 
     .subtitles {

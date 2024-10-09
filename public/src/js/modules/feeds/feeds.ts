@@ -19,12 +19,13 @@ namespace Message {
     export type FeedCount = number
     export type FeedLayout = "row" | "column";
 }
+type FeedLayout = "row" | "column" | "edges-tl" | "edges-tr" | "edges-br" | "edges-bl";
 
 export default class FeedsModule extends CustomElement<{
     Data: {
         position: [number, number],
         size: number,
-        layout: "row" | "column",
+        layout: FeedLayout,
         count: number,
         feeds: Message.FocusedFeed[]
     },
@@ -54,7 +55,22 @@ export default class FeedsModule extends CustomElement<{
         });
 
         this.registerHandler("layout").subscribe(layout => {
-            this.dataset.orientation = layout;
+            switch (layout) {
+                case "column":
+                case "row":
+                    this.dataset.orientation = layout;
+                    this.dataset.mode = "axis";
+                    return;
+                case "edges-tl":
+                case "edges-tr":
+                case "edges-br":
+                case "edges-bl":
+                    this.dataset.edge = layout;
+                    this.dataset.mode = "edges";
+                    return;
+
+            }
+
         });
 
         const feedItems$ = this.registerHandler("feeds").pipe(

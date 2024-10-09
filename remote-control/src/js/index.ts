@@ -118,8 +118,8 @@ socket.on("config").subscribe(data => {
     switch (data.key) {
         case "feed": {
             element<HTMLInputElement>("feedUrl").value = data.value?.url ?? "";
-            element<HTMLInputElement>("feedAspectRatio").value = data.value?.aspectRatio ?? "";
-            element<HTMLInputElement>("feedSourceAspectRatio").value = data.value?.sourceAspectRatio ?? "";
+            element<HTMLInputElement>("feedAspectRatio").value = data.value?.aspectRatio ?? "16/9";
+            element<HTMLInputElement>("feedSourceAspectRatio").value = data.value?.sourceAspectRatio ?? "16/9";
         } break;
         default: {
             const element = document.querySelector<HTMLElement>(`[data-config=${data.key}]`);

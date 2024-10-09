@@ -1,5 +1,5 @@
 import { FastifyInstance } from "fastify";
-import { concatMap, EMPTY, endWith, filter, fromEvent, Observable, startWith, Subject, takeUntil, tap } from "rxjs";
+import { concatMap, EMPTY, endWith, filter, fromEvent, Observable, of, startWith, Subject, takeUntil, tap } from "rxjs";
 
 const sampleRate = 22050;
 const bufferDuration = 2;
@@ -15,6 +15,10 @@ class AudioStream {
     constructor(id: number) {
         this.id = id;
         this.buffer = new Int16Array(0);
+    }
+
+    get duration() {
+        return this.length / sampleRate;
     }
 
     append(data: Int16Array) {
@@ -38,10 +42,15 @@ class AudioStream {
     }
 
     observe() {
+        if (this.isComplete) {
+            return of(this.buffer);
+        }
         const update$ = this.update$.pipe(startWith());
-        const complete$ = this.update$.pipe(filter(() => this.isComplete));
+        const complete$ = update$.pipe(filter(() => this.isComplete));
         let offset = 0;
         return update$.pipe(
+            takeUntil(complete$),
+            startWith(),
             concatMap(() => {
                 return new Observable<Int16Array>(subscriber => {
                     while (offset < this.length) {
@@ -57,7 +66,6 @@ class AudioStream {
                     subscriber.complete();
                 })
             }),
-            takeUntil(complete$)
         )
     }
 }

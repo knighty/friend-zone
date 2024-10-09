@@ -1,14 +1,14 @@
-import { concatMap, distinctUntilChanged, endWith, filter, ignoreElements, map, merge, scan, share, startWith, switchMap, tap, timer } from 'rxjs';
+import { concatMap, distinctUntilChanged, endWith, fromEvent, ignoreElements, interval, map, merge, scan, share, startWith, switchMap, takeUntil, tap, timer } from 'rxjs';
 import { CustomElement } from "shared/html/custom-element";
 import { renderLoop$ } from 'shared/rx/observables/render-loop';
 import { truncateString } from 'shared/utils';
 import { socket } from '../../socket';
 import { AudioNodeCollection, LowPassNode, ReverbEffectNode } from './audio-effects';
-import { AudioStreamSocket } from './audio-stream-socket';
-import { SpeechNodes } from './speech-nodes';
+import { FrequencyGraph } from './frequency-graph';
 
 const template = `
-<canvas class="" width="128" height="100"></canvas>
+<frequency-graph data-element="frequencyGraph"></frequency-graph>
+<audio controls data-element="audio"></audio>
 <div data-element="avatar" class="avatar">
     <img class="image" data-element="mippy" src="${require("../../../images/mippy.png")}" />
 </div>
@@ -19,8 +19,10 @@ const sampleRate = 22050;
 export class MippyModule extends CustomElement<{
     Data: {
         speech: {
-            speechNodes: SpeechNodes;
-            text: string
+            audio: number,
+            message: {
+                text: string
+            },
         },
         audioNodes: AudioBufferSourceNode
     },
@@ -29,31 +31,22 @@ export class MippyModule extends CustomElement<{
         audio: HTMLAudioElement,
         mippy: HTMLElement,
         avatar: HTMLElement,
+        frequencyGraph: FrequencyGraph
     }
 }> {
     audioCtx = new AudioContext();
-    audioStreamSocket = new AudioStreamSocket();
 
     setup() {
         this.innerHTML = template;
-        const audioCtx = this.audioCtx;
 
         this.bindData("speech", socket.on("mippySpeech").pipe(
-            distinctUntilChanged(),
-            concatMap(speech => {
-                return this.audioStreamSocket.getStream(audioCtx, speech.audio, speech.message.text.length / 15).pipe(
-                    map(speechNodes => ({
-                        speechNodes,
-                        text: speech.message.text
-                    }))
-                )
-            })
+            distinctUntilChanged()
         ));
     }
 
     connect() {
         const reverbEnabled = true;
-        const dryWetRatio = 0.5;
+        const dryWetRatio = 0.2;
 
         const subtitleElement = this.element("subtitles");
         const mippy = this.element("mippy");
@@ -62,7 +55,7 @@ export class MippyModule extends CustomElement<{
         const audioCtx = this.audioCtx;
         const analyser = audioCtx.createAnalyser();
         analyser.fftSize = 128;
-        analyser.smoothingTimeConstant = 0.6;
+        analyser.smoothingTimeConstant = 0.4;
         const dataArray = new Uint8Array(analyser.frequencyBinCount);
         const frequencyArray = new Float32Array(analyser.frequencyBinCount);
 
@@ -98,19 +91,41 @@ export class MippyModule extends CustomElement<{
             share()
         );
 
+        const audio = this.element("audio");
+        const source = audioCtx.createMediaElementSource(audio);
+        source.connect(speechDestination);
+
+        const playAudio = (id: number, estimatedDuration: number) => {
+            audio.src = `/tts/audio/${id}`;
+            audio.play();
+
+            return interval(100).pipe(
+                map(frame => {
+                    const currentTime = audio.currentTime;
+                    const duration = (audio.duration != Infinity && !Number.isNaN(audio.duration)) ? audio.duration : estimatedDuration;
+                    return {
+                        played: currentTime / duration,
+                        duration: duration,
+                        currentTime: currentTime
+                    }
+                }),
+                takeUntil(fromEvent(audio, "ended")),
+            );
+        }
+
         const playing$ = speechEvent$.pipe(
             concatMap(speech => {
-                const audio$ = speech.speechNodes.play(speechDestination).pipe(
+                const audio$ = playAudio(speech.audio, speech.message.text.length / 15).pipe(
                     share()
                 )
 
                 subtitleElement.textContent = "";
 
                 const subtitle$ = audio$.pipe(
-                    map(data => Math.floor(speech.text.length * data.played)),
-                    endWith(speech.text.length),
+                    map(data => Math.floor(speech.message.text.length * data.played)),
+                    endWith(speech.message.text.length),
                     distinctUntilChanged(),
-                    map(length => truncateString(speech.text, length)),
+                    map(length => truncateString(speech.message.text, length)),
                     distinctUntilChanged(),
                     tap(text => {
                         subtitleElement.textContent = text;
@@ -126,35 +141,7 @@ export class MippyModule extends CustomElement<{
             }),
         );
 
-        const canvas = this.querySelector<HTMLCanvasElement>("canvas");
-        const canvasContext = canvas.getContext("2d");
-        const grad = canvasContext.createLinearGradient(0, 0, 100, 0);
-        grad.addColorStop(0, "#45f1f0");
-        grad.addColorStop(1, "#c829f1");
-        const frequencies$ = analyzerData$.pipe(
-            scan(bins => {
-                const numBins = bins.length;
-                const fftSize = frequencyArray.length;
-                const samplesPerBin = fftSize / numBins;
-                //bins.forEach((value, index) => bins[index] = bins[index] * 0.8)
-                bins.fill(0);
-                frequencyArray.forEach((value, index) => {
-                    const normalizedValue = Math.pow((value + 128) / 256, 0.5);
-                    bins[Math.floor((index / fftSize) * numBins)] += normalizedValue / samplesPerBin;
-                })
-                return bins;
-            }, new Float32Array(16)),
-            filter(bins => bins.some(v => v != 0)),
-            tap(bins => {
-                canvasContext.clearRect(0, 0, canvas.width, canvas.height);
-                canvasContext.fillStyle = grad;
-                canvasContext.beginPath();
-                for (let i = 0; i < bins.length; i++) {
-                    canvasContext.roundRect(i / bins.length * canvas.width, 0 + (1 - bins[i]) * 100, canvas.width / bins.length - 1, bins[i] * 100, 4);
-                }
-                canvasContext.fill();
-            })
-        );
+        this.element("frequencyGraph").bindData("frequencies", analyzerData$.pipe(map(() => frequencyArray)));
 
         const amplitude$ = analyzerData$.pipe(
             map(() => {
@@ -178,7 +165,7 @@ export class MippyModule extends CustomElement<{
             })
         )
 
-        merge(frequencies$, amplitude$).subscribe();
+        amplitude$.subscribe();
 
         playing$.pipe(
             startWith(false),

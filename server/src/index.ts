@@ -5,7 +5,7 @@ import fastifyStatic from '@fastify/static';
 import fastifyView from "@fastify/view";
 import websocket from "@fastify/websocket";
 import 'dotenv/config';
-import Fastify from "fastify";
+import Fastify, { FastifyInstance } from "fastify";
 import { green } from 'kolorist';
 import path from "path";
 import process from "process";
@@ -29,6 +29,7 @@ import Webcam from './data/webcam';
 import WordOfTheHour from './data/word-of-the-hour';
 import { MissingError } from './errors';
 import ejsLayout from './layout';
+import { getWavHeader } from './lib/wav-header';
 import { ChatGPTMippyBrain } from './mippy/chat-gpt-brain';
 import { DumbMippyBrain } from './mippy/dumb-brain';
 import { Mippy } from './mippy/mippy';
@@ -74,11 +75,6 @@ fastifyApp.register(fastifyView, {
     asyncPropertyName: 'viewAsync',
     viewExt: 'ejs',
 });
-fastifyApp.addHook('onRequest', ejsLayout("stream-modules/stream-module", async (req, res) => ({
-    style: await getManifestPath("main.css"),
-    scripts: await getManifestPath("main.js"),
-    socketUrl: `${config.socketHost}/websocket`,
-})));
 fastifyApp.register(fastifyFormBody, { parser: str => qs.parse(str) });
 fastifyApp.register(multipart, {
     limits: {
@@ -282,6 +278,33 @@ fastifyApp.get("/robots.txt", async (req, res) => {
 Disallow:`)
 });
 
+fastifyApp.get<{
+    Params: {
+        id: number
+    }
+}>("/tts/audio/:id", (req, res) => {
+    res.header('Content-Type', 'audio/wav');
+    //res.header('Transfer-Encoding', 'chunked');
+
+    const stream = new ReadableStream({
+        start(controller) {
+            controller.enqueue(getWavHeader());
+            streamingTTS.getStream(req.params.id).observe().subscribe({
+                next: data => {
+                    try {
+                        controller.enqueue(new Uint8Array(data.buffer, data.byteOffset, data.byteLength))
+                    } catch (e) {
+                        console.error(e);
+                    }
+                },
+                complete: () => controller.close()
+            })
+        }
+    });
+
+    res.send(stream);
+})
+
 /* 
 Favicon
 */
@@ -325,51 +348,57 @@ function socketParam<T, D>(type: string, observable$: Observable<T>, project?: (
     }
 }
 
-type StreamModule = {
-    id: string,
-}
+fastifyApp.register(async (fastify: FastifyInstance) => {
+    type StreamModule = {
+        id: string,
+    }
+    fastify.addHook('onRequest', ejsLayout("stream-modules/stream-module", async (req, res) => ({
+        style: await getManifestPath("main.css"),
+        scripts: await getManifestPath("main.js"),
+        socketUrl: `${config.socketHost}/websocket`,
+    })));
+    function registerStreamModule(module: StreamModule) {
+        fastify.get(`/${module.id}`, async (req, res) => {
+            return res.viewAsync(`stream-modules/${module.id}`, {})
+        })
+    }
 
-function registerStreamModule(module: StreamModule) {
-    fastifyApp.get(`/stream-modules/${module.id}`, async (req, res) => {
-        return res.viewAsync(`stream-modules/${module.id}`, {})
+    fastify.get<{
+        Querystring: {
+            anchor: string
+        },
+    }>(`/friends`, async (req, res) => {
+        const anchor = (req.query.anchor ?? "")
+            .split(" ")
+            .reduce((anchor, part) => {
+                switch (part) {
+                    case "left": anchor.h = "start"; break;
+                    case "center": anchor.h = "center"; break;
+                    case "right": anchor.h = "end"; break;
+                    case "top": anchor.v = "start"; break;
+                    case "middle": anchor.v = "center"; break;
+                    case "bottom": anchor.v = "end"; break;
+                }
+                return anchor;
+            }, { h: "start", v: "end" });
+
+        return res.viewAsync(`stream-modules/friends`, {
+            anchor: `${anchor.v} ${anchor.h}`,
+            anchorHorizontal: anchor.h,
+            anchorVertical: anchor.v,
+        })
     })
-}
 
-fastifyApp.get<{
-    Querystring: {
-        anchor: string
-    },
-}>(`/stream-modules/friends`, async (req, res) => {
-    const anchor = (req.query.anchor ?? "")
-        .split(" ")
-        .reduce((anchor, part) => {
-            switch (part) {
-                case "left": anchor.h = "start";
-                case "center": anchor.h = "center";
-                case "right": anchor.h = "end";
-                case "top": anchor.v = "start";
-                case "middle": anchor.v = "center";
-                case "bottom": anchor.v = "end";
-            }
-            return anchor;
-        }, { h: "start", v: "end" });
-
-    return res.viewAsync(`stream-modules/friends`, {
-        anchor: `${anchor.v} ${anchor.h}`,
-        anchorHorizontal: anchor.h,
-        anchorVertical: anchor.v,
-    })
-})
-
-registerStreamModule({
-    id: "feeds"
-});
-registerStreamModule({
-    id: "woth"
-});
-registerStreamModule({
-    id: "mippy"
-});
+    registerStreamModule({
+        id: "feeds"
+    });
+    registerStreamModule({
+        id: "woth"
+    });
+    registerStreamModule({
+        id: "mippy"
+    });
+}, { prefix: "/stream-modules" })
 
 const dataSources = objectMapArray({
     woth: wordOfTheHour.observe(),

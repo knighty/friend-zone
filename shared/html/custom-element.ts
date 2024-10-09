@@ -2,6 +2,11 @@ import { map, Observable, Subject, switchMap, takeUntil } from "rxjs";
 import { ObservableMap } from "../rx/observables/map";
 import { Events, observeScopedEvent } from "../utils";
 
+type CustomElementTypeImpl<Data extends Record<string, any> = {}, Elements extends Record<string, any> = {}> = {
+    Data: Data,
+    Elements: Elements
+}
+
 type CustomElementType = {
     Data?: Record<string, any>,
     Elements?: Record<string, any>
@@ -18,12 +23,16 @@ export class CustomElement<T extends CustomElementType> extends HTMLElement {
     private connected = false;
     public disconnected$ = new Subject<void>();
     private dataSources = new ObservableMap<keyof T["Data"], Observable<any>>();
-    protected elements: T["Elements"];
     private cachedElements: T["Elements"] = {};
 
     element<K extends keyof T["Elements"]>(key: K) {
-        if (!this.cachedElements[key])
-            this.cachedElements[key] = this.querySelector(`[data-element=${String(key)}]`);
+        if (!this.cachedElements[key]) {
+            const element = this.querySelector(`[data-element=${String(key)}]`);
+            if (element == null) {
+                throw new Error(`Element "${String(key)}" does not exist`);
+            }
+            this.cachedElements[key] = element as T["Elements"][K];
+        }
         return this.cachedElements[key] as T["Elements"][K];
     }
 

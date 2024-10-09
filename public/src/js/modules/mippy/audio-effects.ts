@@ -63,15 +63,19 @@ export class LowPassNode extends AudioEffectNode<{
     }
 }
 
+type Connectable = {
+    connect: (source: AudioNode, destination: AudioNode) => void
+}
+
 export class AudioNodeCollection {
-    nodes: AudioEffectNode<any>[] = [];
+    nodes: Connectable[] = [];
     audioCtx: AudioContext;
 
     constructor(audioCtx: AudioContext) {
         this.audioCtx = audioCtx;
     }
 
-    addNode(node: AudioEffectNode<any>) {
+    addNode(node: Connectable) {
         this.nodes.push(node);
     }
 

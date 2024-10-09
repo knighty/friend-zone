@@ -23,7 +23,7 @@ export function observableMap<K, V>(add: Observable<{ key: K, value: V }>, remov
             update.subscribe(kv => {
                 if (map.has(kv.key)) {
                     map.set(kv.key, {
-                        ...map.get(kv.key),
+                        ...map.get(kv.key) as V,
                         ...kv.value
                     });
                     subscriber.next(map);
