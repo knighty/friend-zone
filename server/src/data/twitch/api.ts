@@ -372,7 +372,10 @@ export async function createPrediction(authToken: AuthTokenSource, broadcasterId
         outcomes: outcomes.map(choice => ({ title: choice })),
         prediction_window: duration,
     });
-    return streamResponse.data[0];
+    if (streamResponse.data[0]) {
+        return streamResponse.data[0];
+    }
+    throw new Error("Didn't set up a poll for some reason");
 }
 
 export async function eventSub<Condition extends EventSub<any>>(authToken: AuthTokenSource, payload: Condition) {

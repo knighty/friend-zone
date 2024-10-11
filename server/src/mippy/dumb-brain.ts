@@ -1,4 +1,4 @@
-import { Observable, Subject, map, share } from "rxjs";
+import { Observable, Subject, map, of, share } from "rxjs";
 import { logger } from "shared/logger";
 import { MippyPartialResult } from "./chat-gpt-brain";
 import { MippyBrain, MippyMessage, MippyPrompts, Prompt } from "./mippy-brain";
@@ -26,7 +26,10 @@ export class DumbMippyBrain implements MippyBrain {
         );
     }
     receivePartials(): Observable<Observable<MippyPartialResult>> {
-        throw new Error("Method not implemented.");
+        return of(of({
+            text: "",
+            finished: false
+        }))
     }
 
     receive(): Observable<MippyMessage> {

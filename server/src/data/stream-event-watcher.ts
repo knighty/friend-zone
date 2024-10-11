@@ -152,11 +152,11 @@ export class StreamEventWatcher {
             mippy.ask("newSubscriber", { user: e.user_name }, { allowTools: false });
         });
 
-        onEvent("channel.ad_break.begin", {
+        /*onEvent("channel.ad_break.begin", {
             broadcaster_user_id: broadcasterId,
         }).subscribe(e => {
             mippy.ask("adBreak", { duration: e.duration_seconds }, { allowTools: false });
-        });
+        });*/
 
         onEvent("channel.chat_settings.update", {
             broadcaster_user_id: broadcasterId,

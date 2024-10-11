@@ -484,6 +484,7 @@ export function objectMapArray<T extends Record<string, any>, V>(obj: T, project
 export function truncateString(input: string, length: number) {
     if (length >= input.length)
         return input;
+    return input.substring(0, length);
     let i = input.indexOf(" ", length);
     if (i == -1) {
         i = length;

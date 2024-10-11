@@ -89,10 +89,8 @@ export class MippyModule extends CustomElement<{
     }
 
     connect() {
-        socket.on("mippyHistory").subscribe(data => console.log(data));
-
         const reverbEnabled = true;
-        const dryWetRatio = 0.2;
+        const dryWetRatio = 0.05;
 
         const subtitleElement = this.element("subtitles");
         const mippy = this.element("mippy");
@@ -146,7 +144,6 @@ export class MippyModule extends CustomElement<{
 
             const play$ = fromEvent(audio, "canplay").pipe(
                 tap(() => audio.play()),
-                tap(() => console.log("play")),
                 ignoreElements()
             )
 
@@ -183,6 +180,7 @@ export class MippyModule extends CustomElement<{
                 const subtitle$ = audio$.pipe(
                     map(data => Math.floor(message.length * (data.currentTime / duration))),
                     distinctUntilChanged(),
+                    endWith(100000),
                     map(length => truncateString(message, length)),
                     distinctUntilChanged(),
                     tap(text => {

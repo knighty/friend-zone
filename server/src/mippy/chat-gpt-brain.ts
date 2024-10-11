@@ -24,36 +24,36 @@ function chatgptMessage(role: "system" | "user" | "assistant", content: string) 
 }
 
 function appendDelta(value: OpenAI.Chat.Completions.ChatCompletionChunk, partial: MippyPartialResult) {
-    if (value.choices[0].finish_reason) {
-        partial.finished = true;
-    }
-    const delta = value.choices[0].delta;
-    partial.text += delta.content ?? "";
-    if (delta.tool_calls) {
-        partial.tool_calls = partial.tool_calls ?? [];
-        for (let call of delta.tool_calls) {
-            let current = partial.tool_calls[call.index];
-            if (!current) {
-                current = {
-                    id: "",
-                    type: "function",
-                    function: {
-                        name: "",
-                        arguments: "",
-                    }
-                };
-                partial.tool_calls[call.index] = current;
+    if (value.choices[0]) {
+        if (value.choices[0].finish_reason) {
+            partial.finished = true;
+        }
+
+        const delta = value.choices[0].delta;
+        partial.text += delta.content ?? "";
+        if (delta.tool_calls) {
+            partial.tool_calls = partial.tool_calls ?? [];
+            for (let call of delta.tool_calls) {
+                let current = partial.tool_calls[call.index];
+                if (!current) {
+                    current = {
+                        id: "",
+                        type: "function",
+                        function: {
+                            name: "",
+                            arguments: "",
+                        }
+                    };
+                    partial.tool_calls[call.index] = current;
+                }
+                current.id += call.id ?? "";
+                current.function.arguments += call.function?.arguments ?? "";
+                current.function.name += call.function?.name ?? "";
             }
-            current.id += call.id ?? "";
-            current.function.arguments += call.function?.arguments ?? "";
-            current.function.name += call.function?.name ?? "";
         }
     }
     if (value.usage) {
-        partial.usage = {
-            ...partial.usage,
-            ...value.usage,
-        };
+        partial.usage = value.usage;
     }
 }
 
@@ -165,7 +165,10 @@ export class ChatGPTMippyBrain implements MippyBrain {
                     model: "gpt-4o-mini",
                     tool_choice: allowTools ? "auto" : undefined,
                     tools: allowTools ? system.toolsSchema : undefined,
-                    stream: true
+                    stream: true,
+                    stream_options: {
+                        include_usage: true
+                    }
                 })).pipe(
                     switchMap(obs => obs),
                     share()
