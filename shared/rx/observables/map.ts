@@ -7,6 +7,7 @@ export class ObservableMap<Key, Value> {
     private deleted$ = new Subject<void>();
     private updated$ = new Subject<void>();
     private keyUpdated$ = new Subject<Key>();
+    public keyCreated$ = new Subject<[Key, Value]>();
     private changed$ = merge(this.updated$, this.set$, this.deleted$).pipe(
         startWith(null),
         map(() => this.data),
@@ -31,6 +32,18 @@ export class ObservableMap<Key, Value> {
         );
     }
 
+    get keyValues$() {
+        return this.changed$.pipe(
+            map(map => {
+                const r = [];
+                for (let key in map) {
+                    r.push([key, map.get(key as Key)])
+                }
+                return r;
+            })
+        );
+    }
+
     /**
      * Observe a specific key for changes in value
      * @param key 
@@ -50,10 +63,13 @@ export class ObservableMap<Key, Value> {
      * @returns Boolean indicating whether the key was new or not
      */
     set(key: Key, value: Value): boolean {
-        const newKey = this.data.has(key);
+        const newKey = !this.data.has(key);
         this.data.set(key, value);
         this.set$.next();
         this.keyUpdated$.next(key);
+        if (newKey) {
+            this.keyCreated$.next([key, value]);
+        }
         return newKey;
     }
 

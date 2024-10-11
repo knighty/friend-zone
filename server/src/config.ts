@@ -11,7 +11,8 @@ function checkProps<T extends object, P extends keyof T>(o: T, props: P[]) {
 
 export type MippyChatGPTConfig = {
     enabled: true,
-    brain: "chatgpt"
+    brain: "chatgpt",
+    filter: RegExp,
     systemPrompt: {
         prompt: string,
         personality: string,
@@ -54,7 +55,7 @@ type DiscordConfig = {
     redirectUri: string,
 }
 
-type TwitchConfig = {
+export type TwitchConfig = {
     streamEvents: boolean,
     channel: string,
     clientId: string,
@@ -96,7 +97,7 @@ export type Config = {
         position: [number, number],
         layout: FeedLayout
     },
-    mockUsers?: { name: string, discordId: string, feed: string | null, sortKey: number, prompt: string }[],
+    mockUsers?: { id: string, name: string, discordId: string, feed: string | null, sortKey: number, prompt: string }[],
     mippy: MippyConfig
 };
 
@@ -106,7 +107,7 @@ Type Guards
 export function isMippyChatGPT(config: MippyConfig): config is MippyChatGPTConfig {
     return config.enabled
         && config.brain == "chatgpt"
-        && checkProps(config, ["permissions", "prompts", "systemPrompt"])
+        && checkProps(config, ["permissions", "prompts", "systemPrompt", "filter"])
         && checkProps(config.systemPrompt, ["personality", "prompt"]);
 }
 

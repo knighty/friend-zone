@@ -51,6 +51,7 @@ const user = {
 };
 const subtitles$ = new Subject<{ id: number, text: string }>();
 const askMippy$ = new Subject<string>();
+const mippySay$ = new Subject<string>();
 const focus$ = focusFeed(config);
 const feedSettings = new FeedSettings();
 const remoteControl = initSocket(config.socket, {
@@ -59,7 +60,8 @@ const remoteControl = initSocket(config.socket, {
     "feed/register": feedSettings.active$.pipe(switchMapToggle(active => active, () => feedSettings.feed$, () => of(null))),
     "feed/focus": focus$.pipe(filter(focus => focus == true)),
     "feed/unfocus": focus$.pipe(filter(focus => focus == false)),
-    "mippy/ask": askMippy$
+    "mippy/ask": askMippy$,
+    "mippy/say": mippySay$,
 });
 const subtitlesEnabled$ = new BehaviorSubject(config.subtitlesEnabled);
 combineLatest([remoteControl.subtitlesEnabled$, subtitlesEnabled$]).pipe(
@@ -114,7 +116,8 @@ fastifyApp.register(async (fastify: FastifyInstance) => {
         const socket = serverSocket<{
             Events: {
                 config: { key: string, value: any },
-                "mippy/ask": string
+                "mippy/ask": string,
+                "mippy/say": string,
             }
         }>(ws, new ObservableEventProvider({
             config: merge(
@@ -141,6 +144,11 @@ fastifyApp.register(async (fastify: FastifyInstance) => {
         socket.on("mippy/ask").subscribe(question => {
             log.info(`Ask question: ${question}`, "mippy");
             askMippy$.next(question);
+        });
+
+        socket.on("mippy/say").subscribe(message => {
+            log.info(`Mippy Say: ${message}`, "mippy");
+            mippySay$.next(message);
         });
     })
 });

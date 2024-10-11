@@ -1,12 +1,14 @@
 mippy-module {
     display: grid;
-    grid-template-columns: 1fr min-content min-content;
+    grid-template-columns: min-content min-content 1fr;
     grid-template-rows: min-content min-content;
-    grid-template-areas: "audio frequencies avatar" "subtitles subtitles subtitles";
+    grid-template-areas: "avatar frequencies audio" "avatar subtitles subtitles";
+    align-items: center;
     gap: 1em;
+    width: 100%;
 
     audio {
-        grid-area: audio;
+        grid-area: subtitles;
         opacity: 0;
 
         &:hover {
@@ -26,8 +28,9 @@ mippy-module {
     .subtitles {
         grid-area: subtitles;
         overflow: hidden;
-        min-height: 1em;
-        max-height: 2.1em;
+        //min-height: 1em;
+        //max-height: 2.1em;Pt
+        height: 3em;
         font-size: 1em;
         font-family: "Balsamiq Sans";
         line-height: 1.2em;
@@ -39,6 +42,10 @@ mippy-module {
             transform 0.3s;
         padding: 3px;
         box-sizing: content-box;
+        background: #111;
+        border-radius: 1em;
+        border: 2px solid #8333da;
+        padding: 1em;
 
         &.visible {
             opacity: 1;
@@ -47,7 +54,7 @@ mippy-module {
 
     .avatar {
         grid-area: avatar;
-        --size: 100px;
+        --size: 140px;
         --image-size: calc(0.8 * var(--size));
 
         opacity: 0;
@@ -64,9 +71,10 @@ mippy-module {
         .image {
             background: black;
             place-self: center center;
-            width: var(--image-size);
-            height: var(--image-size);
+            width: calc(var(--image-size) - 8px);
+            height: calc(var(--image-size) - 8px);
             object-position: 0px calc(var(--animation) * -8px);
+            border-radius: 20%;
         }
 
         &.visible {

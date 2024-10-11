@@ -110,6 +110,11 @@ fromDomEvent(document.getElementById("askMippyButton"), "click").subscribe(e => 
     element<HTMLInputElement>("askMippy").value = "";
 })
 
+fromDomEvent(document.getElementById("mippySayButton"), "click").subscribe(e => {
+    socket.send("mippy/say", element<HTMLInputElement>("mippySay").value);
+    element<HTMLInputElement>("mippySay").value = "";
+})
+
 socket.on("connectionStatus").subscribe(isConnected => {
     document.querySelector(".server-connection-status").classList.toggle("connected", isConnected);
 });

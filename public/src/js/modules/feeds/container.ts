@@ -1,5 +1,7 @@
-import { finalize, Subscription, take, timer } from "rxjs";
+import { distinctUntilChanged, finalize, map, Subscription, switchMap, take, timer } from "rxjs";
 import { createElement } from "shared/utils";
+import { getUser, socketData } from "../../socket";
+import { FriendElement } from "../friends/friend";
 import { Embed } from "./embed-handlers/embed-handler";
 import { handleEmbed } from "./embed-handlers/embed-handlers";
 
@@ -37,6 +39,16 @@ export default class FeedContainer extends HTMLElement {
     accept(feed: Feed) {
         const isSame = this.item?.url == feed.url && this.item?.user == feed.user;
         if (!isSame) {
+            const user$ = getUser(feed.user);
+            const voice$ = user$.pipe(
+                switchMap(user => socketData.voice$.pipe(map(users => !!users[user.discordId]))),
+                distinctUntilChanged()
+            )
+            const wothCount$ = user$.pipe(
+                switchMap(user => socketData.woth$.pipe(map(woth => (woth.counts[user.id] ?? 0).toString()))),
+                distinctUntilChanged()
+            );
+
             if (this.currentEmbed && this.currentEmbed.unload)
                 this.currentEmbed.unload();
             const previousElement = this.element;
@@ -46,8 +58,13 @@ export default class FeedContainer extends HTMLElement {
                 <div class="video">
                     <div class="video-container"></div>
                 </div>
-                <span class="name">${feed.user}</span>`;
+                <x-friend></x-friend>`;
             this.appendChild(this.element);
+
+            const element = this.element.querySelector<FriendElement>("x-friend");
+            element.bindData("woth", wothCount$);
+            element.bindData("voice", voice$);
+            element.bindData("name", user$.pipe(map(user => user.name)));
 
             const embed = handleEmbed(feed.url, this.element.querySelector(".video-container"));
             this.currentEmbed = typeof embed == "boolean" ? null : embed;

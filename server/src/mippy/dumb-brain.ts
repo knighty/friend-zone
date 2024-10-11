@@ -1,5 +1,6 @@
 import { Observable, Subject, map, share } from "rxjs";
 import { logger } from "shared/logger";
+import { MippyPartialResult } from "./chat-gpt-brain";
 import { MippyBrain, MippyMessage, MippyPrompts, Prompt } from "./mippy-brain";
 
 const log = logger("dumb-mippy-brain");
@@ -23,6 +24,9 @@ export class DumbMippyBrain implements MippyBrain {
             }),
             share(),
         );
+    }
+    receivePartials(): Observable<Observable<MippyPartialResult>> {
+        throw new Error("Method not implemented.");
     }
 
     receive(): Observable<MippyMessage> {

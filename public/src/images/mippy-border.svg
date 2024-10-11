@@ -3,10 +3,9 @@
 		<path id="path" d="M 5 5 L 45 5 L 45 45 L 5 45 Z"></path>
 		<path id="path2" d="M 2 8 L 47 8 L 47 48 L 2 48 Z"></path>
 	</defs>
-	<use xlink:href="#path2" fill="none" stroke="#c829f1" stroke-width="1" stroke-linejoin="round" stroke-linecap="round"></use>
-	<use xlink:href="#path" fill="#111"></use>
-	<use xlink:href="#path" fill="none" stroke="#32a8a8" stroke-width="0.6" stroke-linejoin="round" stroke-linecap="round"></use>
-	<use xlink:href="#path" fill="none" stroke="#45f1f0" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="82">
-		<animate attributeName="stroke-dashoffset" values="0;164" dur="8s" repeatCount="indefinite" />
-	</use>
+	<rect x="2" y="8" rx="5" width="45" height="40" fill="none" stroke="#8333da" stroke-width="1" stroke-linejoin="round" stroke-linecap="round"></rect>
+	<rect x="5" y="5" rx="5" width="40" height="40" fill="#111" stroke="#32a8a8" stroke-width="0.6" stroke-linejoin="round" stroke-linecap="round"></rect>
+	<rect stroke-dasharray="76" x="5" y="5" rx="5" width="40" height="40" fill="none" stroke="#45f1f0" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round">
+		<animate attributeName="stroke-dashoffset" values="0;152" dur="8s" repeatCount="indefinite" />
+	</rect>
 </svg>

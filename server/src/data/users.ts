@@ -1,6 +1,7 @@
 import { ObservableMap } from "shared/rx/observables/map";
 
 export type User = {
+    id: string;
     name: string;
     discordId: string;
     sortKey: number;

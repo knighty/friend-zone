@@ -1,8 +1,10 @@
 import { ChatCompletionMessageToolCall } from "openai/resources/index.mjs";
 import { Observable } from "rxjs";
+import { MippyPartialResult } from "./chat-gpt-brain";
 
 export interface MippyBrain {
     receive(): Observable<MippyMessage>;
+    receivePartials(): Observable<Observable<MippyPartialResult>>;
     ask<Event extends keyof MippyPrompts, Data extends MippyPrompts[Event]>(event: Event, data: Data, prompt: Omit<Prompt, "text">): void;
 }
 

@@ -1,4 +1,4 @@
-import { debounceTime, Subject, throttleTime } from "rxjs";
+import { Subject, throttleTime } from "rxjs";
 import { Mippy } from "../mippy/mippy";
 
 type SubtitlesUser = {
@@ -19,9 +19,8 @@ export default class Subtitles {
 
         if (mippy) {
             this.questions$.pipe(
-                debounceTime(5000),
-                throttleTime(15000),
-            ).subscribe(question => this.mippy.ask("question", { question: question.text, user: question.user }, { name: question.user, source: "admin" }))
+                throttleTime(5000),
+            ).subscribe(question => this.mippy.ask("question", { question: question.text, user: question.user }, { name: question.user, source: "admin", allowTools: true }))
         }
     }
 
@@ -34,7 +33,7 @@ export default class Subtitles {
 
         const regex = /(?:[\.\?]|^)(?:.{0,10})(?:mippy|mipi|mippie)[,!](.*)/i
         const match = text.match(regex);
-        if (match) {
+        if (match && type == "final") {
             const q = match[1];
             this.questions$.next({
                 user: userId,

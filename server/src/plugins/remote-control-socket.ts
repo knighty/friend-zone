@@ -41,7 +41,8 @@ export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds, 
                 "feed/focus": void,
                 "feed/unfocus": void,
                 "feed/register": Messages.RegisterFeed,
-                "mippy/ask": string
+                "mippy/ask": string,
+                "mippy/say": string,
             }
         }>(ws, new ObservableEventProvider({
             subtitles: of({ enabled: true })
@@ -68,8 +69,11 @@ export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds, 
                     });
 
                     socket.on("mippy/ask").subscribe(question => {
-                        mippy.ask("question", { question, user: userName }, { source: "admin", name: userName });
-                        //mippy.say(question)
+                        mippy.ask("question", { question, user: userName }, { source: "admin", name: userName, allowTools: true });
+                    })
+
+                    socket.on("mippy/say").subscribe(message => {
+                        mippy.say(message)
                     })
 
                     return feed$.pipe(

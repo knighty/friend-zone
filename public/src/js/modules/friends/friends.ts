@@ -1,17 +1,14 @@
 import { distinctUntilChanged, filter, map, of, scan, share } from "rxjs";
-import { socket } from "../../socket";
+import { socket, socketData } from "../../socket";
 import { FriendElement } from "./friend";
 
 export default class FriendsModule extends HTMLElement {
     connectedCallback() {
-        const users$ = socket.on("users");
-        const wothCounts$ = socket.on("woth").pipe(map(woth => woth.counts), share());
         const subtitles$ = socket.on("subtitles").pipe(share());
-        const voices$ = socket.on("voice").pipe(share());
 
         const friendList = document.querySelector(".friend-list");
 
-        users$.pipe(
+        socketData.user$.pipe(
             scan((elements, users) => {
                 let newElements: HTMLElement[] = [];
                 console.log(users);
@@ -22,15 +19,15 @@ export default class FriendsModule extends HTMLElement {
                     if (!element) {
                         element = new FriendElement();
                         element.dataset.person = userId;
-                        element.bindData("woth", wothCounts$.pipe(
-                            map(counts => (counts[userId] ?? 0).toString()),
+                        element.bindData("woth", socketData.woth$.pipe(
+                            map(woth => (woth.counts[userId] ?? 0).toString()),
                             distinctUntilChanged()
                         ));
                         element.bindData("subtitles", subtitles$.pipe(
                             filter(subtitle => subtitle.userId == userId),
                             map(subtitle => ({ id: subtitle.subtitleId, text: subtitle.text }))
                         ));
-                        element.bindData("voice", voices$.pipe(
+                        element.bindData("voice", socketData.voice$.pipe(
                             map(users => !!users[user.discordId]),
                             distinctUntilChanged(),
                         ))

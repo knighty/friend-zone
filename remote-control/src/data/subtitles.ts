@@ -10,6 +10,7 @@ const subtitleLog = logger("subtitles");
 type Subtitle = {
     id: number,
     text: string
+    type: "final" | "interim";
 }
 
 export function observeSubtitles(config: WhisperConfig) {
@@ -23,6 +24,8 @@ export function observeSubtitles(config: WhisperConfig) {
             `--min_probability=${config.min_probability}`,
             `--no_speech_threshold=${config.no_speech_threshold}`
         ]);
+        let id = "";
+        let text = "";
         pythonProcess.stdout.on('data', (data: string) => {
             const lines = data.toString().split(/[\r\n]/g);
             for (let subtitle of lines) {
@@ -30,13 +33,13 @@ export function observeSubtitles(config: WhisperConfig) {
                     continue;
                 const split = subtitle.split(" ");
                 if (split[0] == "subtitle") {
-                    const id = split[1];
+                    id = split[1];
                     const json = split.slice(2).join(" ").trim();
                     const segments = JSON.parse(json) as {
                         text: string,
                         probability: number
                     }[];
-                    const text = segments
+                    text = segments
                         .filter(segment => segment.probability < config.min_probability)
                         .map(segment => segment.text)
                         .join("")
@@ -48,11 +51,23 @@ export function observeSubtitles(config: WhisperConfig) {
                     if (text.length > 0) {
                         subscriber.next({
                             id: Number(id),
-                            text
+                            text,
+                            type: "interim"
                         });
                     }
                     if (debugText.length > 0) {
                         subtitleLog.info(debugText);
+                    }
+                } else if (split[0] == "end_subtitle") {
+                    if (id != "" && text.length > 0) {
+                        subtitleLog.info("ended phrase");
+                        subscriber.next({
+                            id: Number(id),
+                            text,
+                            type: "final"
+                        });
+                        id = "";
+                        text = "";
                     }
                 } else {
                     subtitleLog.info(subtitle);

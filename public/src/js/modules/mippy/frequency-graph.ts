@@ -8,13 +8,13 @@ export class FrequencyGraph extends CustomElement<{
     Elements: {}
 }> {
     setup() {
-        this.innerHTML = `<canvas class="" width="128" height="80"></canvas>`
+        this.innerHTML = `<canvas class="" width="128" height="40"></canvas>`
     }
 
     connect() {
         const canvas = this.querySelector<HTMLCanvasElement>("canvas");
         const canvasContext = canvas.getContext("2d");
-        const grad = canvasContext.createLinearGradient(0, 0, 100, 0);
+        const grad = canvasContext.createLinearGradient(0, 0, 128, 0);
         grad.addColorStop(0, "#c829f1");
         grad.addColorStop(1, "#45f1f0");
         this.registerHandler("frequencies").pipe(
@@ -35,7 +35,7 @@ export class FrequencyGraph extends CustomElement<{
                 canvasContext.fillStyle = grad;
                 canvasContext.beginPath();
                 for (let i = 0; i < bins.length; i++) {
-                    canvasContext.roundRect(i / bins.length * canvas.width, canvas.height / 2 - bins[i] * canvas.height / 2, canvas.width / bins.length - 1, bins[i] * canvas.height, 4);
+                    canvasContext.roundRect(i / bins.length * canvas.width, canvas.height - bins[i] * canvas.height, canvas.width / bins.length - 1, bins[i] * canvas.height, 4);
                 }
                 canvasContext.fill();
             })

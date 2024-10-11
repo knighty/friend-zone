@@ -91,7 +91,7 @@ def main():
 
     # Create a background thread that will pass us raw audio bytes.
     # We could do this manually but SpeechRecognizer provides a nice helper.
-    recorder.listen_in_background(source, record_callback, phrase_time_limit=3)
+    recorder.listen_in_background(source, record_callback, phrase_time_limit=1)
 
     # Cue the user that we're ready to go.
     print("Model loaded.\n", flush=True)
@@ -101,22 +101,26 @@ def main():
     last_text = ''
     last_new_text_time = time()
     complete = False
+    working = False;
     while True:
         try:
             now = time()
+            phrase_complete = False
+            # If enough time has passed between recordings, consider the phrase complete.
+            # Clear the current working audio buffer to start over with the new data.
+            if working and ((phrase_time and now - phrase_time > 2) or len(audio_data) > 1000000 or complete):
+                print("end_subtitle" + "\n", flush=True)
+                print("new phrase started\n", flush=True);
+                id = id + 1
+                last_text = ''
+                phrase_complete = True
+                complete = False
+                working = False
+                audio_data = b''
+                
             # Pull raw recorded audio from the queue.
             if not data_queue.empty():
-                phrase_complete = False
-                # If enough time has passed between recordings, consider the phrase complete.
-                # Clear the current working audio buffer to start over with the new data.
-                if (phrase_time and now - phrase_time > 6) or len(audio_data) > 1000000 or complete:
-                    print("new phrase started\n", flush=True);
-                    id = id + 1
-                    last_text = ''
-                    phrase_complete = True
-                    complete = False
-                    audio_data = b''
-                
+                working = True
                 # Combine audio data from queue
                 audio_data = audio_data + b''.join(data_queue.queue)
                 data_queue.queue.clear()

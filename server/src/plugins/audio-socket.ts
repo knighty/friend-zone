@@ -1,20 +1,47 @@
-import { FastifyInstance } from "fastify";
-import { concatMap, EMPTY, endWith, filter, fromEvent, Observable, of, startWith, Subject, takeUntil, tap } from "rxjs";
+import fs from "fs/promises";
+import path from "path";
+import { Observable, startWith, Subject, switchMap, takeWhile } from "rxjs";
+import { ttsDirs } from "../data/tts/tts";
+import { getWavHeader } from "../lib/wav-header";
 
 const sampleRate = 22050;
 const bufferDuration = 2;
 
-class AudioStream {
+function makeid(length: number) {
+    let result = '';
+    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const charactersLength = characters.length;
+    let counter = 0;
+    while (counter < length) {
+        result += characters.charAt(Math.floor(Math.random() * charactersLength));
+        counter += 1;
+    }
+    return result;
+}
+
+export class AudioStream {
     buffer: Int16Array;
     isComplete: boolean = false;
     length: number = 0;
-    id: number;
+    id: string;
     update$ = new Subject<void>();
     nullAudio = 0;
+    header: Uint8Array;
+    persisted = false;
 
-    constructor(id: number) {
+    constructor(id: string) {
         this.id = id;
         this.buffer = new Int16Array(0);
+        this.header = getWavHeader();
+    }
+
+    static fromBuffer(id: string, file: Buffer): AudioStream {
+        const stream = new this(id);
+        stream.header = new Uint8Array(file.buffer, 0, 44);
+        stream.buffer = new Int16Array(file.buffer, 44, (file.byteLength - 44) / 2);
+        stream.isComplete = true;
+        stream.length = stream.buffer.length;
+        return stream;
     }
 
     get duration() {
@@ -42,17 +69,12 @@ class AudioStream {
     }
 
     observe() {
-        if (this.isComplete) {
-            return of(this.buffer);
-        }
-        const update$ = this.update$.pipe(startWith());
-        const complete$ = update$.pipe(filter(() => this.isComplete));
+        const update$ = this.update$.pipe(startWith(undefined));
         let offset = 0;
         return update$.pipe(
-            takeUntil(complete$),
-            startWith(),
-            concatMap(() => {
-                return new Observable<Int16Array>(subscriber => {
+            takeWhile(() => !this.isComplete, true),
+            switchMap(() => {
+                return new Observable<Uint8Array>(subscriber => {
                     while (offset < this.length) {
                         let end = offset + bufferDuration * sampleRate;
                         // If it's close to the end, just fold it in
@@ -61,58 +83,67 @@ class AudioStream {
                         }
                         const b = this.buffer.subarray(offset, end);
                         offset += b.length;
-                        subscriber.next(b);
+                        if (b.length > 0) {
+                            subscriber.next(new Uint8Array(b.buffer, b.byteOffset, b.byteLength));
+                        }
                     }
                     subscriber.complete();
                 })
             }),
+            startWith(this.header),
         )
+    }
+
+    getReadableStream() {
+        const stream = this;
+        let i = 0;
+        return new ReadableStream({
+            start(controller) {
+                stream.observe().subscribe({
+                    next: data => {
+                        try {
+                            controller.enqueue(data)
+                        } catch (e) {
+                            console.error(e);
+                        }
+                    },
+                    complete: () => {
+                        try {
+                            controller.close();
+                        } catch (e) {
+                            console.error(e);
+                        }
+                    }
+                })
+            }
+        });
     }
 }
 
-export class StreamingTTS {
-    streams: Record<number, AudioStream> = {};
-    id = 0;
+export class AudioRepository {
+    streams: Record<string, AudioStream> = {};
+
+    getFilename(id: string) {
+        return path.join(ttsDirs.outputDir, `${id}.wav`);
+    }
 
     create() {
-        const id = this.id++;
-        const stream = new AudioStream(id);
-        this.streams[id] = stream;
+        const stream = new AudioStream(makeid(10));
+        this.streams[stream.id] = stream;
         // Delete after 10 minutes
-        setTimeout(() => delete this.streams[id], 1000 * 60 * 10);
+        setTimeout(async () => {
+            const file = await fs.writeFile(this.getFilename(stream.id), this.streams[stream.id].getReadableStream());
+            delete this.streams[stream.id];
+        }, 1000 * 100);
         return stream;
     }
 
-    getStream(id: number) {
+    async getStream(id: string) {
+        if (this.streams[id]) {
+            return this.streams[id];
+        }
+        const file = await fs.readFile(this.getFilename(id));
+        this.streams[id] = AudioStream.fromBuffer(id, file);
         return this.streams[id];
     }
-}
-
-export const audioSocket = (tts: StreamingTTS, url: string = "/audio/websocket") => async (fastify: FastifyInstance, options: {}) => {
-    fastify.get(url, { websocket: true }, (ws, req) => {
-        ws.binaryType = "arraybuffer";
-
-        const nullTerminator = new Int16Array(1);
-        nullTerminator[0] = 0;
-
-        fromEvent<MessageEvent>(ws, "message").pipe(
-            concatMap(e => {
-                try {
-                    const id = (new Int16Array(e.data))[0];
-                    const stream = tts.getStream(id);
-
-                    return stream.observe().pipe(
-                        endWith(nullTerminator),
-                        tap(data => {
-                            ws.send(data);
-                        })
-                    )
-                } catch (e) {
-                    ws.send(nullTerminator);
-                    return EMPTY;
-                }
-            }),
-            takeUntil(fromEvent(ws, "close"))
-        ).subscribe();
-    })
 }

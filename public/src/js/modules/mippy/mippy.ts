@@ -1,6 +1,7 @@
-import { concatMap, distinctUntilChanged, endWith, fromEvent, ignoreElements, interval, map, merge, scan, share, startWith, switchMap, takeUntil, tap, timer } from 'rxjs';
+import { BehaviorSubject, concatMap, distinctUntilChanged, endWith, filter, fromEvent, ignoreElements, map, merge, Observable, scan, share, startWith, switchMap, takeUntil, tap, timer } from 'rxjs';
 import { CustomElement } from "shared/html/custom-element";
 import { renderLoop$ } from 'shared/rx/observables/render-loop';
+import { switchMapComplete } from 'shared/rx/operators/switch-map-complete';
 import { truncateString } from 'shared/utils';
 import { socket } from '../../socket';
 import { AudioNodeCollection, LowPassNode, ReverbEffectNode } from './audio-effects';
@@ -16,12 +17,55 @@ const template = `
 
 const sampleRate = 22050;
 
+function concatScan<In, Out>(init: (source: In) => [Observable<Out>, (data: In) => void], compare: (a: In, b: In) => boolean) {
+    let previous: In | null = null;
+    let update$: BehaviorSubject<In>;
+
+    return (source: Observable<In>) => {
+        return new Observable<() => [Observable<Out>, (data: In) => void, BehaviorSubject<In | null>]>(subscriber => {
+            return source.subscribe({
+                error: err => subscriber.error(err),
+                complete: () => subscriber.complete(),
+                next: value => {
+                    if (previous == null || !compare(value, previous)) {
+                        previous = value;
+                        update$ = new BehaviorSubject<In>(value);
+                        subscriber.next(() => {
+                            const [observable, update] = init(value);
+                            return [observable, update, update$];
+                        });
+                    } else {
+                        update$.next(value);
+                    }
+                }
+            })
+        }).pipe(
+            concatMap(state => {
+                const o = state();
+                return o[0].pipe(
+                    switchMapComplete(value => {
+                        return o[2].pipe(
+                            tap(v => o[1](v)),
+                            map(() => value)
+                        )
+                    }),
+                );
+            })
+        )
+    }
+}
+
 export class MippyModule extends CustomElement<{
     Data: {
         speech: {
-            audio: number,
+            id: string,
+            audio: {
+                duration: number,
+                finished: boolean,
+            },
             message: {
                 text: string
+                finished: boolean,
             },
         },
         audioNodes: AudioBufferSourceNode
@@ -45,6 +89,8 @@ export class MippyModule extends CustomElement<{
     }
 
     connect() {
+        socket.on("mippyHistory").subscribe(data => console.log(data));
+
         const reverbEnabled = true;
         const dryWetRatio = 0.2;
 
@@ -95,11 +141,16 @@ export class MippyModule extends CustomElement<{
         const source = audioCtx.createMediaElementSource(audio);
         source.connect(speechDestination);
 
-        const playAudio = (id: number, estimatedDuration: number) => {
+        const playAudio = (id: string, estimatedDuration: number) => {
             audio.src = `/tts/audio/${id}`;
-            audio.play();
 
-            return interval(100).pipe(
+            const play$ = fromEvent(audio, "canplay").pipe(
+                tap(() => audio.play()),
+                tap(() => console.log("play")),
+                ignoreElements()
+            )
+
+            const ended$ = timer(0, 100).pipe(
                 map(frame => {
                     const currentTime = audio.currentTime;
                     const duration = (audio.duration != Infinity && !Number.isNaN(audio.duration)) ? audio.duration : estimatedDuration;
@@ -109,23 +160,30 @@ export class MippyModule extends CustomElement<{
                         currentTime: currentTime
                     }
                 }),
-                takeUntil(fromEvent(audio, "ended")),
+            );
+
+            return merge(ended$, play$).pipe(
+                takeUntil(fromEvent(audio, "ended").pipe(
+                    filter(() => (audio.duration != Infinity && !Number.isNaN(audio.duration) && audio.currentTime >= audio.duration - 0.1)),
+                )),
             );
         }
 
         const playing$ = speechEvent$.pipe(
-            concatMap(speech => {
-                const audio$ = playAudio(speech.audio, speech.message.text.length / 15).pipe(
+            concatScan(speech => {
+                const audio$ = playAudio(speech.id, speech.message.text.length / 15).pipe(
                     share()
                 )
+
+                let message = speech.message.text;
+                let duration = speech.audio.duration;
 
                 subtitleElement.textContent = "";
 
                 const subtitle$ = audio$.pipe(
-                    map(data => Math.floor(speech.message.text.length * data.played)),
-                    endWith(speech.message.text.length),
+                    map(data => Math.floor(message.length * (data.currentTime / duration))),
                     distinctUntilChanged(),
-                    map(length => truncateString(speech.message.text, length)),
+                    map(length => truncateString(message, length)),
                     distinctUntilChanged(),
                     tap(text => {
                         subtitleElement.textContent = text;
@@ -133,12 +191,20 @@ export class MippyModule extends CustomElement<{
                     })
                 );
 
-                return merge(subtitle$).pipe(
+                const observable = merge(subtitle$).pipe(
                     ignoreElements(),
                     startWith(true),
                     endWith(false)
                 );
-            }),
+
+                return [
+                    observable,
+                    speech => {
+                        message += speech.message.text;
+                        duration = speech.audio.duration;
+                    }
+                ]
+            }, (a, b) => a.id == b.id)
         );
 
         this.element("frequencyGraph").bindData("frequencies", analyzerData$.pipe(map(() => frequencyArray)));

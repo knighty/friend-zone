@@ -5,7 +5,7 @@ x-feed {
     --top: 0.5;
     --width: calc(100vw - 2em - 100%);
     --height: calc(100vh - 2em - 100%);
-    --cutout-size: 2rem;
+    --cutout-size: 3rem;
     --size: 0.3;
     --spacing: var(--feed-spacing, 1rem);
 
@@ -16,11 +16,18 @@ x-feed {
     transition: transform 0.5s;
     transform: translate(calc(var(--width) * var(--left)), calc(var(--height) * var(--top)));
 
+    x-friend {
+        position: absolute;
+        top: -14px;
+        left: -8px;
+        font-size: 1.2rem;
+    }
+
     /*.feed {
         --offset: calc(var(--ow) * )
     }*/
 
-    .name {
+    /*.name {
         z-index: 100;
         position: absolute;
         top: 0;
@@ -36,7 +43,7 @@ x-feed {
         text-align: right;
         text-shadow: 1px 1px 2px rgb(0, 0, 0);
         border-bottom: none;
-    }
+    }*/
 
     feed-container {
         grid-template-columns: minmax(0, 0fr);
@@ -177,7 +184,7 @@ x-feed {
         overflow: hidden;
         grid-template-columns: minmax(0, 1fr);
         height: 100%;
-        clip-path: polygon(7em 0, 100% 0, 100% 100%, 0 100%, 0 100%, 0 var(--cutout-size), 5em var(--cutout-size));
+        clip-path: polygon(13em 0, 100% 0, 100% 100%, 0 100%, 0 100%, 0 var(--cutout-size), 11.6em var(--cutout-size));
 
         iframe {
             aspect-ratio: var(--source-aspect-ratio);
