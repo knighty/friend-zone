@@ -1,23 +1,10 @@
 import { FastifyInstance, FastifyRequest } from "fastify";
 import fs from "fs/promises";
 import https from "https";
-import path from "path";
 import querystring from "querystring";
 import config from "../../config";
-import { getUser } from "../../data/twitch/api";
+import { getUser } from "../../data/twitch/api/user";
 import { UserAuthTokenSource } from "../../data/twitch/auth-tokens";
-
-const scopes = [
-    "moderator:read:followers",
-    "channel:read:redemptions",
-    "channel:read:subscriptions",
-    "channel:read:ads",
-    "user:read:chat",
-    "channel:read:redemptions",
-    "channel:manage:polls",
-    "channel:manage:redemptions",
-    "channel:manage:predictions",
-]
 
 interface TokenResponse {
     access_token: string,
@@ -43,10 +30,8 @@ function getStateString() {
     return makeid(20);
 }
 
-export default function initRouter() {
-    async function buildTwitchLink(url: string) {
-        const state = getStateString();
-
+export default function initRouter(types: Record<string, { scopes: string[], filePath: string }>) {
+    async function buildTwitchLink(url: string, state: string, scopes: string[]) {
         return `https://id.twitch.tv/oauth2/authorize?${querystring.encode({
             response_type: "code",
             client_id: config.twitch.clientId,
@@ -87,8 +72,14 @@ export default function initRouter() {
     }
 
     return async (fastify: FastifyInstance) => {
-        fastify.get("/redirect", async (req, res) => {
-            const url = await buildTwitchLink("/");
+        fastify.get<{
+            Params: {
+                tokenType: string
+            }
+        }>("/redirect/:tokenType", async (req, res) => {
+            if (!types[req.params.tokenType])
+                throw new Error("Invaid token type");
+            const url = await buildTwitchLink("/", req.params.tokenType, types[req.params.tokenType].scopes);
             return res.redirect(url);
         });
 
@@ -97,13 +88,14 @@ export default function initRouter() {
         }>, res) => {
             const code = <string>req.query.code;
             const state = <string>req.query.state;
+            const tokenType = state;
 
             // Exchange token
             const tokenResponse = await requestToken(code, state);
 
             // Look up the user's info
-            const file = path.join(__dirname, "../../../../twitch.json");
-            const userAuthToken = new UserAuthTokenSource(file, tokenResponse.access_token, tokenResponse.refresh_token);
+            const file = types[tokenType].filePath;
+            const userAuthToken = new UserAuthTokenSource(file, tokenResponse.access_token, tokenResponse.refresh_token, tokenResponse.expires_in);
             const userInfo = await getUser(userAuthToken);
             userAuthToken.id = userInfo.id;
 
@@ -111,6 +103,8 @@ export default function initRouter() {
             const twitchUser = await fs.writeFile(file, JSON.stringify({
                 accessToken: userAuthToken.token,
                 refreshToken: userAuthToken.refreshToken,
+                expiresAt: Date.now() + tokenResponse.expires_in * 1000,
+                broadcasterId: userInfo.id,
                 ...userInfo
             }))
 

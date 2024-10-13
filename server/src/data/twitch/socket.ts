@@ -1,9 +1,9 @@
 import { green } from "kolorist";
-import { filter, first, fromEvent, map, Observable, share, shareReplay, tap } from "rxjs";
+import { catchError, EMPTY, filter, first, fromEvent, map, Observable, share, shareReplay, tap } from "rxjs";
 import { logger } from "shared/logger";
 import { switchMapComplete } from "shared/rx/operators/switch-map-complete";
 import { WebSocket } from "ws";
-import { eventSub, eventUnsub, unsubscribeDisconnected } from "./api";
+import { eventSub, eventUnsub, unsubscribeDisconnected } from "./api/event-sub";
 import { UserAuthTokenSource } from "./auth-tokens";
 
 type SocketMessage<T = any> = {
@@ -92,6 +92,10 @@ export function twitchSocket(authTokenSource: UserAuthTokenSource, url = "wss://
             unBindHandlers(socket);
         }
     }).pipe(
+        catchError(e => {
+            log.error(e);
+            return EMPTY;
+        }),
         shareReplay(1)
     );
 
@@ -132,7 +136,7 @@ export function twitchSocket(authTokenSource: UserAuthTokenSource, url = "wss://
                     id = response.data[0].id;
                     subscriber.next()
                 }).catch(e => {
-                    subscriber.complete();
+                    subscriber.error();
                     console.error(e);
                 });
                 return () => {
@@ -140,7 +144,7 @@ export function twitchSocket(authTokenSource: UserAuthTokenSource, url = "wss://
                         eventUnsub(authTokenSource, id);
                     }
                 }
-            }), true)
+            }))
         )
 
         return sub$.pipe(

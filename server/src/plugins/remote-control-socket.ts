@@ -2,6 +2,7 @@ import { FastifyInstance } from "fastify";
 import { green } from "kolorist";
 import { distinctUntilChanged, EMPTY, filter, finalize, map, merge, Observable, of, shareReplay, switchMap, take, takeUntil, tap } from "rxjs";
 import { logger } from "shared/logger";
+import { switchMapComplete } from "shared/rx/operators/switch-map-complete";
 import { ObservableEventProvider, serverSocket } from "shared/websocket/server";
 import ExternalFeeds from "../data/external-feeds";
 import Subtitles from "../data/subtitles";
@@ -76,10 +77,27 @@ export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds, 
                         mippy.say(message)
                     })
 
+                    /*const feedData$ = combineLatest([
+                        feed$.pipe(filter(feed => feed != null)),
+                        feedFocused$.pipe(map(focus => ({
+                            focused: focus ? new Date() : null
+                        })))
+                    ]).pipe(
+                        map(([a, b]) => ({ ...a, ...b }))
+                    )
+
+                    const feedActive$ =  feed$.pipe(
+                        map(feed => feed != null),
+                        distinctUntilChanged()
+                    );
+
+                    feedData$.subscribe()*/
+
+
                     return feed$.pipe(
                         map(feed => feed != null),
                         distinctUntilChanged(),
-                        switchMap(active => {
+                        switchMapComplete(active => {
                             if (!active) {
                                 return EMPTY;
                             }

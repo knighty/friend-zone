@@ -1,10 +1,11 @@
-import { Subject, throttleTime } from "rxjs";
+import { filter, Subject, throttleTime } from "rxjs";
 import { Mippy } from "../mippy/mippy";
 
 type SubtitlesUser = {
     userId: string,
     subtitleId: number;
     text: string;
+    final: boolean;
 }
 
 type SubtitleStreamEvent = SubtitlesUser;
@@ -24,11 +25,18 @@ export default class Subtitles {
         }
     }
 
+    observeFinalMessages() {
+        return this.stream$.pipe(
+            filter(message => message.final)
+        );
+    }
+
     handle(userId: string, subtitleId: number, type: "interim" | "final", text: string) {
         this.stream$.next({
             userId: userId,
             subtitleId: subtitleId,
-            text: text
+            text: text,
+            final: type == "final"
         })
 
         const regex = /(?:[\.\?]|^)(?:.{0,10})(?:mippy|mipi|mippie)[,!](.*)/i

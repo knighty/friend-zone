@@ -1,5 +1,5 @@
 import { green } from "kolorist";
-import { filter, Observable, share, shareReplay } from "rxjs";
+import { filter, map, Observable, scan, share, shareReplay, startWith } from "rxjs";
 import { logger } from "shared/logger";
 import filterMap from "shared/rx/operators/filter-map";
 import { switchMapComplete } from "shared/rx/operators/switch-map-complete";
@@ -15,8 +15,31 @@ type Message = {
 }
 
 type Command = {
+    user: string,
     type: string,
     arguments: any[]
+}
+
+export class TwitchChatLog {
+    messages$: Observable<string[]>;
+
+    constructor(twitchChat: TwitchChat) {
+        this.messages$ = twitchChat.observeMessages().pipe(
+            filter(message => message.user.toLowerCase() != "mippybot"),
+            scan((state, message) => {
+                state.push(`${message.user}: ${message.text}`);
+                return state;
+            }, [] as string[]),
+            startWith([]),
+            shareReplay(1),
+        )
+    }
+
+    observeLastMessages(n: number) {
+        return this.messages$.pipe(
+            map(messages => messages.slice(-n))
+        )
+    }
 }
 
 export default class TwitchChat {
@@ -79,7 +102,8 @@ export default class TwitchChat {
                     const args = message.text.slice(1).split(' ');
                     const command = args[0];
                     return {
-                        type: command,
+                        user: message.user,
+                        type: command?.toLowerCase() ?? "",
                         arguments: args.slice(1),
                     }
                 }

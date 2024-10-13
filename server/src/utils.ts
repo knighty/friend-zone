@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import { FastifyRequest } from 'fastify';
 import fs from "fs";
 import path from 'path';
-import { firstValueFrom, map, Observable, share, shareReplay, tap, timestamp } from 'rxjs';
+import { catchError, EMPTY, firstValueFrom, map, Observable, share, shareReplay, tap, timestamp } from 'rxjs';
 import { log } from 'shared/logger';
 
 export function randomString(length: number, encode: BufferEncoding = "hex") {
@@ -89,3 +89,7 @@ export const manifest$ = new Observable<ManifestFile>((subscriber) => {
 export function getManifestPath(path: string) {
     return firstValueFrom(manifest$.pipe(map(manifest => manifest[path])));
 }
+export const catchAndLog = <T>() => catchError<T, Observable<never>>(e => {
+    log.error(e);
+    return EMPTY;
+});

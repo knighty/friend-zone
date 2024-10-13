@@ -1,5 +1,7 @@
-import { debounceTime, distinctUntilChanged, endWith, exhaustMap, filter, interval, map, Observable, scan, startWith, Subject, switchMap, takeUntil, takeWhile, tap } from "rxjs";
+import { combineLatest, distinctUntilChanged, interval, map, scan, share, startWith, withLatestFrom } from "rxjs";
 import { CustomElement } from "shared/html/custom-element";
+import { debounceState } from "shared/rx/operators/debounce-state";
+import { switchMapComplete } from "shared/rx/operators/switch-map-complete";
 
 export type SubtitleMessage = {
     id: number,
@@ -15,9 +17,38 @@ export class SubtitlesElement extends CustomElement<{
     Elements: {}
 }> {
     connect() {
-        const subtitles$ = this.registerHandler("subtitles");
+        const subtitles$ = this.registerHandler("subtitles").pipe(share());
 
-        subtitles$.pipe(
+        const text$ = subtitles$.pipe(
+            distinctUntilChanged((a, b) => a.id == b.id),
+            switchMapComplete(subtitle => {
+                const text$ = subtitles$.pipe(
+                    map(subtitle => subtitle.text),
+                    startWith(subtitle.text)
+                );
+                const pos$ = interval(30).pipe(
+                    withLatestFrom(text$),
+                    scan((state, [i, text]) => {
+                        return Math.min(text.length, state + 1);
+                    }, 0),
+                    distinctUntilChanged()
+                );
+                return combineLatest([text$, pos$]).pipe(
+                    map(([text, pos]) => text.substring(0, pos)),
+                )
+            })
+        )
+
+        text$.subscribe(text => {
+            this.textContent = text;
+            this.scrollTo(0, this.scrollHeight);
+        });
+
+        text$.pipe(
+            debounceState(true, false, 3000),
+        ).subscribe(show => this.classList.toggle("show", show));
+
+        /*subtitles$.pipe(
             filter(e => e.text != ""),
             scan((state, subtitle) => {
                 if (state.id == subtitle.id) {
@@ -55,6 +86,6 @@ export class SubtitlesElement extends CustomElement<{
             debounceTime(3000),
             tap(message => this.classList.remove("show")),
             takeUntil(this.disconnected$),
-        ).subscribe();
+        ).subscribe();*/
     }
 }

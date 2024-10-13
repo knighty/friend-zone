@@ -3,19 +3,6 @@ import { switchMapComplete } from "shared/rx/operators/switch-map-complete";
 import { connectBrowserSocket } from "shared/websocket/browser";
 import { ObservableEventProvider } from "shared/websocket/event-provider";
 
-type MouthShape = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "X";
-
-type Phoneme = {
-    shape: MouthShape,
-    time: number
-}
-
-type SynthesisResult = {
-    filename: string,
-    duration: number,
-    phonemes: Phoneme[],
-}
-
 export type SocketEvents = {
     woth: {
         counts: Record<string, number>,

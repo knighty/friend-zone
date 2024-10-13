@@ -1,59 +1,18 @@
 import fs from "fs/promises";
 import { green } from "kolorist";
-import { Subject } from "rxjs";
 import { logger } from "shared/logger";
 import { executionTimer } from "shared/utils";
+import { MippyHistory } from "./history";
+import { MippyHistoryMessage } from "./message";
 
 const log = logger("mippy-history");
-
-export type MippyHistoryMessageUser = {
-    role: "user",
-    date: number,
-    content: string,
-    name?: string
-}
-
-export type MippyHistoryMessageAssistant = {
-    content: string,
-    date: number
-    role: "assistant",
-}
-
-export type MippyHistoryMessage = MippyHistoryMessageUser | MippyHistoryMessageAssistant
 
 type HistorySchema = {
     summaries: MippyHistoryMessage[],
     messages: MippyHistoryMessage[],
 }
 
-export class MippyHistory {
-    updated$ = new Subject<MippyHistory>();
-    maxMessages = 100;
-    summaries: MippyHistoryMessage[] = [];
-    messages: MippyHistoryMessage[] = [];
-
-    create<Role extends "user" | "assistant">(role: Role, content: string, name?: string): MippyHistoryMessage {
-        if (role == "user") {
-            return { role, content, date: Date.now(), name }
-        } else {
-            return { role, content, date: Date.now() }
-        }
-    }
-
-    async addMessage(message: MippyHistoryMessage, summarise: (messages: MippyHistoryMessage[]) => Promise<string>) {
-        this.messages.push(message);
-        if (this.messages.length > this.maxMessages) {
-            const summaryCount = Math.floor(this.maxMessages / 2);
-            const summariseMessages = this.messages.slice(0, summaryCount);
-            const summaryMessage = this.create("assistant", await summarise(summariseMessages));
-            this.summaries.push(summaryMessage);
-            this.messages = this.messages.slice(summaryCount);
-        }
-        this.updated$.next(this);
-    }
-}
-
-export class MippyMessageRepository {
+export class MippyHistoryRepository {
     filePath: string;
 
     constructor(filePath: string) {

@@ -29,12 +29,16 @@ export type MippyChatGPTConfig = {
         setCategory: string,
         newFollower: string,
         newSubscriber: string,
+        cheer: string,
+        resubscribe: string,
         adBreak: string,
         setEmojiOnly: string,
         askMippy: string,
         pollEnd: string,
         predictionEnd: string,
-        highlightedMessage: string
+        highlightedMessage: string,
+        subtitlesAnalysis: string,
+        suggestWordOfTheHour: string,
     }>
 }
 
@@ -61,7 +65,8 @@ export type TwitchConfig = {
     clientId: string,
     secret: string,
     redirectUrl: string,
-    broadcasterId: string
+    broadcasterId: string,
+    botId: string
 }
 
 export type MippyConfig = MippyDisabledConfig | MippyChatGPTConfig | MippyDumbConfig;
@@ -116,7 +121,7 @@ export function isMippyDumb(config: MippyConfig): config is MippyDumbConfig {
 }
 
 export function isTwitchConfig(config: Partial<TwitchConfig>): config is TwitchConfig {
-    return checkProps(config, ["streamEvents", "channel", "clientId", "secret", "redirectUrl", "broadcasterId"]);
+    return checkProps(config, ["streamEvents", "channel", "clientId", "secret", "redirectUrl", "broadcasterId", "botId"]);
 }
 
 export function isDiscordConfig(config: Partial<DiscordConfig>): config is DiscordConfig {

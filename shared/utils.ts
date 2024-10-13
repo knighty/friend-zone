@@ -481,17 +481,6 @@ export function objectMapArray<T extends Record<string, any>, V>(obj: T, project
     return a as V[];
 }
 
-export function truncateString(input: string, length: number) {
-    if (length >= input.length)
-        return input;
-    return input.substring(0, length);
-    let i = input.indexOf(" ", length);
-    if (i == -1) {
-        i = length;
-    }
-    return input.substring(0, i);
-}
-
 export function executionTimer(options?: Partial<{
     format: "seconds" | "milliseconds" | "minutes"
 }>) {
@@ -511,9 +500,4 @@ export function executionTimer(options?: Partial<{
             }
         }
     }
-}
-
-export function lastIndexOfRegex(str: string, regex: RegExp) {
-    var match = str.match(regex);
-    return match ? (str.lastIndexOf(match[match.length - 1]) + match[match.length - 1].length) : -1;
 }

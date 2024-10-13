@@ -7,30 +7,34 @@ import websocket from "@fastify/websocket";
 import 'dotenv/config';
 import Fastify from "fastify";
 import { green } from 'kolorist';
+import OpenAI from 'openai';
 import path from "path";
 import process from "process";
 import qs from "qs";
-import { filter, Observable } from 'rxjs';
+import { Observable } from 'rxjs';
 import { logger } from 'shared/logger';
 import { objectMapArray } from 'shared/utils';
 import config, { isDiscordConfig, isMippyChatGPT, isMippyDumb, isTwitchConfig } from "./config";
 import DiscordVoiceState from './data/discord-voice-state';
 import ExternalFeeds from './data/external-feeds';
 import mockUsers from './data/mock-users';
-import { StreamEventWatcher } from './data/stream-event-watcher';
 import Subtitles from './data/subtitles';
-import TwitchChat from './data/twitch-chat';
+import { SubtitlesLog } from './data/subtitles/logs';
+import TwitchChat, { TwitchChatLog } from './data/twitch-chat';
 import { UserAuthTokenSource } from './data/twitch/auth-tokens';
 import Users from './data/users';
 import Webcam from './data/webcam';
 import WordOfTheHour from './data/word-of-the-hour';
 import { MissingError } from './errors';
 import { ChatGPTMippyBrain } from './mippy/chat-gpt-brain';
+import { ChatGPTTools } from './mippy/chatgpt/tools';
 import { DumbMippyBrain } from './mippy/dumb-brain';
+import { MippyHistoryRepository } from './mippy/history/repository';
 import { Mippy } from './mippy/mippy';
 import { MippyBrain } from './mippy/mippy-brain';
-import { MippyMessageRepository } from './mippy/storage';
-import { initMippyTwitchIntegration } from './mippy/twitch-integration';
+import { createPollPlugin, createPredictionPlugin, highlightedMessagesPlugin, relayMessagesToTwitchPlugin, streamEventsPlugin } from './mippy/plugins/plugins';
+import { analyzeSubtitlesPlugin } from './mippy/plugins/plugins/analyze-subtitles';
+import { wothSuggesterPlugin } from './mippy/plugins/plugins/woth-suggester';
 import { AudioRepository } from './plugins/audio-socket';
 import { configSocket } from './plugins/config-socket';
 import { errorHandler } from './plugins/errors';
@@ -96,11 +100,14 @@ serverLog.info("Creating dependencies");
 const users = new Users();
 function getBrain(): MippyBrain {
     if (isMippyChatGPT(config.mippy)) {
-        const mippyHistoryRepository = new MippyMessageRepository(path.join(__dirname, "../../data/history.json"));
+        const mippyHistoryRepository = new MippyHistoryRepository(path.join(__dirname, "../../data/history.json"));
         if (!config.openai.key) {
             throw new Error("No OpenAI key provided");
         }
-        return new ChatGPTMippyBrain(config.openai.key, config.mippy, users, mippyHistoryRepository);
+        const client = new OpenAI({
+            apiKey: config.openai.key,
+        });
+        return new ChatGPTMippyBrain(client, config.mippy, users, mippyHistoryRepository, new ChatGPTTools(config.mippy));
     }
     if (isMippyDumb(config.mippy)) {
         return new DumbMippyBrain();
@@ -108,9 +115,10 @@ function getBrain(): MippyBrain {
     throw new Error("No valid brain for Mippy");
 }
 let brain = getBrain();
-const streamingTTS = new AudioRepository();
-const mippy = new Mippy(brain, config.mippy, streamingTTS);
+const audioRepository = new AudioRepository();
+const mippy = new Mippy(brain, config.mippy, audioRepository, {});
 const subtitles = new Subtitles(mippy);
+const subtitlesLog = new SubtitlesLog(subtitles);
 const wordOfTheHour = new WordOfTheHour(mippy);
 wordOfTheHour.hookSubtitles(subtitles.stream$);
 const discordVoiceState = new DiscordVoiceState();
@@ -128,40 +136,30 @@ if (isDiscordConfig(config.discord)) {
     }
 }
 
-if (isTwitchConfig(config.twitch)) {
-    const twitchChat = new TwitchChat(config.twitch.channel);
-
-    twitchChat.observeMessages().pipe(
-        filter(message => message.highlighted)
-    ).subscribe(message => {
-        const prompt = { source: "chat", store: false, name: message.user } as const;
-        if (isMippyChatGPT(config.mippy)) {
-            const regex = config.mippy.filter;
-            if (message.text.match(regex)) {
-                mippy.ask("highlightedMessage", { message: "(the message was filtered, tell the user to be careful with their word usage)", user: message.user }, prompt)
-            }
-        }
-        mippy.ask("highlightedMessage", { message: message.text.substring(0, 1000), user: message.user }, prompt)
-    });
-
-    wordOfTheHour.watchTwitchChat(twitchChat);
+if (isMippyChatGPT(config.mippy)) {
+    mippy.permissions = config.mippy.permissions;
 }
 
-if (isMippyChatGPT(config.mippy)) {
+if (isTwitchConfig(config.twitch)) {
+    const twitch = config.twitch;
     const authToken = new UserAuthTokenSource(path.join(__dirname, "../../twitch.json"));
+    const botToken = new UserAuthTokenSource(path.join(__dirname, "../../bot-token.json"));
 
-    if (config.twitch.streamEvents) {
-        const eventWatcher = new StreamEventWatcher();
-        if (config.twitch.broadcasterId) {
-            eventWatcher.watch(authToken, config.twitch.broadcasterId, mippy);
-        }
-    }
+    const twitchChat = new TwitchChat(twitch.channel);
 
-    if (mippy.brain instanceof ChatGPTMippyBrain) {
-        if (isTwitchConfig(config.twitch)) {
-            initMippyTwitchIntegration(mippy, mippy.brain, authToken, config.twitch, config.mippy.permissions);
-        }
+    wordOfTheHour.watchTwitchChat(twitchChat);
+
+    if (twitch.streamEvents) {
+        mippy.initPlugins(streamEventsPlugin(authToken, twitch.broadcasterId))
     }
+    mippy.initPlugins(
+        highlightedMessagesPlugin(twitchChat, new TwitchChatLog(twitchChat), isMippyChatGPT(config.mippy) ? config.mippy.filter : null),
+        createPollPlugin(authToken, twitch.broadcasterId),
+        createPredictionPlugin(authToken, twitch.broadcasterId),
+        relayMessagesToTwitchPlugin(twitch.broadcasterId, twitch.botId, botToken),
+        analyzeSubtitlesPlugin(subtitlesLog),
+        wothSuggesterPlugin(subtitlesLog, wordOfTheHour)
+    );
 }
 
 /*
@@ -178,7 +176,30 @@ if (config.accessLogging) {
 serverLog.info("Adding routes");
 
 // Twitch
-fastifyApp.register(twitchRouter(), { prefix: "/twitch" });
+fastifyApp.register(twitchRouter({
+    main: {
+        scopes: [
+            "moderator:read:followers",
+            "channel:read:redemptions",
+            "channel:read:subscriptions",
+            "channel:read:ads",
+            "user:read:chat",
+            "channel:read:redemptions",
+            "channel:manage:polls",
+            "channel:manage:redemptions",
+            "channel:manage:predictions",
+            "bits:read",
+        ],
+        filePath: path.join(__dirname, "../../twitch.json")
+    },
+    bot: {
+        scopes: [
+            "user:read:chat",
+            "user:write:chat",
+        ],
+        filePath: path.join(__dirname, "../../bot-token.json")
+    },
+}), { prefix: "/twitch" });
 
 // Stream Modules
 fastifyApp.register(initStreamModulesRouter(config), { prefix: "/stream-modules" });
@@ -219,6 +240,11 @@ fastifyApp.get("/dashboard", async (req, res) => {
     })
 });
 
+fastifyApp.get("/sub-analysis", async (req, res) => {
+    const analysis = await subtitlesLog.analyzeLogs();
+    return JSON.stringify(analysis);
+});
+
 //------------------------------------------------------
 // Static Routing
 //------------------------------------------------------
@@ -236,7 +262,7 @@ fastifyApp.register(fastifyStatic, {
 fastifyApp.register(fastifyRobots);
 
 // TTS audio files
-fastifyApp.register(initTtsRouter(streamingTTS), { prefix: "/tts" });
+fastifyApp.register(initTtsRouter(audioRepository), { prefix: "/tts" });
 
 // Fav Icon
 fastifyApp.register(fastifyFavicon, { root: path.join(publicDir, '/dist') });

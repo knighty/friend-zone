@@ -1,5 +1,8 @@
 import { ChatCompletionTool } from "openai/resources/index.mjs";
 import { FunctionParameters } from "openai/resources/shared.mjs";
+import { Observable, map } from "rxjs";
+import { ObservableMap } from "shared/rx/observables/map";
+import { MippyChatGPTConfig } from "../../config";
 
 function toolFunction<Parameters extends FunctionParameters>(title: string, description: string, parameters: Parameters): ChatCompletionTool {
     return {
@@ -26,10 +29,14 @@ export type ToolArguments = {
     },
     changePersonality: {
         personality: string
+    },
+    analyzeSubtitles: {},
+    suggestWordOfTheHour: {
+        word: string
     }
 }
 
-export const toolsSchema: ChatCompletionTool[] = [
+const toolsSchema: ChatCompletionTool[] = [
     toolFunction("createPoll", "Creates a poll", {
         type: "object",
         additionalProperties: false,
@@ -84,5 +91,42 @@ export const toolsSchema: ChatCompletionTool[] = [
             }
         },
         required: ["personality"]
+    }),
+    toolFunction("analyzeSubtitles", "Analyze Subtitles", {
+        type: "object",
+        additionalProperties: false,
+        properties: {},
+        required: []
+    }),
+    toolFunction("suggestWordOfTheHour", "Suggest word of the hour", {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+            word: {
+                description: "The word to use",
+                type: "string"
+            }
+        },
+        required: ["word"]
     })
 ];
+
+export class ChatGPTTools {
+    tools = new ObservableMap<string, string>();
+
+    constructor(config: MippyChatGPTConfig) {
+        this.tools.setBatch(config.systemPrompt.tools);
+    }
+
+    getSchema(): Observable<ChatCompletionTool[]> {
+        return this.tools.entries$.pipe(
+            map(tools => toolsSchema.filter(tool => !!tools[tool.function.name])),
+        )
+    }
+
+    getSystemPrompt(): Observable<string> {
+        return this.tools.entries$.pipe(
+            map(tools => Object.keys(tools).map(key => `## ${key}\n${tools[key]}`).join("\n\n"))
+        )
+    }
+}

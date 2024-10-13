@@ -1,15 +1,18 @@
 import { green } from 'kolorist';
 import OpenAI from 'openai';
 import { ChatCompletionMessageToolCall, CompletionUsage } from 'openai/resources/index.mjs';
-import { BehaviorSubject, catchError, combineLatest, concatMap, debounceTime, defer, EMPTY, exhaustMap, filter, first, from, map, mergeMap, Observable, share, Subject, switchMap, throttleTime, withLatestFrom } from "rxjs";
+import { BehaviorSubject, catchError, concatMap, debounceTime, defer, EMPTY, exhaustMap, filter, first, from, map, mergeMap, Observable, share, Subject, switchMap, throttleTime, withLatestFrom } from "rxjs";
 import { logger } from "shared/logger";
-import { observeDay } from "shared/rx/observables/date";
+import filterMap from 'shared/rx/operators/filter-map';
+import { truncateString } from 'shared/text-utils';
 import { executionTimer } from 'shared/utils';
 import { isMippyChatGPT, MippyChatGPTConfig } from "../config";
 import Users from '../data/users';
+import { getSystem$, getSystemPrompt$ } from './chatgpt/system-prompt';
+import { ChatGPTTools, ToolArguments } from './chatgpt/tools';
+import { MippyHistory } from "./history/history";
+import { MippyHistoryRepository } from './history/repository';
 import { MippyBrain, MippyMessage, MippyPrompts, Prompt } from "./mippy-brain";
-import { MippyHistoryMessage, MippyMessageRepository } from './storage';
-import { toolsSchema } from './tools';
 
 const log = logger("mippy-chat-gpt-brain", true);
 
@@ -57,6 +60,10 @@ function appendDelta(value: OpenAI.Chat.Completions.ChatCompletionChunk, partial
     }
 }
 
+function canUseTools(prompt: Prompt) {
+    return prompt.allowTools && prompt.source == "admin"
+}
+
 const logError = <In>() => catchError<In, typeof EMPTY>(e => { log.error(e); return EMPTY; });
 
 type MippyResult = {
@@ -78,82 +85,42 @@ export class ChatGPTMippyBrain implements MippyBrain {
     users: Users;
     personality$ = new BehaviorSubject<string>("");
     tools$ = new BehaviorSubject<Record<string, string>>({});
-    messageRepository: MippyMessageRepository;
+    messageRepository: MippyHistoryRepository;
 
-    constructor(apiKey: string, config: MippyChatGPTConfig, users: Users, messageRepository: MippyMessageRepository) {
-        this.config = config;
-        this.users = users;
-        this.messageRepository = messageRepository;
-
-        this.tools$.next(config.systemPrompt.tools);
-
-        const client = new OpenAI({
-            apiKey: apiKey,
-        });
-
-        const userPrompt$ = this.users.users.values$.pipe(
-            map(entries => entries.reduce((a, c) => a + "\n" + c.prompt, ""))
-        );
-        const personality$ = this.personality$.pipe(
-            map(personality => personality == null ? config.systemPrompt.personality : personality)
-        )
-        const toolPrompt$ = this.tools$.pipe(
-            map(tools => Object.keys(tools).map(key => `## ${key}\n${tools[key]}`).join("\n\n"))
-        )
-        const systemPrompt$ = combineLatest([userPrompt$, personality$, toolPrompt$, observeDay()]).pipe(
-            map(([users, personality, tools, date]) => {
-                let result = config.systemPrompt.prompt.replaceAll("[personality]", personality);
-                result = result.replaceAll("[users]", users);
-                result = result.replaceAll("[tools]", tools);
-                result = result.replaceAll("[date]", date.toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }));
-                return result;
-            })
-        )
-        const toolsSchema$ = this.tools$.pipe(
-            map(tools => toolsSchema.filter(tool => !!tools[tool.function.name])),
-        )
-
-        const system$ = combineLatest([systemPrompt$, toolsSchema$]).pipe(
-            map(([systemPrompt, toolsSchema]) => ({
-                message: chatgptMessage("system", systemPrompt),
-                toolsSchema: toolsSchema
-            }))
-        )
-
-        const history$ = from(messageRepository.getHistory()).pipe(
-            share()
-        )
-
+    private hookHistoryPersistence(history$: Observable<MippyHistory>) {
         history$.pipe(
             switchMap(history => history.updated$),
             debounceTime(5000),
             throttleTime(60000, undefined, { leading: true, trailing: true }),
             exhaustMap(history => this.messageRepository.persistHistory(history))
         ).subscribe()
+    }
+
+    constructor(client: OpenAI, config: MippyChatGPTConfig, users: Users, messageRepository: MippyHistoryRepository, tools: ChatGPTTools) {
+        this.config = config;
+        this.users = users;
+        this.messageRepository = messageRepository;
+
+        const systemPrompt$ = getSystemPrompt$(config, users, tools);
+        const system$ = getSystem$(config, tools, systemPrompt$);
+
+        const history$ = from(messageRepository.getHistory()).pipe(share())
+        const summarizer$ = history$.pipe(
+            map(history => history.createHistorySummarizer(client))
+        );
+
+        this.hookHistoryPersistence(history$);
 
         this.messages$ = this.prompt$.pipe(
-            withLatestFrom(system$, history$),
-            concatMap(([prompt, system, history]) => {
+            withLatestFrom(system$, history$, summarizer$),
+            concatMap(([prompt, system, history, summarizer]) => {
+                const chatGptTimer = executionTimer();
                 const store = prompt.store === undefined ? true : prompt.store;
                 const userMessage = history.create("user", prompt.text, prompt.name);
-                const allowTools = prompt.allowTools && prompt.source == "admin";
+                const allowTools = canUseTools(prompt);
 
                 log.info(`Prompt: ${green(prompt.text)}`);
                 log.info(`History: ${green(history.messages.length)} messages. Tools: ${allowTools ? system.toolsSchema.map(tool => green(tool.function.name)).join(", ") : green("not allowed")}`);
-
-                const chatGptTimer = executionTimer();
-                const summarise = async (messages: MippyHistoryMessage[]) => {
-                    const params: OpenAI.Chat.ChatCompletionCreateParams = {
-                        messages: [
-                            system.message,
-                            ...messages,
-                            history.create("user", "Summarise the important parts of the chat up until now in a few paragraphs"),
-                        ],
-                        model: "gpt-4o-mini",
-                    };
-                    const m = await client.chat.completions.create(params);
-                    return m.choices[0].message.content ?? "";
-                }
 
                 const response$ = defer(() => from(client.chat.completions.create({
                     messages: [
@@ -174,7 +141,7 @@ export class ChatGPTMippyBrain implements MippyBrain {
                     share()
                 ));
 
-                const temp$ = store ? from(history.addMessage(userMessage, summarise)).pipe(switchMap(() => response$)) : response$;
+                const temp$ = store ? from(history.addMessage(userMessage, summarizer)).pipe(switchMap(() => response$)) : response$;
 
                 return new Observable<MippyResult>(subscriber => {
                     const partial: MippyPartialResult = {
@@ -198,7 +165,7 @@ export class ChatGPTMippyBrain implements MippyBrain {
                             partial$.next(partial);
                         },
                         complete: () => {
-                            log.info(`Response (${green(chatGptTimer.end())} - ${green(partial.usage?.total_tokens.toString() ?? "")} tokens): ${green(partial.text)}`);
+                            log.info(`Response (${green(chatGptTimer.end())} - ${green(partial.usage?.total_tokens.toString() ?? "")} tokens): ${green(truncateString(partial.text, 200, true, true))}`);
                             complete$.next({
                                 text: partial.text,
                                 tool: partial.tool_calls,
@@ -211,7 +178,8 @@ export class ChatGPTMippyBrain implements MippyBrain {
 
                     return complete$.pipe(
                         switchMap(async message => {
-                            await history.addMessage(history.create("assistant", message.text ?? ""), summarise);
+                            if (store)
+                                await history.addMessage(history.create("assistant", message.text ?? ""), summarizer);
                             return message;
                         })
                     ).subscribe({
@@ -275,8 +243,22 @@ export class ChatGPTMippyBrain implements MippyBrain {
                     }
                 }
                 return from(tools);
-            })
+            }),
+            share()
         )
+    }
+
+    observeTool<T extends keyof ToolArguments>(toolName: T, permission: string = "admin"): Observable<ToolArguments[T]> {
+        const toolCall$ = this.receiveToolCalls();
+        const checkPermission = (source?: string) => {
+            if (permission == "admin") {
+                return source == permission;
+            }
+            return true;
+        }
+        return toolCall$.pipe(
+            filterMap(tool => tool.function.name == toolName && checkPermission(tool.prompt.source), tool => tool.function.arguments)
+        );
     }
 
     ask<Event extends keyof MippyPrompts, Data extends MippyPrompts[Event]>(event: Event, data: Data, prompt: Omit<Prompt, "text">) {

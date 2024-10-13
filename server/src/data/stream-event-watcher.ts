@@ -1,121 +1,8 @@
 import { distinctUntilChanged, map } from "rxjs";
 import { Mippy } from "../mippy/mippy";
 import { UserAuthTokenSource } from "./twitch/auth-tokens";
+import { Events } from "./twitch/event-sub/events";
 import { twitchSocket } from "./twitch/socket";
-
-type Broadcaster = {
-    requester_user_id: number,
-    requester_user_login: string,
-    requester_user_name: string,
-}
-
-type Requester = {
-    requester_user_id: number,
-    requester_user_login: string,
-    requester_user_name: string,
-}
-
-type BroadcasterCondition = {
-    broadcaster_user_id: string,
-}
-
-type Event<Event, Condition = BroadcasterCondition> = {
-    event: Event,
-    condition: Condition,
-}
-
-type User = {
-    user_name: string,
-    user_login: string,
-    user_id: string,
-}
-
-type PollChoice = {
-    id: string,
-    title: string,
-    bits_votes: number,
-    channel_points_votes: number,
-    votes: number
-}
-
-type Events = {
-    "channel.update": Event<{
-        title: string,
-        category_name: string
-    }>,
-
-    "channel.follow": Event<{
-        user_name: string,
-    }, BroadcasterCondition & {
-        moderator_user_id: string
-    }>,
-
-    "channel.subscribe": Event<{
-        user_name: string,
-    }>,
-
-    "channel.ad_break.begin": Event<{
-        duration_seconds: number,
-        started_at: string,
-        is_automatic: boolean,
-    } & Broadcaster & Requester>,
-
-    "channel.chat_settings.update": Event<{
-        emote_mode: boolean,
-        follower_mode: boolean,
-        follower_mode_duration_minutes: null,
-        slow_mode: boolean,
-        slow_mode_wait_time_seconds: number,
-        subscriber_mode: boolean,
-        unique_chat_mode: boolean
-    } & Broadcaster, BroadcasterCondition & {
-        user_id: string
-    }>,
-
-    "channel.channel_points_custom_reward_redemption.add": Event<{
-        id: string,
-        status: "unknown" | "unfulfilled" | "fulfilled" | "canceled",
-        user_input: string,
-        redeemed_at: string
-    } & Broadcaster & User>,
-
-    "channel.poll.end": Event<{
-        id: string,
-        title: string,
-        choices: PollChoice[],
-        bits_voting: {
-            is_enabled: boolean,
-            amount_per_vote: number
-        },
-        channel_points_voting: {
-            is_enabled: boolean,
-            amount_per_vote: number
-        },
-        status: "completed" | "archived" | "terminated",
-        started_at: string,
-        ended_at: string
-    } & Broadcaster>,
-
-    "channel.prediction.end": Event<Broadcaster & {
-        id: string,
-        title: string,
-        winning_outcome_id: string,
-        outcomes: {
-            id: string,
-            title: string,
-            color: "blue" | "pink",
-            users: number,
-            channel_points: number,
-            top_predictors: ({
-                channel_points_won: number,
-                channel_points_used: number
-            } & User)[]
-        }[],
-        status: "resolved" | "canceled",
-        started_at: string,
-        ended_at: string
-    }>
-};
 
 export class StreamEventWatcher {
     constructor() {
@@ -143,14 +30,26 @@ export class StreamEventWatcher {
             broadcaster_user_id: broadcasterId,
             moderator_user_id: broadcasterId
         }, "2").subscribe(e => {
-            mippy.ask("newFollower", { user: e.user_name }, { allowTools: false });
+            mippy.ask("newFollower", { user: e.user_name }, { name: e.user_name, allowTools: false });
         });
 
         onEvent("channel.subscribe", {
             broadcaster_user_id: broadcasterId,
         }).subscribe(e => {
-            mippy.ask("newSubscriber", { user: e.user_name }, { allowTools: false });
+            mippy.ask("newSubscriber", { user: e.user_name }, { name: e.user_name, allowTools: false });
         });
+
+        onEvent("channel.subscription.message", {
+            broadcaster_user_id: broadcasterId,
+        }).subscribe(e => {
+            mippy.ask("resubscribe", { user: e.user_name, months: e.duration_months.toString(), message: e.message.text }, { name: e.user_name, allowTools: false });
+        });
+
+        /*onEvent("channel.cheer", {
+            broadcaster_user_id: broadcasterId,
+        }).subscribe(e => {
+            mippy.ask("cheer", { user: e.user_name, bits: e.bits.toString(), message: e.message }, { name: e.user_name, allowTools: false });
+        });*/
 
         /*onEvent("channel.ad_break.begin", {
             broadcaster_user_id: broadcasterId,

@@ -1,4 +1,4 @@
-import { concatMap, EMPTY, first, ignoreElements, map, merge, Observable, of, reduce, share, Subject, tap } from "rxjs";
+import { concatMap, EMPTY, first, ignoreElements, map, merge, Observable, of, reduce, share, Subject, tap, timeout } from "rxjs";
 import { logger } from 'shared/logger';
 import { ObservableMap } from "shared/rx/observables/map";
 import { MippyConfig } from "../config";
@@ -6,6 +6,7 @@ import { StreamSynthesisResult, streamSynthesizeVoice } from "../data/tts/synthe
 import { AudioRepository, AudioStream } from "../plugins/audio-socket";
 import { MippyPartialResult } from "./chat-gpt-brain";
 import { MippyBrain, MippyPrompts, Prompt } from "./mippy-brain";
+import { MippyPlugin } from "./plugins/plugins";
 
 const log = logger("mippy");
 
@@ -61,21 +62,33 @@ function accumulatePartialMessage() {
     }), { text: "", id: "", duration: 0 })
 }
 
+function synthesizeVoice(audioRepository: AudioRepository, inputStream: Observable<string>) {
+    const stream = audioRepository.create();
+    return streamSynthesizeVoice(inputStream).pipe(
+        accumulateAudioStream(stream),
+        mapAudioStream(stream),
+        share()
+    )
+}
+
 function concatMessages(tts: AudioRepository, history: ObservableMap<string, MippyStreamEventHistoryMessage>) {
     return concatMap(
         (partial: Observable<MippyPartialResult>) => {
-            const stream = tts.create();
-            const event$ = streamSynthesizeVoice(partial.pipe(map(p => p.text))).pipe(
-                accumulateAudioStream(stream),
-                mapAudioStream(stream),
-                share()
-            )
+            const event$ = synthesizeVoice(tts, partial.pipe(map(p => p.text)));
             const completeMessage$ = event$.pipe(
                 accumulatePartialMessage(),
                 tap(event => history.set(event.id, event)),
                 ignoreElements()
             );
-            return merge(event$, completeMessage$);
+            return merge(event$, completeMessage$).pipe(
+                timeout({
+                    each: 60000,
+                    with: () => {
+                        log.error("Timeout generating audio");
+                        return EMPTY;
+                    }
+                })
+            );
         }
     )
 }
@@ -89,8 +102,9 @@ export class Mippy {
     messageHistory$ = new ObservableMap<string, MippyStreamEventHistoryMessage>()
     manualMessage$ = new Subject<{ text: string }>();
     audioId = 0;
+    permissions: Record<string, boolean>;
 
-    constructor(brain: MippyBrain, config: MippyConfig, tts: AudioRepository) {
+    constructor(brain: MippyBrain, config: MippyConfig, audioRepository: AudioRepository, permissions: Record<string, boolean>) {
         this.brain = brain;
         log.info("Created Mippy");
         this.brain.receive().subscribe();
@@ -103,10 +117,11 @@ export class Mippy {
         )
         const message$ = merge(brainMessage$, manualMessage$);
         this.streamEvent$ = message$.pipe(
-            concatMessages(tts, this.messageHistory$),
+            concatMessages(audioRepository, this.messageHistory$),
             share()
         );
         this.enabled = config.enabled;
+        this.permissions = permissions;
     }
 
     say(text: string) {
@@ -131,5 +146,12 @@ export class Mippy {
             ),
             this.messageHistory$.keyCreated$
         )
+    }
+
+    async initPlugins(...plugins: MippyPlugin[]) {
+        for (let plugin of plugins) {
+            log.info(`Initialising plugin: ${plugin.name}...`);
+            const p = await plugin.init(this);
+        }
     }
 }

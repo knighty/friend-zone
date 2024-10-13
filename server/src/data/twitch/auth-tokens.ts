@@ -14,7 +14,8 @@ type RefreshTokenResponse = {
     access_token: string,
     refresh_token: string,
     scope: string[],
-    token_type: string
+    token_type: string,
+    expires_in: number
 }
 
 export async function requestAppAccessToken(): Promise<AppAccessTokenResponse> {
@@ -90,21 +91,40 @@ export class UserAuthTokenSource implements AuthTokenSource {
     file: string;
     lastRefresh: number | null = null;
     refreshPromise: Promise<void> | null = null;
+    getPromise: Promise<string> | null = null;
+    expiresAt: number;
 
-    constructor(file: string, token: string = "", refreshToken: string = "") {
+    constructor(file: string, token: string = "", refreshToken: string = "", expiresIn: number = 0) {
         this.file = file;
         this.token = token;
         this.refreshToken = refreshToken;
+        this.expiresAt = Date.now() + expiresIn * 1000
     }
 
     async get() {
-        if (this.token == "") {
-            const data = JSON.parse((await fs.readFile(this.file)).toString());
-            this.token = data.accessToken;
-            this.refreshToken = data.refreshToken;
-            this.id = data.id;
+        if (this.getPromise != null) {
+            return await this.getPromise;
         }
-        return Promise.resolve(this.token);
+
+        if (this.token == "") {
+            this.getPromise = new Promise(async (resolve, reject) => {
+                try {
+                    const data = JSON.parse((await fs.readFile(this.file)).toString());
+                    this.token = data.accessToken;
+                    this.refreshToken = data.refreshToken;
+                    this.expiresAt = data.expiresAt ?? 0;
+                    this.id = data.id;
+                    if (this.expiresAt < Date.now() - 60000) {
+                        await this.refresh();
+                    }
+                } finally {
+                    this.getPromise = null;
+                }
+                resolve(this.token);
+            })
+            return await this.getPromise;
+        }
+        return this.token;
     }
 
     async refresh(): Promise<string> {
@@ -114,15 +134,18 @@ export class UserAuthTokenSource implements AuthTokenSource {
                 const data = JSON.parse((await fs.readFile(this.file)).toString());
                 data.accessToken = tokenResponse.access_token;
                 data.refreshToken = tokenResponse.refresh_token;
+                data.expiresAt = Date.now() + tokenResponse.expires_in * 1000;
                 await fs.writeFile(this.file, JSON.stringify(data));
                 this.token = tokenResponse.access_token;
                 this.refreshToken = tokenResponse.refresh_token;
+                this.expiresAt = data.expiresAt;
                 log.info(`Got a new user access token ${this.token}`, "twitch");
                 this.refreshPromise = null;
+                resolve();
             });
         }
         await this.refreshPromise;
-        return Promise.resolve(this.token);
+        return this.token;
     }
 }
 

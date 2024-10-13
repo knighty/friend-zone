@@ -31,10 +31,14 @@ export type MippyPrompts = {
     setCategory: { category: string },
     newFollower: { user: string },
     newSubscriber: { user: string },
+    cheer: { user: string, bits: string, message: string },
+    resubscribe: { user: string, months: string, message: string },
     adBreak: { duration: number },
     setEmojiOnly: { emojiOnly: boolean },
     askMippy: { user: string, question: string },
     pollEnd: { title: string, won: string, votes: number },
     predictionEnd: { title: string, data: string },
-    highlightedMessage: { user: string, message: string }
+    highlightedMessage: { user: string, message: string, logs: string },
+    subtitlesAnalysis: { mostSaidWords: string, userWordsSaid: string },
+    suggestWordOfTheHour: { mostSaidWords: string },
 }

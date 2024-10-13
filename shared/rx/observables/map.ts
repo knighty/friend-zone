@@ -91,10 +91,10 @@ export class ObservableMap<Key, Value> {
      * Batch set multiple items at once
      * @param items 
      */
-    setBatch(items: { key: Key, value: Value }[]) {
-        for (let item of items) {
-            this.data.set(item.key, item.value);
-            this.keyUpdated$.next(item.key);
+    setBatch(items: Key extends string | number | symbol ? Record<Key, Value> : never) {
+        for (let key in items) {
+            this.data.set(key as Key, items[key]);
+            this.keyUpdated$.next(key as Key);
         }
         this.set$.next();
     }

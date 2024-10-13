@@ -117,6 +117,7 @@ def main():
                 complete = False
                 working = False
                 audio_data = b''
+                last_new_text_time = time()
                 
             # Pull raw recorded audio from the queue.
             if not data_queue.empty():
@@ -147,7 +148,7 @@ def main():
                     text = text + "" if segment['no_speech_prob'] > args.min_probability else segment['text']
 
                 if text == last_text:
-                    if now > last_new_text_time - 2:
+                    if now > last_new_text_time - 3:
                         complete = True
                 else:
                     last_text = text

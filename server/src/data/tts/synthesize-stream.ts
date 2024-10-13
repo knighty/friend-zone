@@ -3,7 +3,8 @@ import child_process from "node:child_process";
 import { EMPTY, Observable } from "rxjs";
 import { logger } from "shared/logger";
 import { exhaustMapWithTrailing } from "shared/rx/operators/exhaust-map-with-trailing";
-import { executionTimer, lastIndexOfRegex } from "shared/utils";
+import { lastIndexOfRegex } from "shared/text-utils";
+import { executionTimer } from "shared/utils";
 import { ttsDirs } from "./tts";
 
 export type StreamSynthesisResult = {

@@ -80,11 +80,11 @@ export default class WordOfTheHour {
         );
     }
 
-    setWord(word: string | null) {
+    setWord(word: string | null, user?: string) {
         this.word$.next(word);
         log.info(`Set to "${word}"`);
         if (word != null)
-            this.mippy.ask("wothSetWord", { user: "", word }, { allowTools: false });
+            this.mippy.ask("wothSetWord", { user: user ?? "chat", word }, { allowTools: false });
     }
 
     incrementUserCount(user: string) {
