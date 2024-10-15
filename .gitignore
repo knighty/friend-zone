@@ -6,3 +6,5 @@ dist
 /server-config.js
 /tts
 /twitch.json
+/config
+/public/downloads

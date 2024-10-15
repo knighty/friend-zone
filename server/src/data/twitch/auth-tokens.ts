@@ -1,5 +1,6 @@
 import fs from "fs/promises";
 import https from "https";
+import { green } from "kolorist";
 import querystring from "querystring";
 import { log } from "shared/logger";
 import config from "../../config";
@@ -106,6 +107,10 @@ export class UserAuthTokenSource implements AuthTokenSource {
             return await this.getPromise;
         }
 
+        if (this.expiresAt < Date.now() - 60000) {
+            this.token = "";
+        }
+
         if (this.token == "") {
             this.getPromise = new Promise(async (resolve, reject) => {
                 try {
@@ -139,7 +144,7 @@ export class UserAuthTokenSource implements AuthTokenSource {
                 this.token = tokenResponse.access_token;
                 this.refreshToken = tokenResponse.refresh_token;
                 this.expiresAt = data.expiresAt;
-                log.info(`Got a new user access token ${this.token}`, "twitch");
+                log.info(`Got a new user access token ${green(this.token)}`, "twitch");
                 this.refreshPromise = null;
                 resolve();
             });

@@ -1,6 +1,6 @@
 import { finalize, fromEvent, interval, map, merge, Observable, share, Subject, Subscription, take, tap } from "rxjs";
 import { logger } from "../logger";
-import filterMap from "../rx/operators/filter-map";
+import { filterMap } from "../rx";
 import { switchMapComplete } from "../rx/operators/switch-map-complete";
 import { EventProvider } from "./event-provider";
 import { subscriptionHandler } from "./event-subscriptions";

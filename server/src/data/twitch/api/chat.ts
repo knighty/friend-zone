@@ -15,7 +15,7 @@ export async function sendChatMessage(authToken: AuthTokenSource, broadcasterId:
     const response = await twitchRequest<JSONResponse<ChatSendResponse>>({
         method: "POST",
         path: `/helix/chat/messages`,
-    }, authToken, true, {
+    }, authToken, {
         broadcaster_id: broadcasterId,
         sender_id: senderId,
         message: message

@@ -1,5 +1,4 @@
-import { randomInterval } from "shared/rx/observables/random-interval";
-import Subscriptions from "shared/rx/subscriptions";
+import { randomInterval, Subscriptions } from "shared/rx";
 import DiscordVoiceState from "./discord-voice-state";
 import ExternalFeeds from "./external-feeds";
 import { sentences } from "./sentences";

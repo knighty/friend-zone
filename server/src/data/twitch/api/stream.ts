@@ -23,11 +23,31 @@ export type StreamResponse = {
 export async function getStream(authToken: AuthTokenSource, userId: number): Promise<StreamResponse | undefined> {
     const response = await twitchRequest<JSONResponse<StreamResponse>>({
         method: "GET",
-        path: `/helix/streams?user_id=${userId}`,
-    }, authToken, true);
+        path: `/helix/streams`,
+        params: {
+            user_id: userId
+        }
+    }, authToken);
 
     if (response.data.length == 0)
         return undefined;
 
     return response.data[0];
+};
+
+export async function getCategoryStreamsInfo(authToken: AuthTokenSource, categoryId: string) {
+    const response = await twitchRequest<JSONResponse<StreamResponse>>({
+        method: "GET",
+        path: `/helix/streams`,
+        params: {
+            game_id: categoryId,
+            type: "live",
+            first: 100,
+        }
+    }, authToken);
+
+    return response.data.reduce((state, stream) => {
+        state.viewers += stream.viewer_count;
+        return state;
+    }, { viewers: 0 });
 };

@@ -11,7 +11,7 @@ import OpenAI from 'openai';
 import path from "path";
 import process from "process";
 import qs from "qs";
-import { Observable } from 'rxjs';
+import { Observable, Subject } from 'rxjs';
 import { logger } from 'shared/logger';
 import { objectMapArray } from 'shared/utils';
 import config, { isDiscordConfig, isMippyChatGPT, isMippyDumb, isTwitchConfig } from "./config";
@@ -32,9 +32,8 @@ import { DumbMippyBrain } from './mippy/dumb-brain';
 import { MippyHistoryRepository } from './mippy/history/repository';
 import { Mippy } from './mippy/mippy';
 import { MippyBrain } from './mippy/mippy-brain';
-import { createPollPlugin, createPredictionPlugin, highlightedMessagesPlugin, relayMessagesToTwitchPlugin, streamEventsPlugin } from './mippy/plugins/plugins';
-import { analyzeSubtitlesPlugin } from './mippy/plugins/plugins/analyze-subtitles';
-import { wothSuggesterPlugin } from './mippy/plugins/plugins/woth-suggester';
+import { analyzeSubtitlesPlugin, createPollPlugin, createPredictionPlugin, highlightedMessagesPlugin, MippyPermissions as MippyPermission, MippyPluginConfigDefinition, MippyPluginConfigDefinitionValues, MippyPluginManager, relayMessagesToTwitchPlugin, scheduleAnnouncerPlugin, streamEventsPlugin, wothSuggesterPlugin } from './mippy/plugins/plugins';
+import { downloadImage } from './mippy/plugins/plugins/analyze-stream';
 import { AudioRepository } from './plugins/audio-socket';
 import { configSocket } from './plugins/config-socket';
 import { errorHandler } from './plugins/errors';
@@ -47,6 +46,8 @@ import { initStreamModulesRouter } from './routes/stream-modules';
 import { initTtsRouter } from './routes/tts';
 import twitchRouter from './routes/twitch/auth';
 import { getManifestPath } from './utils';
+
+downloadImage("https://static-cdn.jtvnw.net/previews-ttv/live_user_ow_esports-320x180.jpg");
 
 //------------------------------------------------------
 // Constants
@@ -98,8 +99,10 @@ fastifyApp.setErrorHandler(errorHandler);
 //------------------------------------------------------
 serverLog.info("Creating dependencies");
 const users = new Users();
+let permissions: MippyPermission[] = [];
 function getBrain(): MippyBrain {
     if (isMippyChatGPT(config.mippy)) {
+        permissions = config.mippy.permissions;
         const mippyHistoryRepository = new MippyHistoryRepository(path.join(__dirname, "../../data/history.json"));
         if (!config.openai.key) {
             throw new Error("No OpenAI key provided");
@@ -116,7 +119,8 @@ function getBrain(): MippyBrain {
 }
 let brain = getBrain();
 const audioRepository = new AudioRepository();
-const mippy = new Mippy(brain, config.mippy, audioRepository, {});
+const mippy = new Mippy(brain, config.mippy, audioRepository, permissions);
+const plugins = new MippyPluginManager(config.mippy.plugins);
 const subtitles = new Subtitles(mippy);
 const subtitlesLog = new SubtitlesLog(subtitles);
 const wordOfTheHour = new WordOfTheHour(mippy);
@@ -124,10 +128,14 @@ wordOfTheHour.hookSubtitles(subtitles.stream$);
 const discordVoiceState = new DiscordVoiceState();
 const webcam = new Webcam();
 const feeds = new ExternalFeeds();
+const sayGoodbye = new Subject<void>();
+
+// Mocks
 if (config.mockUsers) {
     const mocks = mockUsers(config.mockUsers, users, feeds, discordVoiceState, subtitles);
 }
 
+// Discord
 if (isDiscordConfig(config.discord)) {
     if (config.discord.voiceStatus) {
         for (let channel of config.discord.channels) {
@@ -136,35 +144,34 @@ if (isDiscordConfig(config.discord)) {
     }
 }
 
-if (isMippyChatGPT(config.mippy)) {
-    mippy.permissions = config.mippy.permissions;
-}
+// Mippy Plugins
+plugins.addPlugin("analyzeSubtitles", options => analyzeSubtitlesPlugin(subtitlesLog, options));
+plugins.addPlugin("wothSuggester", options => wothSuggesterPlugin(subtitlesLog, wordOfTheHour, options));
 
 if (isTwitchConfig(config.twitch)) {
     const twitch = config.twitch;
-    const authToken = new UserAuthTokenSource(path.join(__dirname, "../../twitch.json"));
+    const userToken = new UserAuthTokenSource(path.join(__dirname, "../../twitch.json"));
     const botToken = new UserAuthTokenSource(path.join(__dirname, "../../bot-token.json"));
-
     const twitchChat = new TwitchChat(twitch.channel);
+    const twitchChatLog = new TwitchChatLog(twitchChat);
+    const broadcasterId = twitch.broadcasterId;
+    const botId = twitch.botId;
 
     wordOfTheHour.watchTwitchChat(twitchChat);
 
-    if (twitch.streamEvents) {
-        mippy.initPlugins(streamEventsPlugin(authToken, twitch.broadcasterId))
-    }
-    mippy.initPlugins(
-        highlightedMessagesPlugin(twitchChat, new TwitchChatLog(twitchChat), isMippyChatGPT(config.mippy) ? config.mippy.filter : null),
-        createPollPlugin(authToken, twitch.broadcasterId),
-        createPredictionPlugin(authToken, twitch.broadcasterId),
-        relayMessagesToTwitchPlugin(twitch.broadcasterId, twitch.botId, botToken),
-        analyzeSubtitlesPlugin(subtitlesLog),
-        wothSuggesterPlugin(subtitlesLog, wordOfTheHour)
-    );
+    plugins.addPlugin("createPoll", options => createPollPlugin(userToken, broadcasterId, options));
+    plugins.addPlugin("createPrediction", options => createPredictionPlugin(userToken, broadcasterId, options));
+    plugins.addPlugin("highlightedMessages", options => highlightedMessagesPlugin(twitchChat, twitchChatLog));
+    plugins.addPlugin("relayMessagesToTwitch", options => relayMessagesToTwitchPlugin(broadcasterId, botId, botToken));
+    plugins.addPlugin("scheduleAnnounce", options => scheduleAnnouncerPlugin(userToken, broadcasterId, sayGoodbye));
+    plugins.addPlugin("streamEvents", options => streamEventsPlugin(userToken, broadcasterId));
 }
 
-/*
-Logging
-*/
+plugins.initPlugins(mippy);
+
+//------------------------------------------------------
+// Logging
+//------------------------------------------------------
 if (config.accessLogging) {
     serverLog.info("Enabling access logging");
     fastifyLogger(fastifyApp, { memory: false });
@@ -229,11 +236,25 @@ fastifyApp.register(socket(dataSources));
 fastifyApp.register(remoteControlSocket(subtitles, feeds, users, mippy));
 
 // Config socket
-fastifyApp.register(configSocket(dataSources, feeds), { prefix: "/config" });
+fastifyApp.register(configSocket(dataSources, feeds, sayGoodbye, mippy), { prefix: "/config" });
 
 // Dashboard
 fastifyApp.get("/dashboard", async (req, res) => {
+    const mippyPluginConfig: Record<string, {
+        name: string,
+        config: MippyPluginConfigDefinition,
+        values: MippyPluginConfigDefinitionValues<any>
+    }> = {};
+    for (let pluginId in mippy.plugins) {
+        const plugin = mippy.plugins[pluginId];
+        mippyPluginConfig[pluginId] = {
+            name: plugin.name,
+            config: plugin.config.definition,
+            values: plugin.config.values
+        }
+    }
     return res.viewAsync("dashboard", {
+        mippyPluginConfig: JSON.stringify(mippyPluginConfig),
         socketUrl: `${config.socketHost}/config/websocket`,
         style: await getManifestPath("dashboard.css"),
         scripts: await getManifestPath("dashboard.js"),

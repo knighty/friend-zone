@@ -1,74 +1,106 @@
-import https from "https";
-import { green } from "kolorist";
 import { defer, retry } from "rxjs";
+import { httpsRequest } from "shared/network";
+import { Response } from "shared/network/request";
 import config from "../../../config";
 import { twitchLog } from "../api";
 import { AuthTokenSource } from "../auth-tokens";
 
-export class APICallError extends Error { }
+export class APICallError extends Error {
+    error: JSONErrorResponse;
+
+    constructor(error: JSONErrorResponse) {
+        super(error.message);
+        this.error = error;
+    }
+}
 
 export type JSONResponse<T> = {
     data: T[];
 };
 
-export async function request<T>(options: {
+type HTTPMethod = "GET" | "POST" | "PATCH" | "DELETE";
+
+type BaseOptions<Method extends HTTPMethod> = {
+    method: Method,
     path: string,
-    method?: string,
-}, authToken: AuthTokenSource, json: boolean = true, body?: any): Promise<T> {
-    twitchLog.info(`Request: ${green(options.path)}`);
+    json?: boolean,
+    params?: Record<string, any>
+}
 
-    if (options.method != "POST" && options.method != "PATCH" && body != undefined)
-        throw new Error("You can't supply a body with anything but a POST or PATCH request");
+type GetOptions = BaseOptions<"GET">;
+type PostOptions = BaseOptions<"POST">;
+type DeleteOptions = BaseOptions<"DELETE">;
+type PatchOptions = BaseOptions<"PATCH">;
 
-    const data = body === undefined ? null : JSON.stringify(body);
+type Options = GetOptions | PostOptions | DeleteOptions | PatchOptions;
+
+type JSONErrorResponse = {
+    error: string,
+    status: number,
+    message: string
+}
+
+function isJsonErrorResponse<T>(response: Response<T | JSONErrorResponse>): response is Required<Response<JSONErrorResponse>> {
+    return !!response.data && typeof response.data === 'object' && ("error" in response.data);
+}
+
+function isSuccessResponse<T>(response: Response<T | JSONErrorResponse>): response is Response<T> {
+    return response.data != null && typeof response.data === 'object' && !("error" in response.data);
+}
+
+function isSuccessCode(code: number) {
+    return code >= 200 && code < 300;
+}
+
+const apiHost = `https://api.twitch.tv:443`;
+
+export async function request<T>(options: GetOptions, authToken: AuthTokenSource): Promise<T>;
+export async function request<T>(options: PostOptions | PatchOptions | DeleteOptions, authToken: AuthTokenSource, body?: any): Promise<T>;
+export async function request<T>(options: Options, authToken: AuthTokenSource, body?: any): Promise<T> {
+    const method: HTTPMethod = options.method ?? 'GET';
+    const url = new URL(`${apiHost}${options.path}`);
+    const params = options.params ?? {};
+    const json = options.json ?? true;
+    for (let param in params) {
+        url.searchParams.append(param, params[param]);
+    }
+    const path = `${url.pathname}${url.search}`;
+    const data = body === undefined ? undefined : JSON.stringify(body);
+
     const requestOptions = {
-        host: 'api.twitch.tv',
-        port: 443,
-        path: options.path,
-        method: options.method ?? 'GET',
+        url, path, json,
+        logger: twitchLog,
         headers: {
             "Authorization": `Bearer ${await authToken.get()}`,
-            "Client-Id": config.twitch.clientId,
-            ...(data != null ? {
-                'Content-Type': 'application/json',
-                'Content-Length': Buffer.byteLength(data)
-            } : {})
+            "Client-Id": config.twitch.clientId
         }
     };
 
-    return new Promise((resolve, reject) => {
-        const fn = requestOptions.method == "GET" ? https.get : https.request;
-        const request = fn(requestOptions, function (res) {
-            res.setEncoding('utf8');
-            let data = "";
-            res.on('data', chunk => data += chunk);
-            res.on("end", () => {
-                if (res.statusCode != undefined && (res.statusCode >= 200 && res.statusCode < 300)) {
-                    if (json) {
-                        const json = JSON.parse(data);
-                        resolve(<T>json);
-                    } else {
-                        resolve(data as T);
-                    }
-                } else {
-                    const json = JSON.parse(data);
-                    reject(new APICallError(json.message));
-                }
-            });
-        });
-        if (data != null) {
-            request.write(data);
+    function makeRequest() {
+        if (method == "GET") {
+            return httpsRequest<T | JSONErrorResponse>({ ...requestOptions, method });
+        } else {
+            return httpsRequest<T | JSONErrorResponse>({ ...requestOptions, method }, data);
         }
-        if (requestOptions.method != "GET") {
-            request.end();
-        }
+    }
 
-        request.on("error", error => reject(error));
-    });
+    const response = await makeRequest();
+    if (json) {
+        if (isJsonErrorResponse<T>(response)) {
+            throw new APICallError(response.data);
+        }
+    } else {
+        if (!isSuccessCode(response.statusCode)) {
+            throw new Error(JSON.stringify(response.data));
+        }
+    }
+
+    return response.data as T;
 }
 
-export function retryableTwitchRequest<T>(requestFactory: () => Promise<T>) {
-    return defer(requestFactory).pipe(
+export function retryableTwitchRequest<T>(requestFactory: (attempt: number) => Promise<T>) {
+    let num = 0;
+    return defer(() => requestFactory(num++)).pipe(
         retry({
             delay: 5000,
             count: 5

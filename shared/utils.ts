@@ -250,7 +250,7 @@ export function createElement<T extends HTMLElement>(type: string, params?: Part
     data: Record<string, any>;
     value: string;
     type: string;
-}>, children?: HTMLElement[] | string): T {
+}>, children?: (HTMLElement | Text)[] | string): T {
     const element = document.createElement(type);
 
     if (params === undefined) {
@@ -270,7 +270,8 @@ export function createElement<T extends HTMLElement>(type: string, params?: Part
     }
     if (params.attributes) {
         for (let attr in params.attributes) {
-            element.setAttribute(attr, params.attributes[attr]);
+            if (params.attributes[attr] !== undefined)
+                element.setAttribute(attr, params.attributes[attr]);
         }
     }
     if (params.data) {
@@ -279,9 +280,9 @@ export function createElement<T extends HTMLElement>(type: string, params?: Part
         }
     }
     if (params.type) {
-        (element as HTMLInputElement).type = type;
+        (element as HTMLInputElement).type = params.type;
     }
-    if (params.value) {
+    if (params.value !== undefined) {
         if ("value" in element) {
             element.value = params.value;
         } else {
@@ -295,14 +296,14 @@ export function createElements<T extends HTMLElement, E>(type: string, elements:
 
 }
 
-export function appendChildren(element: HTMLElement, ...children: HTMLElement[]) {
+export function appendChildren(element: HTMLElement, ...children: (HTMLElement | Text)[]) {
     for (let child of children) {
         if (child !== undefined)
             element.appendChild(child);
     }
 }
 
-export function setChildren(element: HTMLElement, ...children: HTMLElement[]) {
+export function setChildren(element: HTMLElement, ...children: (HTMLElement | Text)[]) {
     removeChildren(element);
     appendChildren(element, ...children);
 }

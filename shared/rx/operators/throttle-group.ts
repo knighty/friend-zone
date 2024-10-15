@@ -1,6 +1,6 @@
 import { Observable } from "rxjs";
 
-export default function throttleGroup<In>(projectKey: (value: In) => string, duration: number) {
+export function throttleGroup<In>(projectKey: (value: In) => string, duration: number) {
     const timeouts: Record<string, boolean> = {};
     return (source: Observable<In>) => {
         return new Observable<In>(subscriber => {

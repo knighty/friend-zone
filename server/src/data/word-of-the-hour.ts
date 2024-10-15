@@ -1,6 +1,6 @@
 import { BehaviorSubject, combineLatest, EMPTY, filter, map, Observable, Subject, switchMap } from "rxjs";
 import { logger } from "shared/logger";
-import { ObservableMap } from "shared/rx/observables/map";
+import { ObservableMap } from "shared/rx";
 import { Mippy } from "../mippy/mippy";
 import TwitchChat from "./twitch-chat";
 

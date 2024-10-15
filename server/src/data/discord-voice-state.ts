@@ -1,7 +1,7 @@
 import RPC, { RPCEvents } from "discord-rpc";
 import { filter, merge, Observable, shareReplay, switchMap, tap } from "rxjs";
 import { logger } from "shared/logger";
-import { ObservableMap } from "shared/rx/observables/map";
+import { ObservableMap } from "shared/rx";
 import config, { isDiscordConfig } from "../config";
 
 type DiscordUser = string;

@@ -1,11 +1,11 @@
 import { tap } from "rxjs";
 import { logger } from "shared/logger";
 import { ChatGPTMippyBrain } from "../../chat-gpt-brain";
-import { MippyPlugin } from "../plugins";
+import { MippyPluginDefinition } from "../plugins";
 
 const log = logger("change-personality-plugin");
 
-export function changePersonalityPlugin(): MippyPlugin {
+export function changePersonalityPlugin(): MippyPluginDefinition {
     return {
         name: "Change Personality",
         init: async mippy => {

@@ -1,7 +1,6 @@
 import { combineLatest, distinctUntilChanged, interval, map, scan, share, startWith, withLatestFrom } from "rxjs";
 import { CustomElement } from "shared/html/custom-element";
-import { debounceState } from "shared/rx/operators/debounce-state";
-import { switchMapComplete } from "shared/rx/operators/switch-map-complete";
+import { debounceState, switchMapComplete } from "shared/rx";
 
 export type SubtitleMessage = {
     id: number,

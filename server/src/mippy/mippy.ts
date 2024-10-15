@@ -1,12 +1,12 @@
 import { concatMap, EMPTY, first, ignoreElements, map, merge, Observable, of, reduce, share, Subject, tap, timeout } from "rxjs";
 import { logger } from 'shared/logger';
-import { ObservableMap } from "shared/rx/observables/map";
+import { ObservableMap } from "shared/rx";
 import { MippyConfig } from "../config";
 import { StreamSynthesisResult, streamSynthesizeVoice } from "../data/tts/synthesize-stream";
 import { AudioRepository, AudioStream } from "../plugins/audio-socket";
 import { MippyPartialResult } from "./chat-gpt-brain";
 import { MippyBrain, MippyPrompts, Prompt } from "./mippy-brain";
-import { MippyPlugin } from "./plugins/plugins";
+import { MippyPermissions, MippyPluginConfig, MippyPluginDefinition } from "./plugins/plugins";
 
 const log = logger("mippy");
 
@@ -40,20 +40,6 @@ function accumulateAudioStream<In extends StreamSynthesisResult>(stream: AudioSt
     })
 }
 
-function mapAudioStream<In extends StreamSynthesisResult>(stream: AudioStream) {
-    return map((result: In) => ({
-        id: stream.id,
-        audio: {
-            duration: stream.duration,
-            finished: false,
-        },
-        message: {
-            text: result.text ?? "",
-            finished: true
-        },
-    }))
-}
-
 function accumulatePartialMessage() {
     return reduce((state, event: MippyStreamEvent) => ({
         text: state.text + event.message.text,
@@ -66,7 +52,17 @@ function synthesizeVoice(audioRepository: AudioRepository, inputStream: Observab
     const stream = audioRepository.create();
     return streamSynthesizeVoice(inputStream).pipe(
         accumulateAudioStream(stream),
-        mapAudioStream(stream),
+        map(value => ({
+            id: stream.id,
+            audio: {
+                duration: stream.duration,
+                finished: false,
+            },
+            message: {
+                text: value.text ?? "",
+                finished: true
+            },
+        })),
         share()
     )
 }
@@ -102,9 +98,10 @@ export class Mippy {
     messageHistory$ = new ObservableMap<string, MippyStreamEventHistoryMessage>()
     manualMessage$ = new Subject<{ text: string }>();
     audioId = 0;
-    permissions: Record<string, boolean>;
+    permissions: MippyPermissions[];
+    config: MippyConfig;
 
-    constructor(brain: MippyBrain, config: MippyConfig, audioRepository: AudioRepository, permissions: Record<string, boolean>) {
+    constructor(brain: MippyBrain, config: MippyConfig, audioRepository: AudioRepository, permissions: MippyPermissions[]) {
         this.brain = brain;
         log.info("Created Mippy");
         this.brain.receive().subscribe();
@@ -122,6 +119,7 @@ export class Mippy {
         );
         this.enabled = config.enabled;
         this.permissions = permissions;
+        this.config = config;
     }
 
     say(text: string) {
@@ -148,10 +146,40 @@ export class Mippy {
         )
     }
 
-    async initPlugins(...plugins: MippyPlugin[]) {
-        for (let plugin of plugins) {
-            log.info(`Initialising plugin: ${plugin.name}...`);
-            const p = await plugin.init(this);
+    isFilteredText(text: string) {
+        if (this.config.filter) {
+            if (text.match(this.config.filter)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    plugins: Record<string, {
+        name: string,
+        config: MippyPluginConfig<any>
+    }> = {};
+
+    async initPlugins(plugins: Record<string, MippyPluginDefinition>) {
+        for (let pluginId in plugins) {
+            const plugin = plugins[pluginId];
+            let hasPermission = true;
+            if (plugin.permissions) {
+                for (let permission of plugin.permissions) {
+                    if (!this.permissions.includes(permission)) {
+                        hasPermission = false;
+                    }
+                }
+            }
+            if (hasPermission) {
+                log.info(`Initialising plugin: ${plugin.name}...`);
+                const config = new MippyPluginConfig(pluginId, plugin.config ?? {});
+                const p = await plugin.init(this, config);
+                this.plugins[pluginId] = {
+                    name: plugin.name,
+                    config: config
+                }
+            }
         }
     }
 }

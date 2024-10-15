@@ -3,7 +3,7 @@ import OpenAI from 'openai';
 import { ChatCompletionMessageToolCall, CompletionUsage } from 'openai/resources/index.mjs';
 import { BehaviorSubject, catchError, concatMap, debounceTime, defer, EMPTY, exhaustMap, filter, first, from, map, mergeMap, Observable, share, Subject, switchMap, throttleTime, withLatestFrom } from "rxjs";
 import { logger } from "shared/logger";
-import filterMap from 'shared/rx/operators/filter-map';
+import { filterMap } from 'shared/rx';
 import { truncateString } from 'shared/text-utils';
 import { executionTimer } from 'shared/utils';
 import { isMippyChatGPT, MippyChatGPTConfig } from "../config";
@@ -116,7 +116,8 @@ export class ChatGPTMippyBrain implements MippyBrain {
             concatMap(([prompt, system, history, summarizer]) => {
                 const chatGptTimer = executionTimer();
                 const store = prompt.store === undefined ? true : prompt.store;
-                const userMessage = history.create("user", prompt.text, prompt.name);
+                const userMessage = history.create(prompt.role ?? "user", prompt.text, prompt.name);
+                //const systemMessage = prompt.system ? history.create("system", prompt.system) : null;
                 const allowTools = canUseTools(prompt);
 
                 log.info(`Prompt: ${green(prompt.text)}`);
@@ -127,6 +128,7 @@ export class ChatGPTMippyBrain implements MippyBrain {
                         system.message,
                         ...history.summaries,
                         ...history.messages,
+                        //...(systemMessage ? [systemMessage] : []),
                         ...(store ? [] : [userMessage])
                     ],
                     model: "gpt-4o-mini",
@@ -165,7 +167,10 @@ export class ChatGPTMippyBrain implements MippyBrain {
                             partial$.next(partial);
                         },
                         complete: () => {
-                            log.info(`Response (${green(chatGptTimer.end())} - ${green(partial.usage?.total_tokens.toString() ?? "")} tokens): ${green(truncateString(partial.text, 200, true, true))}`);
+                            const timeTaken = chatGptTimer.end();
+                            const tokens = partial.usage?.total_tokens.toString() ?? "";
+                            const text = truncateString(partial.text, 200, true, true);
+                            log.info(`Response (${green(timeTaken)} - ${green(tokens)} tokens): ${green(text)}`);
                             complete$.next({
                                 text: partial.text,
                                 tool: partial.tool_calls,
@@ -246,6 +251,19 @@ export class ChatGPTMippyBrain implements MippyBrain {
             }),
             share()
         )
+    }
+
+    observeToolMessage<T extends keyof ToolArguments>(toolName: T, permission: string = "admin") {
+        const toolCall$ = this.receiveToolCalls();
+        const checkPermission = (source?: string) => {
+            if (permission == "admin") {
+                return source == permission;
+            }
+            return true;
+        }
+        return toolCall$.pipe(
+            filter(tool => tool.function.name == toolName && checkPermission(tool.prompt.source))
+        );
     }
 
     observeTool<T extends keyof ToolArguments>(toolName: T, permission: string = "admin"): Observable<ToolArguments[T]> {

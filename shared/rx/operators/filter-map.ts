@@ -1,6 +1,6 @@
 import { Observable } from "rxjs";
 
-export default function filterMap<In, Out>(predicate: (value: In) => boolean, map: (value: In) => Out, startValue?: Out) {
+export function filterMap<In, Out>(predicate: (value: In) => boolean, map: (value: In) => Out, startValue?: Out) {
     return (source: Observable<In>) => {
         return new Observable<Out>(subscriber => {
             const sub = source.subscribe({

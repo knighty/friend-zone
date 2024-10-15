@@ -1,6 +1,6 @@
-import { green } from "kolorist";
 import { twitchLog, twitchRequest } from "../api";
 import { AuthTokenSource } from "../auth-tokens";
+import { APICallError } from "./request";
 
 export type EventSubResponse = {
     error: undefined;
@@ -20,12 +20,6 @@ export type EventSubResponse = {
     total: number;
     total_cost: number;
     max_total_cost: number;
-};
-
-export type EventSubError = {
-    error: string;
-    status: number;
-    message: string;
 };
 
 export type EventSubListResponseItem = {
@@ -49,10 +43,6 @@ export type EventSubListResponse = {
     pagination: {};
 };
 
-export function isEventSubError(response: EventSubResponse | EventSubError): response is EventSubError {
-    return response.error != undefined;
-};
-
 export type EventSub<T = any> = {
     type: string;
     version: string;
@@ -67,33 +57,38 @@ export type EventSub<T = any> = {
 };
 
 export async function eventSub<Condition extends EventSub<any>>(authToken: AuthTokenSource, payload: Condition) {
-    const response = await twitchRequest<EventSubResponse | EventSubError>({
+    const response = await twitchRequest<EventSubResponse>({
         method: "POST",
         path: `/helix/eventsub/subscriptions`,
-    }, authToken, true, payload);
-    if (isEventSubError(response)) {
-        throw new Error(`${response.status}: ${response.error} - ${response.message}`);
-    } else {
-        twitchLog.info(`Subscribed to ${green(payload.type)}`);
-        return response;
-    }
+    }, authToken, payload);
+    return response;
 };
 
 export async function eventUnsub(authToken: AuthTokenSource, id: string) {
-    const response = await twitchRequest<string>({
+    const response = await twitchRequest<never>({
         method: "DELETE",
-        path: `/helix/eventsub/subscriptions?id=${id}`,
-    }, authToken, false);
-    twitchLog.info(`Unsubscribed from ${green(id)}`);
+        path: `/helix/eventsub/subscriptions`,
+        params: { id },
+        json: false
+    }, authToken);
     return response;
 };
 
 export async function unsubscribeDisconnected(authToken: AuthTokenSource) {
-    const response = await twitchRequest<EventSubListResponse>({
-        method: "GET",
-        path: "/helix/eventsub/subscriptions?status=websocket_disconnected"
-    }, authToken, true);
-    for (let item of response.data) {
-        await eventUnsub(authToken, item.id);
+    try {
+        const response = await twitchRequest<EventSubListResponse>({
+            method: "GET",
+            path: "/helix/eventsub/subscriptions",
+            params: {
+                status: "websocket_disconnected"
+            }
+        }, authToken);
+        for (let item of response.data) {
+            await eventUnsub(authToken, item.id);
+        }
+    } catch (e) {
+        if (e instanceof APICallError) {
+            twitchLog.error(`${e.error.status}: ${e.error.error} - ${e.error.message}`);
+        }
     }
 };

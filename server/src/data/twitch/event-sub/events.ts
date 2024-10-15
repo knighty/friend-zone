@@ -42,6 +42,7 @@ export type Events = {
     "channel.update": Event<{
         title: string;
         category_name: string;
+        category_id: string;
     }>;
 
     "channel.follow": Event<{

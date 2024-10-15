@@ -1,5 +1,5 @@
 import { Observable, Subject, map, merge, shareReplay, startWith } from "rxjs";
-import filterMap from "../operators/filter-map";
+import { filterMap } from "../../rx";
 
 export class ObservableMap<Key, Value> {
     private data = new Map<Key, Value>();

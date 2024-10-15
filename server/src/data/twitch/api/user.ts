@@ -19,8 +19,11 @@ export type UserResponse = {
 export async function getUser(authToken: AuthTokenSource, user?: string): Promise<UserResponse> {
     const userResponse = await twitchRequest<JSONResponse<UserResponse>>({
         method: "GET",
-        path: user ? `/helix/users?login=${user}` : `/helix/users`
-    }, authToken, true);
+        path: `/helix/users`,
+        params: user ? {
+            login: user
+        } : undefined
+    }, authToken);
     if (userResponse.data.length == 0)
         throw new Error("Couldn't find user");
 

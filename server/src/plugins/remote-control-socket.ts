@@ -2,7 +2,7 @@ import { FastifyInstance } from "fastify";
 import { green } from "kolorist";
 import { distinctUntilChanged, EMPTY, filter, finalize, map, merge, Observable, of, shareReplay, switchMap, take, takeUntil, tap } from "rxjs";
 import { logger } from "shared/logger";
-import { switchMapComplete } from "shared/rx/operators/switch-map-complete";
+import { switchMapComplete } from "shared/rx";
 import { ObservableEventProvider, serverSocket } from "shared/websocket/server";
 import ExternalFeeds from "../data/external-feeds";
 import Subtitles from "../data/subtitles";

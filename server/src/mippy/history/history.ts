@@ -8,7 +8,7 @@ export class MippyHistory {
     summaries: MippyHistoryMessage[] = [];
     messages: MippyHistoryMessage[] = [];
 
-    create<Role extends "user" | "assistant">(role: Role, content: string, name?: string): MippyHistoryMessage {
+    create<Role extends "user" | "assistant" | "system">(role: Role, content: string, name?: string): MippyHistoryMessage {
         if (role == "user") {
             return { role, content, date: Date.now(), name };
         } else {

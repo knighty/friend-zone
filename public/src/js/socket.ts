@@ -1,5 +1,5 @@
 import { EMPTY, of, shareReplay } from "rxjs";
-import { switchMapComplete } from "shared/rx/operators/switch-map-complete";
+import { switchMapComplete } from "shared/rx";
 import { connectBrowserSocket } from "shared/websocket/browser";
 import { ObservableEventProvider } from "shared/websocket/event-provider";
 

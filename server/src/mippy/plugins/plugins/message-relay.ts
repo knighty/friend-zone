@@ -1,27 +1,41 @@
 import { green } from "kolorist";
-import { EMPTY, from, switchMap } from "rxjs";
+import { from, switchMap, withLatestFrom } from "rxjs";
 import { logger } from "shared/logger";
 import { truncateString, wordCount } from "shared/text-utils";
 import { sendChatMessage } from "../../../data/twitch/api";
 import { UserAuthTokenSource } from "../../../data/twitch/auth-tokens";
 import { catchAndLog } from "../../../utils";
 import { ChatGPTMippyBrain } from "../../chat-gpt-brain";
-import { MippyPlugin } from "../plugins";
+import { MippyPluginConfig, MippyPluginConfigDefinition, MippyPluginDefinition } from "../plugins";
 
 const log = logger("message-relay-plugin");
-export function relayMessagesToTwitchPlugin(broadcasterId: string, botId: string, botToken: UserAuthTokenSource): MippyPlugin {
+
+const pluginConfig = {
+    maxLength: {
+        name: "Max Length",
+        description: "The maximum length of a relayed message. Will truncate longer. Twitch allows up to 500 max so 450 is the cap for safety.",
+        type: "number",
+        default: 450,
+        max: 450,
+        min: 100,
+    }
+} satisfies MippyPluginConfigDefinition;
+
+export function relayMessagesToTwitchPlugin(broadcasterId: string, botId: string, botToken: UserAuthTokenSource): MippyPluginDefinition {
     return {
         name: "Twitch Chat Message Relay",
-        init: async mippy => {
+        permissions: ["sendMessage"],
+        config: pluginConfig,
+        init: async (mippy, config: MippyPluginConfig<typeof pluginConfig>) => {
             if (mippy.brain instanceof ChatGPTMippyBrain) {
+                const maxLength$ = config.observe("maxLength");
+
                 const sub = mippy.brain.observeCompleteMessages().pipe(
-                    switchMap(message => {
-                        if (mippy.permissions.sendMessage) {
-                            const text = truncateString(message.text, 450);
-                            log.info(`Sending twitch chat message with ${green(wordCount(text))} words`);
-                            return from(sendChatMessage(botToken, broadcasterId, botId, text)).pipe(catchAndLog());
-                        }
-                        return EMPTY;
+                    withLatestFrom(maxLength$),
+                    switchMap(([message, maxLength]) => {
+                        const text = truncateString(message.text, maxLength);
+                        log.info(`Sending twitch chat message with ${green(wordCount(text))} words`);
+                        return from(sendChatMessage(botToken, broadcasterId, botId, text)).pipe(catchAndLog());
                     }),
                 ).subscribe()
 

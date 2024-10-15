@@ -29,7 +29,7 @@ export async function createPoll(authToken: AuthTokenSource, broadcasterId: stri
     const response = await twitchRequest<JSONResponse<PollResponse>>({
         method: "POST",
         path: `/helix/polls`,
-    }, authToken, true, {
+    }, authToken, {
         broadcaster_id: broadcasterId,
         title,
         choices: choices.map(choice => ({ title: choice })),

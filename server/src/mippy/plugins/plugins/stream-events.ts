@@ -1,15 +1,187 @@
+import { distinctUntilChanged, EMPTY, filter, from, map, Observable, switchMap } from "rxjs";
 import { StreamEventWatcher } from "../../../data/stream-event-watcher";
+import { getCategoryStreamsInfo } from "../../../data/twitch/api";
 import { UserAuthTokenSource } from "../../../data/twitch/auth-tokens";
-import { MippyPlugin } from "../plugins";
+import { MippyPluginConfig, MippyPluginConfigDefinition, MippyPluginDefinition } from "../plugins";
 
-export function streamEventsPlugin(authToken: UserAuthTokenSource, broadcasterId: string): MippyPlugin {
+const eventConfig = {
+    channelUpdate: {
+        name: "Channel Updates",
+        description: "Channel updates for example, eg: game changes",
+        type: "boolean",
+        default: false as boolean
+    },
+    subscriptions: {
+        name: "Subscriptions",
+        description: "Subscribes and resubscribe messages",
+        type: "boolean",
+        default: false
+    },
+    follows: {
+        name: "Follows",
+        description: "When a user follows the channel",
+        type: "boolean",
+        default: false
+    },
+    chatSettings: {
+        name: "Chat Settings",
+        description: "Changes to chat settings, eg: emoji only mode",
+        type: "boolean",
+        default: false
+    },
+    pollsAndPredictions: {
+        name: "Polls and Predictions",
+        description: "When polls and predictions end",
+        type: "boolean",
+        default: false
+    },
+    adBreaks: {
+        name: "Ad Breaks",
+        description: "When an ad break is run",
+        type: "boolean",
+        default: false
+    },
+    cheers: {
+        name: "Cheers",
+        description: "When a user cheers with bits",
+        type: "boolean",
+        default: false
+    }
+} satisfies MippyPluginConfigDefinition;
+
+const pluginConfig = {
+    ...eventConfig
+} satisfies MippyPluginConfigDefinition;
+
+function append<In extends Record<string, any>, Out extends Record<string, any>, Result>(fn: (v: In) => Observable<Out>, selector: (a: In, b: Out) => Result) {
+    return (a: In) => fn(a).pipe(
+        map(v => selector(a, v))
+    );
+}
+
+export function streamEventsPlugin(authToken: UserAuthTokenSource, broadcasterId: string): MippyPluginDefinition {
     return {
         name: "Stream Events",
-        init: async mippy => {
-            const eventWatcher = new StreamEventWatcher();
-            if (broadcasterId) {
-                eventWatcher.watch(authToken, broadcasterId, mippy);
+        permissions: ["sendMessage"],
+        config: pluginConfig,
+        init: async (mippy, config: MippyPluginConfig<typeof pluginConfig>) => {
+            const streamEventWatcher = new StreamEventWatcher(authToken);
+
+            function event<T>(key: keyof typeof eventConfig, observable: Observable<T>) {
+                return config.observe(key).pipe(
+                    distinctUntilChanged(),
+                    switchMap(v => {
+                        if (v == true) {
+                            return observable;
+                        }
+                        return EMPTY;
+                    })
+                )
             }
+
+            event("channelUpdate", streamEventWatcher.onEvent("channel.update", {
+                broadcaster_user_id: broadcasterId
+            }, "2")).pipe(
+                switchMap(event => from(getCategoryStreamsInfo(authToken, event.category_id)).pipe(
+                    map(data => ({ ...data, ...event }))
+                )),
+                //switchMap(append(event => from(getCategoryStreamsInfo(authToken, event.category_id)))),
+                distinctUntilChanged((a, b) => a.category_id == b.category_id),
+            ).subscribe(event => {
+                mippy.ask("setCategory", { category: event.category_name, viewers: event.viewers.toString() }, { allowTools: false, role: "system" });
+            });
+
+            event("follows", streamEventWatcher.onEvent("channel.follow", {
+                broadcaster_user_id: broadcasterId,
+                moderator_user_id: broadcasterId
+            }, "2")).subscribe(e => {
+                mippy.ask("newFollower", { user: e.user_name }, { name: e.user_name, allowTools: false, role: "system" });
+            });
+
+            event("subscriptions", streamEventWatcher.onEvent("channel.subscribe", {
+                broadcaster_user_id: broadcasterId,
+            })).subscribe(e => {
+                mippy.ask("newSubscriber", { user: e.user_name }, { name: e.user_name, allowTools: false, role: "system" });
+            });
+
+            event("subscriptions", streamEventWatcher.onEvent("channel.subscription.message", {
+                broadcaster_user_id: broadcasterId,
+            })).subscribe(e => {
+                mippy.ask("resubscribe", { user: e.user_name, months: e.duration_months.toString(), message: e.message.text }, { name: e.user_name, allowTools: false, role: "system" });
+            });
+
+            event("cheers", streamEventWatcher.onEvent("channel.cheer", {
+                broadcaster_user_id: broadcasterId,
+            })).subscribe(e => {
+                mippy.ask("cheer", { user: e.user_name, bits: e.bits.toString(), message: e.message }, { name: e.user_name, allowTools: false, role: "system" });
+            });
+
+            event("adBreaks", streamEventWatcher.onEvent("channel.ad_break.begin", {
+                broadcaster_user_id: broadcasterId,
+            })).subscribe(e => {
+                mippy.ask("adBreak", { duration: e.duration_seconds }, { allowTools: false, role: "system" });
+            });
+
+            event("chatSettings", streamEventWatcher.onEvent("channel.chat_settings.update", {
+                broadcaster_user_id: broadcasterId,
+                user_id: broadcasterId
+            })).pipe(
+                map(e => e.emote_mode),
+                distinctUntilChanged(),
+            ).subscribe(emojiOnly => {
+                mippy.ask("setEmojiOnly", { emojiOnly: emojiOnly }, { allowTools: false, role: "system" });
+            });
+
+            event("pollsAndPredictions", streamEventWatcher.onEvent("channel.poll.end", {
+                broadcaster_user_id: broadcasterId,
+            })).pipe(
+                filter(e => e.status == "completed")
+            ).subscribe(e => {
+                const won = e.choices.reduce((max, choice) => {
+                    return choice.votes > max.votes ? choice : max
+                }, e.choices[0]);
+                mippy.ask("pollEnd", {
+                    title: e.title,
+                    won: won.title,
+                    votes: won.votes
+                }, { allowTools: false, role: "system" });
+            });
+
+            event("pollsAndPredictions", streamEventWatcher.onEvent("channel.prediction.end", {
+                broadcaster_user_id: broadcasterId,
+            })).subscribe(e => {
+                const winningOutcome = e.outcomes.find(outcome => outcome.id == e.winning_outcome_id);
+                if (winningOutcome == null)
+                    return;
+
+                const losingOutcomes = e.outcomes.filter(outcome => outcome.id != winningOutcome.id);
+                const topWinner = winningOutcome.top_predictors.reduce((winner: null | { user_name: string, channel_points_won: number }, predictor) => {
+                    if (winner == null || predictor.channel_points_won > winner.channel_points_won) {
+                        return predictor;
+                    }
+                    return winner;
+                }, null);
+                const topLoser = losingOutcomes.reduce((loser: null | { user_name: string, channel_points_used: number }, outcome) => {
+                    outcome.top_predictors.forEach(predictor => {
+                        if (loser == null || predictor.channel_points_used > loser.channel_points_used) {
+                            loser = predictor;
+                        }
+                    })
+                    return loser;
+                }, null);
+                const pointsUsed = e.outcomes.reduce((points, outcome) => points + outcome.channel_points, 0);
+                const winnerString = topWinner != null ? `The biggest winner was ${topWinner.user_name} who won ${topWinner.channel_points_won}.` : ``;
+                const loserString = topLoser != null ? `The biggest loser was ${topLoser.user_name} who lost ${topLoser.channel_points_used}.` : ``;
+                mippy.ask("predictionEnd", {
+                    title: e.title,
+                    data: `${winnerString} ${loserString}`,
+                    points: pointsUsed,
+                    topWinner: topWinner?.user_name ?? "",
+                    topWinnerPoints: topWinner?.channel_points_won ?? "",
+                    topLoser: topLoser?.user_name ?? "",
+                    topLoserPoints: topLoser?.channel_points_used ?? 0,
+                }, { allowTools: false, role: "system" });
+            });
 
             return {}
         }

@@ -5,7 +5,7 @@ import Fastify, { FastifyInstance } from "fastify";
 import path from "node:path";
 import { BehaviorSubject, combineLatest, distinctUntilChanged, EMPTY, filter, map, merge, Observable, of, Subject, switchMap, tap } from "rxjs";
 import { log } from 'shared/logger';
-import filterMap from 'shared/rx/operators/filter-map';
+import { filterMap } from 'shared/rx';
 import { switchMapToggle } from 'shared/rx/utils';
 import { ObservableEventProvider, serverSocket } from 'shared/websocket/server';
 import { Config } from "./config";

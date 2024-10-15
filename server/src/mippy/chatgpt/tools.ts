@@ -1,7 +1,7 @@
 import { ChatCompletionTool } from "openai/resources/index.mjs";
 import { FunctionParameters } from "openai/resources/shared.mjs";
 import { Observable, map } from "rxjs";
-import { ObservableMap } from "shared/rx/observables/map";
+import { ObservableMap } from "shared/rx";
 import { MippyChatGPTConfig } from "../../config";
 
 function toolFunction<Parameters extends FunctionParameters>(title: string, description: string, parameters: Parameters): ChatCompletionTool {
@@ -15,6 +15,8 @@ function toolFunction<Parameters extends FunctionParameters>(title: string, desc
         type: "function"
     };
 }
+
+type Actions = "analyze subtitles";
 
 export type ToolArguments = {
     createPoll: {
@@ -33,6 +35,10 @@ export type ToolArguments = {
     analyzeSubtitles: {},
     suggestWordOfTheHour: {
         word: string
+    },
+    analyzeStream: {},
+    action: {
+        action: Actions
     }
 }
 
@@ -103,11 +109,23 @@ const toolsSchema: ChatCompletionTool[] = [
         additionalProperties: false,
         properties: {
             word: {
-                description: "The word to use",
+                description: "The word to use. Supply an empty string if you're not sure what to set",
                 type: "string"
             }
         },
         required: ["word"]
+    }),
+    toolFunction("action", "Peform an action", {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+            action: {
+                description: "The action to perform",
+                type: "string",
+                enum: ["analyze subtitles"]
+            }
+        },
+        required: ["action"]
     })
 ];
 

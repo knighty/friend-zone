@@ -1,5 +1,5 @@
 import { BehaviorSubject, Observable, Subject, filter, finalize, find, from, interval, map, merge, of, switchMap, take, takeUntil, tap, withLatestFrom } from "rxjs";
-import { renderLoop$ } from "shared/rx/observables/render-loop";
+import { renderLoop$ } from "shared/rx";
 
 export type AudioPlayEvent = {
     played: number,

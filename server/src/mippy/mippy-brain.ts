@@ -10,6 +10,7 @@ export interface MippyBrain {
 
 export type Prompt = {
     text: string,
+    role?: "user" | "system",
     source?: "chat" | "admin",
     name?: string,
     store?: boolean,
@@ -28,7 +29,7 @@ export type MippyPrompts = {
     wothSetCount: { count: number, word: string, user: string },
     wothSetWord: { word: string, user: string },
     question: { question: string, user: string },
-    setCategory: { category: string },
+    setCategory: { category: string, viewers: string },
     newFollower: { user: string },
     newSubscriber: { user: string },
     cheer: { user: string, bits: string, message: string },
@@ -41,4 +42,6 @@ export type MippyPrompts = {
     highlightedMessage: { user: string, message: string, logs: string },
     subtitlesAnalysis: { mostSaidWords: string, userWordsSaid: string },
     suggestWordOfTheHour: { mostSaidWords: string },
+    scheduleAnnounce: { schedule: string },
+    sayGoodbye: { schedule: string },
 }

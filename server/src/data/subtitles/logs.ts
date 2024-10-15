@@ -1,10 +1,7 @@
 import path from "path";
 import Subtitles from "../subtitles";
 
-type IgnoreWord = {
-    rank: string,
-    word: string
-};
+type IgnoreWord = string;
 
 type IgnoreWords = IgnoreWord[];
 
@@ -13,7 +10,7 @@ async function getIgnoreWords(): Promise<Set<string>> {
         assert: { type: 'json' }
     });
     const items = module.default as IgnoreWords;
-    return new Set<string>(items.map(item => item.word));
+    return new Set<string>(items);
 }
 
 type SubtitlesAnalysis = {
@@ -35,6 +32,10 @@ function filterWord(word: string, ignoreWords: Set<string>) {
     return false;
 }
 
+type AnalysisOptions = {
+    wordCounts: number,
+}
+
 export class SubtitlesLog {
     logs: Record<string, string[]> = {};
 
@@ -51,7 +52,7 @@ export class SubtitlesLog {
         this.logs[user].push(message);
     }
 
-    async analyzeLogs(): Promise<SubtitlesAnalysis> {
+    async analyzeLogs(options?: AnalysisOptions): Promise<SubtitlesAnalysis> {
         const ignoreWords = await getIgnoreWords();
 
         const wordCounts: Record<string, number> = {};
@@ -72,7 +73,7 @@ export class SubtitlesLog {
                 }
             }
         }
-        const mostSaidWords = Object.entries(wordCounts).sort(([akey, avalue], [bkey, bvalue]) => bvalue - avalue).slice(0, 10);
+        const mostSaidWords = Object.entries(wordCounts).sort(([akey, avalue], [bkey, bvalue]) => bvalue - avalue).slice(0, options?.wordCounts ?? 10);
 
         return {
             mostSaidWords: mostSaidWords.map(([key, value]) => ({ word: key, count: value })),

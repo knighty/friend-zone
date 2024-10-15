@@ -1,5 +1,6 @@
 import path from "path";
 import { FeedLayout } from "./data/external-feeds";
+import { MippyPermissions, MippyPluginOptions } from "./mippy/plugins/plugins";
 
 function env<T>(key: string) {
     return process.env[key] ? <T>process.env[key] : undefined;
@@ -9,19 +10,15 @@ function checkProps<T extends object, P extends keyof T>(o: T, props: P[]) {
     return props.reduce((a, c) => (c in o) && a, true);
 }
 
-export type MippyChatGPTConfig = {
+export type MippyChatGPTConfig = MippyBaseConfig & {
     enabled: true,
     brain: "chatgpt",
-    filter: RegExp,
     systemPrompt: {
         prompt: string,
         personality: string,
         tools: Record<string, string>,
     },
-    permissions: Partial<{
-        createPoll: boolean,
-        createPrediction: boolean,
-    }>,
+    permissions: MippyPermissions[],
     prompts: Partial<{
         wothSetWord: string,
         wothSetCount: string,
@@ -39,15 +36,17 @@ export type MippyChatGPTConfig = {
         highlightedMessage: string,
         subtitlesAnalysis: string,
         suggestWordOfTheHour: string,
+        scheduleAnnounce: string,
+        sayGoodbye: string
     }>
 }
 
-export type MippyDumbConfig = {
+export type MippyDumbConfig = MippyBaseConfig & {
     enabled: true,
     brain: "dumb"
 }
 
-type MippyDisabledConfig = {
+type MippyDisabledConfig = MippyBaseConfig & {
     enabled: false
 }
 
@@ -60,7 +59,6 @@ type DiscordConfig = {
 }
 
 export type TwitchConfig = {
-    streamEvents: boolean,
     channel: string,
     clientId: string,
     secret: string,
@@ -69,7 +67,12 @@ export type TwitchConfig = {
     botId: string
 }
 
-export type MippyConfig = MippyDisabledConfig | MippyChatGPTConfig | MippyDumbConfig;
+export type MippyBaseConfig = {
+    plugins: Record<string, MippyPluginOptions>,
+    filter?: RegExp,
+}
+
+export type MippyConfig = (MippyDisabledConfig | MippyChatGPTConfig | MippyDumbConfig);
 
 export type Config = {
     port: number,
@@ -121,7 +124,7 @@ export function isMippyDumb(config: MippyConfig): config is MippyDumbConfig {
 }
 
 export function isTwitchConfig(config: Partial<TwitchConfig>): config is TwitchConfig {
-    return checkProps(config, ["streamEvents", "channel", "clientId", "secret", "redirectUrl", "broadcasterId", "botId"]);
+    return checkProps(config, ["channel", "clientId", "secret", "redirectUrl", "broadcasterId", "botId"]);
 }
 
 export function isDiscordConfig(config: Partial<DiscordConfig>): config is DiscordConfig {
@@ -151,7 +154,6 @@ const defaultConfig: Config = {
         webcam: false,
     },
     twitch: {
-        streamEvents: false
     },
     discord: {
     },
@@ -165,7 +167,8 @@ const defaultConfig: Config = {
     },
     mockUsers: undefined,
     mippy: {
-        enabled: false
+        enabled: false,
+        plugins: []
     }
 };
 

@@ -3,13 +3,14 @@ import { Observable, Subject } from "rxjs";
 import { InferObservable } from "shared/rx/utils";
 import { ObservableEventProvider, serverSocket } from "shared/websocket/server";
 import ExternalFeeds from "../data/external-feeds";
+import { Mippy } from "../mippy/mippy";
 import { WebsocketEvent } from "./socket";
 
 type Events<T extends Record<string, (d: any) => void>> = {
     [K in keyof T]: Parameters<T[K]>[0]
 }
 
-export function configSocket(events: WebsocketEvent[], feeds: ExternalFeeds) {
+export function configSocket(events: WebsocketEvent[], feeds: ExternalFeeds, sayGoodbye: Subject<void>, mippy: Mippy) {
     function observableReceiver<T extends Subject<any>, U extends InferObservable<T>>(subject: T) {
         return (data: U) => subject.next(data);
     }
@@ -26,7 +27,14 @@ export function configSocket(events: WebsocketEvent[], feeds: ExternalFeeds) {
     return async (fastify: FastifyInstance, options: {}) => {
         fastify.get('/websocket', { websocket: true }, (ws, req) => {
             let socket = serverSocket<{
-                Events: E
+                Events: E & {
+                    sayGoodbye: null,
+                    "mippy/plugin/config": {
+                        plugin: string,
+                        item: string,
+                        value: any
+                    }
+                }
             }>(ws, new ObservableEventProvider(
                 events.reduce((a, stream) => {
                     a[stream.type] = stream.data
@@ -44,6 +52,15 @@ export function configSocket(events: WebsocketEvent[], feeds: ExternalFeeds) {
                 const k = key as keyof Receivers;
                 hook(k);
             }
+
+            socket.on("sayGoodbye").subscribe(() => {
+                sayGoodbye.next();
+            })
+
+            socket.on("mippy/plugin/config").subscribe(data => {
+                const plugin = mippy.plugins[data.plugin];
+                plugin.config.setValue(data.item, data.value);
+            })
         })
     }
 }

@@ -1,5 +1,5 @@
 import { connectable, filter, fromEvent, map, scan, share, shareReplay, Subject, takeUntil, withLatestFrom } from "rxjs";
-import { renderLoop$ } from "shared/rx/observables/render-loop";
+import { renderLoop$ } from "shared/rx";
 import { createElement } from "shared/utils";
 import { EmbedHandler } from "./embed-handler";
 

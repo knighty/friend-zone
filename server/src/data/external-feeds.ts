@@ -1,6 +1,6 @@
 import { BehaviorSubject, combineLatest, map, Observable, shareReplay, switchMap, timer } from "rxjs";
 import { logger } from "shared/logger";
-import { ObservableMap } from "shared/rx/observables/map";
+import { ObservableMap } from "shared/rx";
 import config from "../config";
 
 type Feed = {

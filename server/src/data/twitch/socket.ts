@@ -1,7 +1,7 @@
 import { green } from "kolorist";
 import { catchError, EMPTY, filter, first, fromEvent, map, Observable, share, shareReplay, tap } from "rxjs";
 import { logger } from "shared/logger";
-import { switchMapComplete } from "shared/rx/operators/switch-map-complete";
+import { switchMapComplete } from "shared/rx";
 import { WebSocket } from "ws";
 import { eventSub, eventUnsub, unsubscribeDisconnected } from "./api/event-sub";
 import { UserAuthTokenSource } from "./auth-tokens";
@@ -104,7 +104,7 @@ export function twitchSocket(authTokenSource: UserAuthTokenSource, url = "wss://
             map<MessageEvent, SocketMessage<SessionWelcome>>(event => JSON.parse(event.data)),
             filter(message => message.metadata.message_type == "session_welcome"),
             map(message => message.payload),
-            tap(payload => log.info(`Received welcome from twitch socket. Session ID:${payload.session.id}`)),
+            tap(payload => log.info(`Received welcome from twitch socket. Session ID:${green(payload.session.id)}`)),
             map(payload => ({
                 sessionId: payload.session.id,
                 client: client
@@ -144,7 +144,11 @@ export function twitchSocket(authTokenSource: UserAuthTokenSource, url = "wss://
                         eventUnsub(authTokenSource, id);
                     }
                 }
-            }))
+            })),
+            catchError(e => {
+                log.error(e);
+                return EMPTY;
+            })
         )
 
         return sub$.pipe(

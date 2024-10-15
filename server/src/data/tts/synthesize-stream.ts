@@ -2,7 +2,7 @@ import { green } from "kolorist";
 import child_process from "node:child_process";
 import { EMPTY, Observable } from "rxjs";
 import { logger } from "shared/logger";
-import { exhaustMapWithTrailing } from "shared/rx/operators/exhaust-map-with-trailing";
+import { exhaustMapWithTrailing } from "shared/rx";
 import { lastIndexOfRegex } from "shared/text-utils";
 import { executionTimer } from "shared/utils";
 import { ttsDirs } from "./tts";
@@ -19,11 +19,8 @@ function sanitizeText(text: string) {
 const log = logger("piper");
 
 export function streamSynthesizeVoice(text: Observable<string>): Observable<StreamSynthesisResult> {
-    if (!text)
-        return EMPTY;
-
     const piperArgs = [
-        `--model`, "en_US-ryan-high.onnx",
+        `--model`, "en_US-norman-medium.onnx",
         `--output-raw`, `-q`
     ];
 
@@ -46,6 +43,9 @@ export function streamSynthesizeVoice(text: Observable<string>): Observable<Stre
                         }
                     },
                     complete: () => {
+                        if (str == "") {
+                            log.error("Somehow completed partials without getting any text");
+                        }
                         if (currentPos < str.length)
                             subscriber.next([str, str.length]);
                         subscriber.complete();

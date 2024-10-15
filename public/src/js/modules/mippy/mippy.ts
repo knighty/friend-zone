@@ -1,8 +1,7 @@
 import { BehaviorSubject, concatMap, distinctUntilChanged, endWith, filter, fromEvent, ignoreElements, map, merge, Observable, scan, share, startWith, switchMap, takeUntil, tap, timer } from 'rxjs';
 import { CustomElement } from "shared/html/custom-element";
-import { renderLoop$ } from 'shared/rx/observables/render-loop';
-import { switchMapComplete } from 'shared/rx/operators/switch-map-complete';
-import { truncateString } from 'shared/utils';
+import { renderLoop$, switchMapComplete } from 'shared/rx';
+import { truncateString } from "shared/text-utils";
 import { socket } from '../../socket';
 import { AudioNodeCollection, LowPassNode, ReverbEffectNode } from './audio-effects';
 import { FrequencyGraph } from './frequency-graph';

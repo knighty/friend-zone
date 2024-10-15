@@ -1,5 +1,5 @@
 import { Observable, combineLatest, map, of } from "rxjs";
-import { observeDay } from "shared/rx/observables/date";
+import { observeDay } from "shared/rx";
 import { MippyChatGPTConfig } from "../../config";
 import Users from "../../data/users";
 import { ChatGPTTools } from "./tools";

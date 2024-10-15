@@ -11,5 +11,11 @@ export type MippyHistoryMessageAssistant = {
     role: "assistant";
 };
 
-export type MippyHistoryMessage = MippyHistoryMessageUser | MippyHistoryMessageAssistant;
+export type MippyHistoryMessageSystem = {
+    content: string;
+    date: number;
+    role: "system";
+};
+
+export type MippyHistoryMessage = MippyHistoryMessageUser | MippyHistoryMessageAssistant | MippyHistoryMessageSystem;
 

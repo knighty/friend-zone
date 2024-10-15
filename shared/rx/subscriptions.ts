@@ -2,7 +2,7 @@ type Subscription = {
     unsubscribe: () => void;
 }
 
-export default class Subscriptions {
+export class Subscriptions {
     subscriptions: Subscription[] = [];
 
     constructor(...subscriptions: Subscription[]) {

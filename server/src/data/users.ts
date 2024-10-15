@@ -1,4 +1,4 @@
-import { ObservableMap } from "shared/rx/observables/map";
+import { ObservableMap } from "shared/rx";
 
 export type User = {
     id: string;

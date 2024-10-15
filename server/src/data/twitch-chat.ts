@@ -1,8 +1,7 @@
 import { green } from "kolorist";
 import { filter, map, Observable, scan, share, shareReplay, startWith } from "rxjs";
 import { logger } from "shared/logger";
-import filterMap from "shared/rx/operators/filter-map";
-import { switchMapComplete } from "shared/rx/operators/switch-map-complete";
+import { filterMap, switchMapComplete } from "shared/rx";
 import tmi from "tmi.js";
 import config from "../config";
 

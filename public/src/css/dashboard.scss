@@ -76,7 +76,7 @@ select {
 .button {
     display: block;
     color: #fff;
-    background-color: #333;
+    background-color: #3c404d;
     border: none;
     padding: 0.8em 1em;
     border-radius: 1em;
@@ -106,6 +106,27 @@ select {
 
     &.connected:before {
         content: "Connected";
+    }
+}
+
+.plugin-config {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5em;
+
+    label[data-type="number"] {
+        display: grid;
+        grid-template-columns: 1fr min-content;
+        grid-template-rows: min-content min-content;
+        gap: 0 0.5em;
+
+        input {
+            grid-row-start: 2;
+
+            &[type="number"] {
+                width: 4em;
+            }
+        }
     }
 }
 

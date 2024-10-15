@@ -77,8 +77,8 @@ def main():
 
     transcription = ['']
 
-    with source:
-        recorder.adjust_for_ambient_noise(source)
+    #with source:
+    #    recorder.adjust_for_ambient_noise(source)
 
     def record_callback(_, audio:sr.AudioData) -> None:
         """
