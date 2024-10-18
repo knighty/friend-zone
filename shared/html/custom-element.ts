@@ -26,13 +26,16 @@ export class CustomElement<T extends CustomElementType> extends HTMLElement {
     private cachedElements: T["Elements"] = {};
 
     element<K extends keyof T["Elements"]>(key: K) {
+        // @ts-ignore
         if (!this.cachedElements[key]) {
             const element = this.querySelector(`[data-element=${String(key)}]`);
             if (element == null) {
                 throw new Error(`Element "${String(key)}" does not exist`);
             }
+            // @ts-ignore
             this.cachedElements[key] = element as T["Elements"][K];
         }
+        // @ts-ignore
         return this.cachedElements[key] as T["Elements"][K];
     }
 
@@ -64,6 +67,7 @@ export class CustomElement<T extends CustomElementType> extends HTMLElement {
 
     observeValue<E extends keyof ValueElements<T["Elements"]>>(element: E, event: "input" | "change" = "input") {
         return this.observeEvent(event, `[data-element=${String(element)}]`).pipe(
+            // @ts-ignore
             map(([event, element]) => (element as ValueElements<T["Elements"]>[E]).value),
         );
     }
