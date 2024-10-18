@@ -20,7 +20,7 @@ program
 
 async function runCommand(command: string, cwd?: string) {
     const timer = executionTimer();
-    await execPromise(`npm ci`, {
+    await execPromise(command, {
         cwd: cwd,
     }).then(value => {
         if (value.stderr) {

@@ -1,5 +1,6 @@
 // Observables
 export { observeDay } from "./rx/observables/date";
+export { observeLifecycle } from "./rx/observables/lifecycle";
 export { ObservableMap } from "./rx/observables/map";
 export { randomInterval } from "./rx/observables/random-interval";
 export { renderLoop$ } from "./rx/observables/render-loop";

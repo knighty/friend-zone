@@ -1,4 +1,5 @@
-import { from, Observable } from "rxjs";
+import { from, tap } from "rxjs";
+import { observeLifecycle } from "shared/rx";
 import { awaitResult } from "shared/utils";
 import { twitchLog, twitchRequest } from "../api";
 import { AuthTokenSource } from "../auth-tokens";
@@ -68,7 +69,15 @@ export async function eventSub<Condition extends EventSub<any>>(authToken: AuthT
 
 export function observeEventSub<Condition extends EventSub<any>>(authToken: AuthTokenSource, payload: Condition) {
     let id: string | null = null;
-    return new Observable<void>(subscriber => {
+
+    return observeLifecycle(() => from(eventSub(authToken, payload)).pipe(
+        tap(response => id = response.data[0].id)
+    ), () => {
+        if (id)
+            eventUnsub(authToken, id);
+    })
+
+    /*return new Observable<void>(subscriber => {
         const s = from(eventSub(authToken, payload)).subscribe(response => {
             id = response.data[0].id;
             subscriber.next(undefined);
@@ -79,7 +88,7 @@ export function observeEventSub<Condition extends EventSub<any>>(authToken: Auth
                 eventUnsub(authToken, id);
             s.unsubscribe();
         }
-    })
+    })*/
 
     /*return from(eventSub(authToken, payload)).pipe(
         tap(response => id = response.data[0].id),
