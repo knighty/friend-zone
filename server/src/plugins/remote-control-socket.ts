@@ -31,6 +31,10 @@ namespace Messages {
         aspectRatio: string,
         sourceAspectRatio: string
     } | null
+
+    export type Screen = {
+        data: string;
+    }
 }
 
 export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds, users: Users, mippy: Mippy) => async (fastify: FastifyInstance, options: {}) => {
@@ -44,6 +48,7 @@ export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds, 
                 "feed/register": Messages.RegisterFeed,
                 "mippy/ask": string,
                 "mippy/say": string,
+                "screen": Messages.Screen
             }
         }>(ws, new ObservableEventProvider({
             subtitles: of({ enabled: true })
@@ -76,6 +81,25 @@ export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds, 
                     socket.on("mippy/say").subscribe(message => {
                         mippy.say(message)
                     })
+
+                    let i = 0;
+                    const screenGrabsSubscription = users.requestScreenGrab$.pipe(
+                        filter(user => user.id == userId),
+                        switchMapComplete(user => {
+                            i++;
+                            return socket.send<{ data: string }>("getScreen", {}, true).pipe(
+                                tap(data => {
+                                    if (!data)
+                                        return;
+                                    users.screenGrabs$.next({
+                                        id: i,
+                                        screen: Buffer.from(data.data, "binary"),
+                                        user: user
+                                    })
+                                })
+                            );
+                        })
+                    ).subscribe()
 
                     /*const feedData$ = combineLatest([
                         feed$.pipe(filter(feed => feed != null)),
@@ -145,6 +169,7 @@ export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds, 
                         }),
                         finalize(() => {
                             userRegistration.unregister();
+                            screenGrabsSubscription.unsubscribe();
                             log.info(`${userName} unregistered`);
                         })
                     ).subscribe();

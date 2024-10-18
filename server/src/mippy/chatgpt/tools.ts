@@ -36,7 +36,7 @@ export type ToolArguments = {
     suggestWordOfTheHour: {
         word: string
     },
-    analyzeStream: {},
+    getScreenshot: {},
     action: {
         action: Actions
     }
@@ -126,6 +126,12 @@ const toolsSchema: ChatCompletionTool[] = [
             }
         },
         required: ["action"]
+    }),
+    toolFunction("getScreenshot", "Get a screenshot of the stream", {
+        type: "object",
+        additionalProperties: false,
+        properties: {},
+        required: []
     })
 ];
 

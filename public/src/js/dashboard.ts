@@ -33,11 +33,11 @@ type MippyPluginConfigItemNumber = MippyPluginConfigItemBase<number, "number"> &
     step?: number
 }
 
-type MippyPluginConfigItemEnum<T extends string[]> = MippyPluginConfigItemBase<string, "enum"> & {
-    values: T
+type MippyPluginConfigItemEnum = MippyPluginConfigItemBase<string, "enum"> & {
+    values: Record<string, string>
 }
 
-type MippyPluginConfigItem = MippyPluginConfigItemString | MippyPluginConfigItemNumber | MippyPluginConfigItemEnum<any> | MippyPluginConfigItemBoolean;
+type MippyPluginConfigItem = MippyPluginConfigItemString | MippyPluginConfigItemNumber | MippyPluginConfigItemEnum | MippyPluginConfigItemBoolean;
 
 export type MippyPluginConfigDefinition = Record<string, MippyPluginConfigItem>;
 
@@ -103,9 +103,9 @@ class Dashboard extends HTMLElement {
                                     createElement("input", {
                                         type: "range",
                                         attributes: {
-                                            min: configItem.min.toString() ?? "",
-                                            max: configItem.max.toString() ?? "",
-                                            step: configItem.step.toString() ?? "",
+                                            min: configItem.min?.toString() ?? "",
+                                            max: configItem.max?.toString() ?? "",
+                                            step: configItem.step?.toString() ?? "",
                                         },
                                         value: plugin.values[key]
                                     }),
@@ -133,6 +133,16 @@ class Dashboard extends HTMLElement {
                                         type: "text",
                                         value: plugin.values[key]
                                     })
+                                ]
+                            }
+                            case "enum": {
+                                return [
+                                    document.createTextNode(configItem.name),
+                                    createElement("select", {
+                                        value: plugin.values[key]
+                                    }, Object.keys(configItem.values).map(
+                                        item => createElement("option", { value: item }, configItem.values[item])
+                                    ))
                                 ]
                             }
                         }
@@ -178,6 +188,23 @@ class Dashboard extends HTMLElement {
                     return {
                         element,
                         value: element.checked
+                    }
+                })
+            ),
+            observeScopedEvent<HTMLInputElement, "input">(mippyElement, "input", "[data-type='enum'] select").pipe(
+                map(([e, element]) => {
+                    return {
+                        element,
+                        value: element.value
+                    }
+                })
+            ),
+            observeScopedEvent<HTMLInputElement, "input">(mippyElement, "input", "[data-type='string'] input").pipe(
+                debounceTime(500),
+                map(([e, element]) => {
+                    return {
+                        element,
+                        value: element.value
                     }
                 })
             )

@@ -1,4 +1,4 @@
-import { BehaviorSubject, concatMap, distinctUntilChanged, endWith, filter, fromEvent, ignoreElements, map, merge, Observable, scan, share, startWith, switchMap, takeUntil, tap, timer } from 'rxjs';
+import { BehaviorSubject, concatMap, distinctUntilChanged, EMPTY, endWith, filter, fromEvent, ignoreElements, map, merge, Observable, scan, share, startWith, switchMap, takeUntil, tap, timer } from 'rxjs';
 import { CustomElement } from "shared/html/custom-element";
 import { renderLoop$, switchMapComplete } from 'shared/rx';
 import { truncateString } from "shared/text-utils";
@@ -88,6 +88,7 @@ export class MippyModule extends CustomElement<{
     }
 
     connect() {
+        const audioOnly = document.location.hash == "#audio-only";
         const reverbEnabled = true;
         const dryWetRatio = 0.05;
 
@@ -126,20 +127,12 @@ export class MippyModule extends CustomElement<{
             share()
         )
 
-        const analyzerData$ = renderLoop$.pipe(
-            tap(() => {
-                analyser.getByteTimeDomainData(dataArray);
-                analyser.getFloatFrequencyData(frequencyArray);
-            }),
-            share()
-        );
-
         const audio = this.element("audio");
         const source = audioCtx.createMediaElementSource(audio);
         source.connect(speechDestination);
 
         const playAudio = (id: string, estimatedDuration: number) => {
-            audio.src = `/tts/audio/${id}`;
+            audio.src = `/mippy/plugins/voice/audio/${id}`;
 
             const play$ = fromEvent(audio, "canplay").pipe(
                 tap(() => audio.play()),
@@ -165,7 +158,26 @@ export class MippyModule extends CustomElement<{
             );
         }
 
-        const playing$ = speechEvent$.pipe(
+        const playing$ = audioOnly ? speechEvent$.pipe(
+            concatScan(speech => {
+                const audio$ = playAudio(speech.id, speech.message.text.length / 15).pipe(
+                    share()
+                )
+
+                const observable = audio$.pipe(
+                    ignoreElements(),
+                    startWith(true),
+                    endWith(false)
+                );
+
+                return [
+                    observable,
+                    speech => {
+
+                    }
+                ]
+            }, (a, b) => a.id == b.id)
+        ) : speechEvent$.pipe(
             concatScan(speech => {
                 const audio$ = playAudio(speech.id, speech.message.text.length / 15).pipe(
                     share()
@@ -204,42 +216,60 @@ export class MippyModule extends CustomElement<{
             }, (a, b) => a.id == b.id)
         );
 
-        this.element("frequencyGraph").bindData("frequencies", analyzerData$.pipe(map(() => frequencyArray)));
+        const analyzeFrames$ = renderLoop$.pipe(
+            tap(() => {
+                analyser.getByteTimeDomainData(dataArray);
+                analyser.getFloatFrequencyData(frequencyArray);
+            }));
 
-        const amplitude$ = analyzerData$.pipe(
-            map(() => {
-                let max = 0;
-                for (let i = 0; i < dataArray.length; i++) {
-                    max = Math.max(max, dataArray[i]);
-                }
-                return max;
-            }),
-            scan((state, value) => {
-                const dt = 1 / 60;
-                state.v *= 0.94;
-                state.v += (value - state.y) * 4;
-                state.y += state.v * dt;
-                return state;
-            }, { y: 0, v: 0 }),
-            map(value => Math.floor(value.y)),
-            distinctUntilChanged(),
-            tap(value => {
-                mippy.style.setProperty("--animation", ((value - 128) / 128).toString())
-            })
+        const analyzerData$ = playing$.pipe(
+            startWith(false),
+            switchMap(playing => timer(playing ? 0 : 3000).pipe(map(() => playing))),
+            switchMap(playing => playing ? analyzeFrames$ : EMPTY),
+            share()
         )
 
-        amplitude$.subscribe();
+        if (audioOnly) {
+            playing$.subscribe();
+        } else {
+            this.element("frequencyGraph").bindData("frequencies", analyzerData$.pipe(map(() => frequencyArray)));
 
-        playing$.pipe(
-            startWith(false),
-            switchMap(playing => {
-                const wait = playing ? timer(0) : timer(3000);
-                return wait.pipe(map(() => playing));
-            }),
-            tap(value => {
-                subtitleElement.classList.toggle("visible", value);
-                avatar.classList.toggle("visible", value);
-            })
-        ).subscribe();
+            const amplitude$ = analyzerData$.pipe(
+                map(() => {
+                    let max = 0;
+                    for (let i = 0; i < dataArray.length; i++) {
+                        max = Math.max(max, dataArray[i]);
+                    }
+                    return max;
+                }),
+                scan((state, value) => {
+                    const dt = 1 / 60;
+                    state.v *= 0.94;
+                    state.v += (value - state.y) * 4;
+                    state.y += state.v * dt;
+                    return state;
+                }, { y: 0, v: 0 }),
+                map(value => Math.floor(value.y)),
+                distinctUntilChanged(),
+                tap(value => {
+                    mippy.style.setProperty("--animation", ((value - 128) / 128).toString())
+                })
+            )
+
+            amplitude$.subscribe();
+            playing$.pipe(
+                startWith(false),
+                switchMap(playing => {
+                    const wait = playing ? timer(0) : timer(3000);
+                    return wait.pipe(map(() => playing));
+                }),
+                tap(value => {
+                    subtitleElement.classList.toggle("visible", value);
+                    avatar.classList.toggle("visible", value);
+                })
+            ).subscribe();
+        }
+
+
     }
 }

@@ -8,16 +8,31 @@ export interface MippyBrain {
     ask<Event extends keyof MippyPrompts, Data extends MippyPrompts[Event]>(event: Event, data: Data, prompt: Omit<Prompt, "text">): void;
 }
 
-export type Prompt = {
+type BasePrompt = {
     text: string,
-    role?: "user" | "system",
     source?: "chat" | "admin",
-    name?: string,
     store?: boolean,
-    allowTools?: boolean
+    allowTools?: boolean,
+    image?: string[]
 }
 
-export type PartialPrompt = Omit<Prompt, "text">;
+type UserPrompt = BasePrompt & {
+    role?: "user",
+    image?: string[],
+    name?: string,
+}
+
+type SystemPrompt = BasePrompt & {
+    role: "system"
+}
+
+export type Prompt = UserPrompt | SystemPrompt;
+
+export function isUserPrompt(prompt: Prompt): prompt is UserPrompt {
+    return prompt.role == "user" || prompt.role === undefined
+}
+
+export type PartialPrompt = Omit<UserPrompt, "text"> | Omit<SystemPrompt, "text">;
 
 export type MippyMessage = {
     text: string;
@@ -26,6 +41,7 @@ export type MippyMessage = {
 }
 
 export type MippyPrompts = {
+    generic: {},
     wothSetCount: { count: number, word: string, user: string },
     wothSetWord: { word: string, user: string },
     question: { question: string, user: string },
@@ -44,4 +60,5 @@ export type MippyPrompts = {
     suggestWordOfTheHour: { mostSaidWords: string },
     scheduleAnnounce: { schedule: string },
     sayGoodbye: { schedule: string },
+    sayHi: { user: string, info: string }
 }

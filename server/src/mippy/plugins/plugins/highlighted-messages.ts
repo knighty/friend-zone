@@ -1,4 +1,5 @@
-import { filter, map, merge, switchMap, withLatestFrom } from "rxjs";
+import { EMPTY, map, merge, switchMap, withLatestFrom } from "rxjs";
+import { throttleGroup } from "shared/rx";
 import TwitchChat, { TwitchChatLog } from "../../../data/twitch-chat";
 import { MippyPluginConfig, MippyPluginConfigDefinition, MippyPluginDefinition } from "../plugins";
 
@@ -20,6 +21,12 @@ const pluginConfig = {
         max: 100,
         min: 0,
         step: 5,
+    },
+    command: {
+        name: "Command",
+        description: "A command in chat that can be used by admins to ask mippy",
+        type: "string",
+        default: "mippyask"
     }
 } satisfies MippyPluginConfigDefinition;
 
@@ -30,11 +37,11 @@ export function highlightedMessagesPlugin(twitchChat: TwitchChat, twitchChatLog:
         config: pluginConfig,
         init: async (mippy, config: MippyPluginConfig<typeof pluginConfig>) => {
             const message$ = merge(
-                twitchChat.observeMessages().pipe(
-                    filter(message => message.highlighted),
-                    map(message => ({ user: message.user, text: message.text }))
+                twitchChat.observeHighlightedMessages().pipe(
+                    throttleGroup(value => value.user, 20000)
                 ),
-                twitchChat.observeCommand("mippyask").pipe(
+                config.observe("command").pipe(
+                    switchMap(command => command != "" ? twitchChat.observeCommand(command) : EMPTY),
                     map(command => ({ user: command.user, text: command.arguments.join(" ") }))
                 )
             )

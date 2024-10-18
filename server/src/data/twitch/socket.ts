@@ -3,7 +3,7 @@ import { catchError, EMPTY, filter, first, fromEvent, map, Observable, share, sh
 import { logger } from "shared/logger";
 import { switchMapComplete } from "shared/rx";
 import { WebSocket } from "ws";
-import { eventSub, eventUnsub, unsubscribeDisconnected } from "./api/event-sub";
+import { observeEventSub, unsubscribeDisconnected } from "./api/event-sub";
 import { UserAuthTokenSource } from "./auth-tokens";
 
 type SocketMessage<T = any> = {
@@ -34,6 +34,20 @@ type SubscriptionPayload<Condition> = {
             session_id: string
         }
     }
+}
+
+type Reconnect = SocketMessage<{
+    session: {
+        id: string,
+        status: "reconnecting",
+        keepalive_timeout_seconds: null,
+        reconnect_url: string,
+        connected_at: string
+    }
+}>
+
+function isReconnectMessage(message: any): message is Reconnect {
+    return message?.session?.status == "reconnecting";
 }
 
 const log = logger("twitch-api-socket");
@@ -72,7 +86,7 @@ export function twitchSocket(authTokenSource: UserAuthTokenSource, url = "wss://
 
             function messageEvent(e: any) {
                 const event = JSON.parse(e.data.toString());
-                if (event == "session_reconnect") {
+                if (isReconnectMessage(event)) {
                     const reconnectUrl = event.payload.session.reconnect_url;
                     log.info(`Reconnecting to ${green(reconnectUrl)}`);
                     openMode = "reconnect";
@@ -121,37 +135,20 @@ export function twitchSocket(authTokenSource: UserAuthTokenSource, url = "wss://
     );
 
     function on<Payload, Condition>(type: string, condition: Condition, version = "2") {
-        const sub$ = session$.pipe(
-            switchMapComplete(session => new Observable<void>(subscriber => {
-                let id: string | null = null;
-                eventSub(authTokenSource, {
-                    type: type,
-                    version: version,
-                    transport: {
-                        method: "websocket",
-                        session_id: session.sessionId
-                    },
-                    condition
-                }).then(response => {
-                    id = response.data[0].id;
-                    subscriber.next()
-                }).catch(e => {
-                    subscriber.error();
-                    console.error(e);
-                });
-                return () => {
-                    if (id && session.client.readyState == WebSocket.OPEN) {
-                        eventUnsub(authTokenSource, id);
-                    }
-                }
+        return session$.pipe(
+            switchMapComplete(session => observeEventSub(authTokenSource, {
+                type,
+                version,
+                transport: {
+                    method: "websocket",
+                    session_id: session.sessionId
+                },
+                condition
             })),
             catchError(e => {
                 log.error(e);
                 return EMPTY;
-            })
-        )
-
-        return sub$.pipe(
+            }),
             switchMapComplete(() => messages$),
             filter(message => message.metadata.subscription_type == type),
             map(message => message.payload as Payload)

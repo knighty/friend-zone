@@ -20,6 +20,7 @@ export type MippyChatGPTConfig = MippyBaseConfig & {
     },
     permissions: MippyPermissions[],
     prompts: Partial<{
+        generic: string,
         wothSetWord: string,
         wothSetCount: string,
         question: string,
@@ -37,7 +38,8 @@ export type MippyChatGPTConfig = MippyBaseConfig & {
         subtitlesAnalysis: string,
         suggestWordOfTheHour: string,
         scheduleAnnounce: string,
-        sayGoodbye: string
+        sayGoodbye: string,
+        sayHi: string
     }>
 }
 

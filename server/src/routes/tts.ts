@@ -7,7 +7,7 @@ export function initTtsRouter(audioRepository: AudioRepository) {
             Params: {
                 id: string
             }
-        }>("/audio/:id", async (req, res) => {
+        }>("/:id", async (req, res) => {
             res.header('Content-Type', 'audio/wav');
             try {
                 const stream = await audioRepository.getStream(req.params.id);

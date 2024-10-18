@@ -13,7 +13,7 @@ type SubtitleStreamEvent = SubtitlesUser;
 export default class Subtitles {
     stream$ = new Subject<SubtitleStreamEvent>();
     mippy: Mippy;
-    questions$ = new Subject<{ user: string, text: string }>();
+    questions$ = new Subject<{ user: string, question: string }>();
 
     constructor(mippy: Mippy) {
         this.mippy = mippy;
@@ -21,7 +21,9 @@ export default class Subtitles {
         if (mippy) {
             this.questions$.pipe(
                 throttleTime(5000),
-            ).subscribe(question => this.mippy.ask("question", { question: question.text, user: question.user }, { name: question.user, source: "admin", allowTools: true }))
+            ).subscribe(
+                question => this.mippy.ask("question", question, { name: question.user, source: "admin", allowTools: true })
+            )
         }
     }
 
@@ -45,7 +47,7 @@ export default class Subtitles {
             const q = match[1];
             this.questions$.next({
                 user: userId,
-                text: q
+                question: q
             });
         }
     }

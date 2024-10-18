@@ -4,7 +4,7 @@ export function throttleGroup<In>(projectKey: (value: In) => string, duration: n
     const timeouts: Record<string, boolean> = {};
     return (source: Observable<In>) => {
         return new Observable<In>(subscriber => {
-            source.subscribe({
+            return source.subscribe({
                 next: value => {
                     const key = projectKey(value);
                     if (!(key in timeouts)) {

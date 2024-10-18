@@ -11,6 +11,7 @@ export { highlightedMessagesPlugin } from "./plugins/highlighted-messages";
 export { relayMessagesToTwitchPlugin } from "./plugins/message-relay";
 export { scheduleAnnouncePlugin as scheduleAnnouncerPlugin } from "./plugins/schedule-announce";
 export { streamEventsPlugin } from "./plugins/stream-events";
+export { mippyVoicePlugin } from "./plugins/voice";
 export { wothSuggesterPlugin } from "./plugins/woth-suggester";
 
 export type MippyPlugin = {
@@ -40,11 +41,11 @@ type MippyPluginConfigItemNumber = MippyPluginConfigItemBase<number, "number"> &
     step?: number
 }
 
-type MippyPluginConfigItemEnum<T extends string[]> = MippyPluginConfigItemBase<string, "enum"> & {
-    values: T
+type MippyPluginConfigItemEnum = MippyPluginConfigItemBase<string, "enum"> & {
+    values: Record<string, string>
 }
 
-type MippyPluginConfigItem = MippyPluginConfigItemString | MippyPluginConfigItemNumber | MippyPluginConfigItemEnum<any> | MippyPluginConfigItemBoolean;
+type MippyPluginConfigItem = MippyPluginConfigItemString | MippyPluginConfigItemNumber | MippyPluginConfigItemEnum | MippyPluginConfigItemBoolean;
 
 export type MippyPluginConfigDefinition = Record<string, MippyPluginConfigItem>;
 

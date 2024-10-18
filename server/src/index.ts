@@ -32,9 +32,9 @@ import { DumbMippyBrain } from './mippy/dumb-brain';
 import { MippyHistoryRepository } from './mippy/history/repository';
 import { Mippy } from './mippy/mippy';
 import { MippyBrain } from './mippy/mippy-brain';
-import { analyzeSubtitlesPlugin, createPollPlugin, createPredictionPlugin, highlightedMessagesPlugin, MippyPermissions as MippyPermission, MippyPluginConfigDefinition, MippyPluginConfigDefinitionValues, MippyPluginManager, relayMessagesToTwitchPlugin, scheduleAnnouncerPlugin, streamEventsPlugin, wothSuggesterPlugin } from './mippy/plugins/plugins';
-import { downloadImage } from './mippy/plugins/plugins/analyze-stream';
-import { AudioRepository } from './plugins/audio-socket';
+import { analyzeSubtitlesPlugin, createPollPlugin, createPredictionPlugin, highlightedMessagesPlugin, MippyPermissions as MippyPermission, MippyPluginConfigDefinition, MippyPluginConfigDefinitionValues, MippyPluginManager, mippyVoicePlugin, relayMessagesToTwitchPlugin, scheduleAnnouncerPlugin, streamEventsPlugin, wothSuggesterPlugin } from './mippy/plugins/plugins';
+import { chatPlugin } from './mippy/plugins/plugins/chat';
+import { screenshotPlugin } from './mippy/plugins/plugins/screenshot';
 import { configSocket } from './plugins/config-socket';
 import { errorHandler } from './plugins/errors';
 import { fastifyFavicon } from "./plugins/favicon";
@@ -43,11 +43,8 @@ import { remoteControlSocket } from './plugins/remote-control-socket';
 import { fastifyRobots } from './plugins/robots';
 import { socket } from './plugins/socket';
 import { initStreamModulesRouter } from './routes/stream-modules';
-import { initTtsRouter } from './routes/tts';
 import twitchRouter from './routes/twitch/auth';
 import { getManifestPath } from './utils';
-
-downloadImage("https://static-cdn.jtvnw.net/previews-ttv/live_user_ow_esports-320x180.jpg");
 
 //------------------------------------------------------
 // Constants
@@ -118,8 +115,7 @@ function getBrain(): MippyBrain {
     throw new Error("No valid brain for Mippy");
 }
 let brain = getBrain();
-const audioRepository = new AudioRepository();
-const mippy = new Mippy(brain, config.mippy, audioRepository, permissions);
+const mippy = new Mippy(brain, config.mippy, permissions);
 const plugins = new MippyPluginManager(config.mippy.plugins);
 const subtitles = new Subtitles(mippy);
 const subtitlesLog = new SubtitlesLog(subtitles);
@@ -145,8 +141,10 @@ if (isDiscordConfig(config.discord)) {
 }
 
 // Mippy Plugins
-plugins.addPlugin("analyzeSubtitles", options => analyzeSubtitlesPlugin(subtitlesLog, options));
+plugins.addPlugin("analyzeSubtitles", options => analyzeSubtitlesPlugin(subtitlesLog));
 plugins.addPlugin("wothSuggester", options => wothSuggesterPlugin(subtitlesLog, wordOfTheHour, options));
+plugins.addPlugin("voice", options => mippyVoicePlugin(fastifyApp, config.socketHost));
+plugins.addPlugin("screenshot", options => screenshotPlugin(fastifyApp, config, users));
 
 if (isTwitchConfig(config.twitch)) {
     const twitch = config.twitch;
@@ -159,6 +157,7 @@ if (isTwitchConfig(config.twitch)) {
 
     wordOfTheHour.watchTwitchChat(twitchChat);
 
+    plugins.addPlugin("chat", options => chatPlugin(twitchChat));
     plugins.addPlugin("createPoll", options => createPollPlugin(userToken, broadcasterId, options));
     plugins.addPlugin("createPrediction", options => createPredictionPlugin(userToken, broadcasterId, options));
     plugins.addPlugin("highlightedMessages", options => highlightedMessagesPlugin(twitchChat, twitchChatLog));
@@ -225,7 +224,6 @@ const dataSources = objectMapArray({
     feedCount: feeds.feedCount$,
     feedLayout: feeds.feedLayout$,
     slideshowFrequency: feeds.slideshowFrequency$,
-    mippySpeech: mippy.listen(),
     mippyHistory: mippy.observeHistory()
 }, (value, key) => socketParam(key, value));
 
@@ -281,9 +279,6 @@ fastifyApp.register(fastifyStatic, {
 
 // Robots
 fastifyApp.register(fastifyRobots);
-
-// TTS audio files
-fastifyApp.register(initTtsRouter(audioRepository), { prefix: "/tts" });
 
 // Fav Icon
 fastifyApp.register(fastifyFavicon, { root: path.join(publicDir, '/dist') });

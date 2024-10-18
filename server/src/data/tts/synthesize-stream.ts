@@ -18,9 +18,9 @@ function sanitizeText(text: string) {
 
 const log = logger("piper");
 
-export function streamSynthesizeVoice(text: Observable<string>): Observable<StreamSynthesisResult> {
+export function streamSynthesizeVoice(text: Observable<string>, voice: string): Observable<StreamSynthesisResult> {
     const piperArgs = [
-        `--model`, "en_US-norman-medium.onnx",
+        `--model`, voice,
         `--output-raw`, `-q`
     ];
 
@@ -43,9 +43,9 @@ export function streamSynthesizeVoice(text: Observable<string>): Observable<Stre
                         }
                     },
                     complete: () => {
-                        if (str == "") {
+                        /*if (str == "") {
                             log.error("Somehow completed partials without getting any text");
-                        }
+                        }*/
                         if (currentPos < str.length)
                             subscriber.next([str, str.length]);
                         subscriber.complete();

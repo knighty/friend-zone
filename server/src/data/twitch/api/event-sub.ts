@@ -1,3 +1,5 @@
+import { from, Observable } from "rxjs";
+import { awaitResult } from "shared/utils";
 import { twitchLog, twitchRequest } from "../api";
 import { AuthTokenSource } from "../auth-tokens";
 import { APICallError } from "./request";
@@ -64,6 +66,31 @@ export async function eventSub<Condition extends EventSub<any>>(authToken: AuthT
     return response;
 };
 
+export function observeEventSub<Condition extends EventSub<any>>(authToken: AuthTokenSource, payload: Condition) {
+    let id: string | null = null;
+    return new Observable<void>(subscriber => {
+        const s = from(eventSub(authToken, payload)).subscribe(response => {
+            id = response.data[0].id;
+            subscriber.next(undefined);
+        });
+
+        return () => {
+            if (id)
+                eventUnsub(authToken, id);
+            s.unsubscribe();
+        }
+    })
+
+    /*return from(eventSub(authToken, payload)).pipe(
+        tap(response => id = response.data[0].id),
+        finalize(() => {
+            if (id) {
+                eventUnsub(authToken, id);
+            }
+        })
+    )*/
+}
+
 export async function eventUnsub(authToken: AuthTokenSource, id: string) {
     const response = await twitchRequest<never>({
         method: "DELETE",
@@ -75,20 +102,17 @@ export async function eventUnsub(authToken: AuthTokenSource, id: string) {
 };
 
 export async function unsubscribeDisconnected(authToken: AuthTokenSource) {
-    try {
-        const response = await twitchRequest<EventSubListResponse>({
-            method: "GET",
-            path: "/helix/eventsub/subscriptions",
-            params: {
-                status: "websocket_disconnected"
-            }
-        }, authToken);
-        for (let item of response.data) {
-            await eventUnsub(authToken, item.id);
+    const response = await twitchRequest<EventSubListResponse>({
+        method: "GET",
+        path: "/helix/eventsub/subscriptions",
+        params: {
+            status: "websocket_disconnected"
         }
-    } catch (e) {
-        if (e instanceof APICallError) {
-            twitchLog.error(`${e.error.status}: ${e.error.error} - ${e.error.message}`);
+    }, authToken);
+    for (let item of response.data) {
+        const [error, result] = await awaitResult(eventUnsub(authToken, item.id), [APICallError]);
+        if (error) {
+            twitchLog.error(error);
         }
     }
 };

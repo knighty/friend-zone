@@ -1,21 +1,10 @@
-export type MippyHistoryMessageUser = {
-    role: "user";
-    date: number;
-    content: string;
-    name?: string;
-};
+import { ChatCompletionAssistantMessageParam, ChatCompletionSystemMessageParam, ChatCompletionUserMessageParam } from "openai/resources/index.mjs";
 
-export type MippyHistoryMessageAssistant = {
-    content: string;
-    date: number;
-    role: "assistant";
-};
+export type MippyHistoryMessageUser = ChatCompletionUserMessageParam;
 
-export type MippyHistoryMessageSystem = {
-    content: string;
-    date: number;
-    role: "system";
-};
+export type MippyHistoryMessageAssistant = ChatCompletionAssistantMessageParam;
+
+export type MippyHistoryMessageSystem = ChatCompletionSystemMessageParam;
 
 export type MippyHistoryMessage = MippyHistoryMessageUser | MippyHistoryMessageAssistant | MippyHistoryMessageSystem;
 

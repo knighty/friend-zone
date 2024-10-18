@@ -1,4 +1,4 @@
-import { fromDomEvent, observeScopedEvent } from "shared/utils";
+import { createElement, fromDomEvent, observeScopedEvent, populateChildren } from "shared/utils";
 import { connectBrowserSocket } from "shared/websocket/browser";
 
 if (window.webkitSpeechRecognition) {
@@ -67,6 +67,7 @@ const socket = connectBrowserSocket<{
     Events: {
         connectionStatus: boolean
         config: { key: string, value: any }
+        windows: Record<string, string>
     }
 }>(`${document.location.protocol == "https:" ? "wss:" : "ws:"}//${document.location.host}/websocket`);
 socket.isConnected$.subscribe(isConnected => document.body.classList.toggle("connected", isConnected));
@@ -113,6 +114,19 @@ fromDomEvent(document.getElementById("askMippyButton"), "click").subscribe(e => 
 fromDomEvent(document.getElementById("mippySayButton"), "click").subscribe(e => {
     socket.send("mippy/say", element<HTMLInputElement>("mippySay").value);
     element<HTMLInputElement>("mippySay").value = "";
+})
+
+socket.on("windows").subscribe(windows => {
+    populateChildren(
+        document.querySelector<HTMLSelectElement>("#windows"),
+        Object.keys(windows),
+        (element, item) => (element as HTMLOptionElement).value == item,
+        (item) => createElement("option", { value: item }, windows[item])
+    )
+})
+
+fromDomEvent(document.getElementById("windows"), "input").subscribe(e => {
+    socket.send("mippy/window", (e.target as HTMLSelectElement).value);
 })
 
 socket.on("connectionStatus").subscribe(isConnected => {

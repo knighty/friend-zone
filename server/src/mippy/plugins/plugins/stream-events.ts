@@ -1,8 +1,10 @@
 import { distinctUntilChanged, EMPTY, filter, from, map, Observable, switchMap } from "rxjs";
+import { log } from "shared/logger";
 import { StreamEventWatcher } from "../../../data/stream-event-watcher";
 import { getCategoryStreamsInfo } from "../../../data/twitch/api";
 import { UserAuthTokenSource } from "../../../data/twitch/auth-tokens";
 import { MippyPluginConfig, MippyPluginConfigDefinition, MippyPluginDefinition } from "../plugins";
+import { MippyVoicePlugin } from "./voice";
 
 const eventConfig = {
     channelUpdate: {
@@ -46,6 +48,12 @@ const eventConfig = {
         description: "When a user cheers with bits",
         type: "boolean",
         default: false
+    },
+    redemptions: {
+        name: "Redemptions",
+        description: "When a user redeems something",
+        type: "boolean",
+        default: false
     }
 } satisfies MippyPluginConfigDefinition;
 
@@ -66,60 +74,58 @@ export function streamEventsPlugin(authToken: UserAuthTokenSource, broadcasterId
         config: pluginConfig,
         init: async (mippy, config: MippyPluginConfig<typeof pluginConfig>) => {
             const streamEventWatcher = new StreamEventWatcher(authToken);
+            const broadcaster = { broadcaster_user_id: broadcasterId };
 
             function event<T>(key: keyof typeof eventConfig, observable: Observable<T>) {
                 return config.observe(key).pipe(
                     distinctUntilChanged(),
-                    switchMap(v => {
-                        if (v == true) {
-                            return observable;
-                        }
-                        return EMPTY;
-                    })
+                    switchMap(v => v ? observable : EMPTY)
                 )
             }
 
-            event("channelUpdate", streamEventWatcher.onEvent("channel.update", {
-                broadcaster_user_id: broadcasterId
-            }, "2")).pipe(
-                switchMap(event => from(getCategoryStreamsInfo(authToken, event.category_id)).pipe(
-                    map(data => ({ ...data, ...event }))
-                )),
-                //switchMap(append(event => from(getCategoryStreamsInfo(authToken, event.category_id)))),
-                distinctUntilChanged((a, b) => a.category_id == b.category_id),
+            event("channelUpdate",
+                streamEventWatcher.onEvent("channel.update", broadcaster, "2").pipe(
+                    switchMap(event => from(getCategoryStreamsInfo(authToken, event.category_id)).pipe(
+                        map(data => ({ ...data, ...event }))
+                    )),
+                    //switchMap(append(event => from(getCategoryStreamsInfo(authToken, event.category_id)))),
+                    distinctUntilChanged((a, b) => a.category_id == b.category_id),
+                )
             ).subscribe(event => {
-                mippy.ask("setCategory", { category: event.category_name, viewers: event.viewers.toString() }, { allowTools: false, role: "system" });
+                mippy.ask("setCategory", { category: event.category_name, viewers: event.viewers.toString() }, { allowTools: false });
             });
 
             event("follows", streamEventWatcher.onEvent("channel.follow", {
                 broadcaster_user_id: broadcasterId,
                 moderator_user_id: broadcasterId
             }, "2")).subscribe(e => {
-                mippy.ask("newFollower", { user: e.user_name }, { name: e.user_name, allowTools: false, role: "system" });
+                mippy.ask("newFollower", { user: e.user_name }, { name: e.user_name, allowTools: false });
             });
 
-            event("subscriptions", streamEventWatcher.onEvent("channel.subscribe", {
-                broadcaster_user_id: broadcasterId,
-            })).subscribe(e => {
-                mippy.ask("newSubscriber", { user: e.user_name }, { name: e.user_name, allowTools: false, role: "system" });
+            event("subscriptions", streamEventWatcher.onEvent("channel.subscribe", broadcaster)).subscribe(e => {
+                mippy.ask("newSubscriber", { user: e.user_name }, { name: e.user_name, allowTools: false });
             });
 
-            event("subscriptions", streamEventWatcher.onEvent("channel.subscription.message", {
-                broadcaster_user_id: broadcasterId,
-            })).subscribe(e => {
-                mippy.ask("resubscribe", { user: e.user_name, months: e.duration_months.toString(), message: e.message.text }, { name: e.user_name, allowTools: false, role: "system" });
+            event("subscriptions", streamEventWatcher.onEvent("channel.subscription.message", broadcaster)).subscribe(e => {
+                mippy.ask("resubscribe", { user: e.user_name, months: e.duration_months.toString(), message: e.message.text }, { name: e.user_name, allowTools: false });
             });
 
-            event("cheers", streamEventWatcher.onEvent("channel.cheer", {
-                broadcaster_user_id: broadcasterId,
-            })).subscribe(e => {
-                mippy.ask("cheer", { user: e.user_name, bits: e.bits.toString(), message: e.message }, { name: e.user_name, allowTools: false, role: "system" });
+            event("cheers", streamEventWatcher.onEvent("channel.cheer", broadcaster)).subscribe(e => {
+                mippy.ask("cheer", { user: e.user_name, bits: e.bits.toString(), message: e.message }, { name: e.user_name, allowTools: false });
             });
 
-            event("adBreaks", streamEventWatcher.onEvent("channel.ad_break.begin", {
-                broadcaster_user_id: broadcasterId,
-            })).subscribe(e => {
-                mippy.ask("adBreak", { duration: e.duration_seconds }, { allowTools: false, role: "system" });
+            event("adBreaks", streamEventWatcher.onEvent("channel.ad_break.begin", broadcaster)).subscribe(e => {
+                mippy.ask("adBreak", { duration: e.duration_seconds }, { allowTools: false });
+            });
+
+            event("redemptions", streamEventWatcher.onEvent("channel.channel_points_custom_reward_redemption.add", broadcaster)).subscribe(data => {
+                if (data.id == "rwgferge") {
+                    try {
+                        mippy.getPlugin<MippyVoicePlugin>("voice").setVoice("glados");
+                    } catch (e) {
+                        log.error(e);
+                    }
+                }
             });
 
             event("chatSettings", streamEventWatcher.onEvent("channel.chat_settings.update", {
@@ -129,12 +135,10 @@ export function streamEventsPlugin(authToken: UserAuthTokenSource, broadcasterId
                 map(e => e.emote_mode),
                 distinctUntilChanged(),
             ).subscribe(emojiOnly => {
-                mippy.ask("setEmojiOnly", { emojiOnly: emojiOnly }, { allowTools: false, role: "system" });
+                mippy.ask("setEmojiOnly", { emojiOnly: emojiOnly }, { allowTools: false });
             });
 
-            event("pollsAndPredictions", streamEventWatcher.onEvent("channel.poll.end", {
-                broadcaster_user_id: broadcasterId,
-            })).pipe(
+            event("pollsAndPredictions", streamEventWatcher.onEvent("channel.poll.end", broadcaster)).pipe(
                 filter(e => e.status == "completed")
             ).subscribe(e => {
                 const won = e.choices.reduce((max, choice) => {
@@ -144,12 +148,10 @@ export function streamEventsPlugin(authToken: UserAuthTokenSource, broadcasterId
                     title: e.title,
                     won: won.title,
                     votes: won.votes
-                }, { allowTools: false, role: "system" });
+                }, { allowTools: false });
             });
 
-            event("pollsAndPredictions", streamEventWatcher.onEvent("channel.prediction.end", {
-                broadcaster_user_id: broadcasterId,
-            })).subscribe(e => {
+            event("pollsAndPredictions", streamEventWatcher.onEvent("channel.prediction.end", broadcaster)).subscribe(e => {
                 const winningOutcome = e.outcomes.find(outcome => outcome.id == e.winning_outcome_id);
                 if (winningOutcome == null)
                     return;

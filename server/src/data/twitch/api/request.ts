@@ -1,17 +1,13 @@
 import { defer, retry } from "rxjs";
 import { httpsRequest } from "shared/network";
-import { Response } from "shared/network/request";
+import { RequestError, Response } from "shared/network/request";
+import { awaitResult } from "shared/utils";
 import config from "../../../config";
 import { twitchLog } from "../api";
 import { AuthTokenSource } from "../auth-tokens";
 
 export class APICallError extends Error {
-    error: JSONErrorResponse;
-
-    constructor(error: JSONErrorResponse) {
-        super(error.message);
-        this.error = error;
-    }
+    error?: JSONErrorResponse;
 }
 
 export type JSONResponse<T> = {
@@ -84,14 +80,17 @@ export async function request<T>(options: Options, authToken: AuthTokenSource, b
         }
     }
 
-    const response = await makeRequest();
+    const [error, response] = await awaitResult(makeRequest(), [RequestError]);
+    if (error) {
+        throw new APICallError(error.message, { cause: error });
+    }
     if (json) {
         if (isJsonErrorResponse<T>(response)) {
-            throw new APICallError(response.data);
+            throw new APICallError(`${response.data.status}: ${response.data.error} - ${response.data.message}`);
         }
     } else {
         if (!isSuccessCode(response.statusCode)) {
-            throw new Error(JSON.stringify(response.data));
+            throw new APICallError(JSON.stringify(response.data));
         }
     }
 

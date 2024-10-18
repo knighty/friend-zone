@@ -7,10 +7,12 @@ import config from "../config";
 
 const log = logger("twitch-chat");
 
-type Message = {
+export type Message = {
     user: string,
     text: string,
-    highlighted: boolean
+    highlighted: boolean,
+    bits: number,
+    firstMessage: boolean
 }
 
 type Command = {
@@ -85,7 +87,9 @@ export default class TwitchChat {
                         subscriber.next({
                             user: chatName,
                             text: message,
-                            highlighted
+                            highlighted,
+                            firstMessage: tags['first-msg'] == "1",
+                            bits: Number(tags['bits'] ?? 0)
                         });
                     }
                     client.on("message", fn);
@@ -121,5 +125,23 @@ export default class TwitchChat {
 
     observeMessages() {
         return this.messages$;
+    }
+
+    observeHighlightedMessages() {
+        return this.observeMessages().pipe(
+            filter(message => message.highlighted)
+        );
+    }
+
+    observeFirstMessages() {
+        return this.observeMessages().pipe(
+            filter(message => message.firstMessage)
+        );
+    }
+
+    observeBitsMessages() {
+        return this.observeMessages().pipe(
+            filter(message => message.bits > 0)
+        );
     }
 }

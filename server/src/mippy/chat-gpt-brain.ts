@@ -12,7 +12,7 @@ import { getSystem$, getSystemPrompt$ } from './chatgpt/system-prompt';
 import { ChatGPTTools, ToolArguments } from './chatgpt/tools';
 import { MippyHistory } from "./history/history";
 import { MippyHistoryRepository } from './history/repository';
-import { MippyBrain, MippyMessage, MippyPrompts, Prompt } from "./mippy-brain";
+import { isUserPrompt, MippyBrain, MippyMessage, MippyPrompts, PartialPrompt, Prompt } from "./mippy-brain";
 
 const log = logger("mippy-chat-gpt-brain", true);
 
@@ -116,8 +116,9 @@ export class ChatGPTMippyBrain implements MippyBrain {
             concatMap(([prompt, system, history, summarizer]) => {
                 const chatGptTimer = executionTimer();
                 const store = prompt.store === undefined ? true : prompt.store;
-                const userMessage = history.create(prompt.role ?? "user", prompt.text, prompt.name);
-                //const systemMessage = prompt.system ? history.create("system", prompt.system) : null;
+                const promptMessage = isUserPrompt(prompt) ?
+                    history.create("user", prompt.text, prompt.name, prompt.image) :
+                    history.create("system", prompt.text);
                 const allowTools = canUseTools(prompt);
 
                 log.info(`Prompt: ${green(prompt.text)}`);
@@ -128,8 +129,7 @@ export class ChatGPTMippyBrain implements MippyBrain {
                         system.message,
                         ...history.summaries,
                         ...history.messages,
-                        //...(systemMessage ? [systemMessage] : []),
-                        ...(store ? [] : [userMessage])
+                        ...(store ? [] : [promptMessage])
                     ],
                     model: "gpt-4o-mini",
                     tool_choice: allowTools ? "auto" : undefined,
@@ -143,7 +143,7 @@ export class ChatGPTMippyBrain implements MippyBrain {
                     share()
                 ));
 
-                const temp$ = store ? from(history.addMessage(userMessage, summarizer)).pipe(switchMap(() => response$)) : response$;
+                const temp$ = store ? from(history.addMessage(promptMessage, summarizer)).pipe(switchMap(() => response$)) : response$;
 
                 return new Observable<MippyResult>(subscriber => {
                     const partial: MippyPartialResult = {
@@ -279,7 +279,7 @@ export class ChatGPTMippyBrain implements MippyBrain {
         );
     }
 
-    ask<Event extends keyof MippyPrompts, Data extends MippyPrompts[Event]>(event: Event, data: Data, prompt: Omit<Prompt, "text">) {
+    ask<Event extends keyof MippyPrompts, Data extends MippyPrompts[Event]>(event: Event, data: Data, prompt: PartialPrompt) {
         if (isMippyChatGPT(this.config)) {
             let promptTemplate = this.config.prompts[event];
             if (!promptTemplate)

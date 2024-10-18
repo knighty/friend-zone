@@ -36,6 +36,8 @@ export type Response<T> = {
     data: T,
 }
 
+export class RequestError extends Error { };
+
 export async function httpsRequest<T>(options: GetOptions): Promise<Response<T>>;
 export async function httpsRequest<T>(options: PostOptions | PatchOptions | DeleteOptions, body?: any): Promise<Response<T>>;
 export async function httpsRequest<T>(options: Options, body?: any): Promise<Response<T>> {
@@ -74,7 +76,7 @@ export async function httpsRequest<T>(options: Options, body?: any): Promise<Res
             res.on('data', chunk => chunks.push(chunk));
             res.on("end", () => {
                 if (!res.statusCode) {
-                    reject();
+                    reject(new RequestError("Missing status code"));
                     return;
                 }
                 const data = chunks.join("");
@@ -106,6 +108,6 @@ export async function httpsRequest<T>(options: Options, body?: any): Promise<Res
             request.end();
         }
 
-        request.on("error", error => reject(error));
+        request.on("error", error => reject(new RequestError(error.message)));
     });
 }

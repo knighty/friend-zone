@@ -8,12 +8,46 @@ export class MippyHistory {
     summaries: MippyHistoryMessage[] = [];
     messages: MippyHistoryMessage[] = [];
 
-    create<Role extends "user" | "assistant" | "system">(role: Role, content: string, name?: string): MippyHistoryMessage {
-        if (role == "user") {
-            return { role, content, date: Date.now(), name };
-        } else {
-            return { role, content, date: Date.now() };
+    create<Role extends "user" | "assistant" | "system">(role: Role, content: string, name?: string, images?: string[]): MippyHistoryMessage {
+        switch (role) {
+            case "user": {
+                return {
+                    role: "user",
+                    name: name,
+                    content: images ? [
+                        {
+                            type: "text",
+                            text: content
+                        },
+                        ...images.map(image => ({
+                            image_url: {
+                                url: image,
+                                detail: "low"
+                            },
+                            type: 'image_url'
+                        } as const))
+                    ] : content
+                };
+            }
+
+            case "system": {
+                return {
+                    role: "system",
+                    name: name,
+                    content: content
+                };
+            }
+
+            case "assistant": {
+                return {
+                    role: "assistant",
+                    name: name,
+                    content: content
+                };
+            }
         }
+
+        throw new Error("Invalid role provided");
     }
 
     async addMessage(message: MippyHistoryMessage, summarizer: (messages: MippyHistoryMessage[]) => Promise<string>) {

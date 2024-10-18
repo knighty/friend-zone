@@ -2,11 +2,13 @@ import fastifyStatic from '@fastify/static';
 import fastifyView from "@fastify/view";
 import websocket from "@fastify/websocket";
 import Fastify, { FastifyInstance } from "fastify";
+import { Window } from "node-screenshots";
 import path from "node:path";
-import { BehaviorSubject, combineLatest, distinctUntilChanged, EMPTY, filter, map, merge, Observable, of, Subject, switchMap, tap } from "rxjs";
+import { BehaviorSubject, combineLatest, distinctUntilChanged, EMPTY, filter, map, merge, Observable, of, shareReplay, Subject, switchMap, tap, timer } from "rxjs";
 import { log } from 'shared/logger';
 import { filterMap } from 'shared/rx';
 import { switchMapToggle } from 'shared/rx/utils';
+import { truncateString } from 'shared/text-utils';
 import { ObservableEventProvider, serverSocket } from 'shared/websocket/server';
 import { Config } from "./config";
 import { FeedSettings } from './data/feed';
@@ -42,6 +44,45 @@ const config: Config = {
 /*
 Dependencies
 */
+type WindowCollection = Record<string, Window>;
+const windows$ = new Observable<WindowCollection>(subscriber => {
+    let windows: WindowCollection = {};
+
+    return timer(0, 5000).subscribe(i => {
+        let activeWindows = Window.all();
+
+        let changed = false;
+        const newWindows: WindowCollection = {};
+        activeWindows.sort((a, b) => a.title.localeCompare(b.title)).forEach((item) => {
+            newWindows[item.id] = item;
+            //w[item.id] = `${item.title} - ${item.width} x ${item.height}`;
+            if (!windows[item.id]) {
+                changed = true;
+            }
+        });
+
+        for (let window in windows) {
+            if (!newWindows[window])
+                changed = true;
+        }
+
+        if (changed) {
+            windows = newWindows;
+            subscriber.next(windows);
+        }
+    })
+}).pipe(shareReplay(1));
+
+const selectedWindowId$ = new BehaviorSubject<string>("");
+const selectedWindow$ = combineLatest(windows$, selectedWindowId$).pipe(
+    map(([windows, id]) => {
+        if (windows[id]) {
+            return windows[id];
+        }
+        return null;
+    })
+);
+
 const user = {
     id: config.user,
     name: config.userName,
@@ -62,7 +103,7 @@ const remoteControl = initSocket(config.socket, {
     "feed/unfocus": focus$.pipe(filter(focus => focus == false)),
     "mippy/ask": askMippy$,
     "mippy/say": mippySay$,
-});
+}, selectedWindow$);
 const subtitlesEnabled$ = new BehaviorSubject(config.subtitlesEnabled);
 combineLatest([remoteControl.subtitlesEnabled$, subtitlesEnabled$]).pipe(
     map(([a, b]) => a && b),
@@ -118,6 +159,7 @@ fastifyApp.register(async (fastify: FastifyInstance) => {
                 config: { key: string, value: any },
                 "mippy/ask": string,
                 "mippy/say": string,
+                "mippy/window": string
             }
         }>(ws, new ObservableEventProvider({
             config: merge(
@@ -125,7 +167,16 @@ fastifyApp.register(async (fastify: FastifyInstance) => {
                 feedSettings.active$.pipe(map(active => ({ key: "feedActive", value: active }))),
                 subtitlesEnabled$.pipe(map(enabled => ({ key: "subtitlesEnabled", value: enabled }))),
             ),
-            connectionStatus: remoteControl.isConnected$
+            connectionStatus: remoteControl.isConnected$,
+            windows: windows$.pipe(
+                map(windows => {
+                    const w: Record<string, string> = {};
+                    for (let id in windows) {
+                        w[id] = truncateString(`${windows[id].appName} - ${windows[id].title}`, 60);
+                    }
+                    return w;
+                })
+            )
         }));
 
         const configMessage = <ConfigValue>(config: string): Observable<ConfigValue> => socket.on("config").pipe(
@@ -149,6 +200,10 @@ fastifyApp.register(async (fastify: FastifyInstance) => {
         socket.on("mippy/say").subscribe(message => {
             log.info(`Mippy Say: ${message}`, "mippy");
             mippySay$.next(message);
+        });
+
+        socket.on("mippy/window").subscribe(message => {
+            selectedWindowId$.next(message);
         });
     })
 });

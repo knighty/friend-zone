@@ -309,13 +309,36 @@ export function setChildren(element: HTMLElement, ...children: (HTMLElement | Te
 }
 
 export function removeChildren(element: HTMLElement, filterFn?: (element: HTMLElement) => boolean) {
-    for (let i = element.childNodes.length - 1; i >= 0; i++) {
-        if (filterFn) {
-            if (!filterFn(element))
-                continue;
-        }
-        element.removeChild(element.childNodes[i]);
+    for (let i = element.childNodes.length - 1; i >= 0; i--) {
+        const child = element.childNodes[i];
+        if (!(child instanceof HTMLElement))
+            continue;
+        if (filterFn && !filterFn(child))
+            continue;
+        child.remove();
     }
+}
+
+export function populateChildren<T>(
+    element: HTMLElement,
+    data: T[],
+    existingNode: (elements: HTMLElement, item: T) => boolean,
+    createNode: (item: T) => HTMLElement,
+) {
+    let nodes = Array.from(element.childNodes) as HTMLElement[];
+    let keep: HTMLElement[] = [];
+    let children: HTMLElement[] = [];
+    for (let item of data) {
+        const current = nodes.find(node => existingNode(node, item));
+        if (current) {
+            keep.push(current);
+        } else {
+            children.push(createNode(item));
+        }
+    }
+    removeChildren(element, option => !keep.includes(option))
+    appendChildren(element, ...children);
+
 }
 
 export function debounceAfterFirst<T>(time: number, num: number = 1): MonoTypeOperatorFunction<T> {
@@ -501,4 +524,22 @@ export function executionTimer(options?: Partial<{
             }
         }
     }
+}
+
+export function awaitResult<T, E extends new (args: any) => Error>(
+    promise: Promise<T>,
+    errors?: E[]
+): Promise<[undefined, T] | [InstanceType<E>]> {
+    return promise.then(data => {
+        return [undefined, data] as [undefined, T]
+    }).catch(error => {
+        if (errors == undefined) {
+            return [error];
+        }
+        if (errors.some(e => error instanceof e)) {
+            return [error];
+        }
+
+        throw error;
+    })
 }
