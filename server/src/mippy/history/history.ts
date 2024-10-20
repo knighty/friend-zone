@@ -50,9 +50,9 @@ export class MippyHistory {
         throw new Error("Invalid role provided");
     }
 
-    async addMessage(message: MippyHistoryMessage, summarizer: (messages: MippyHistoryMessage[]) => Promise<string>) {
+    async addMessage(message: MippyHistoryMessage, summarizer: null | ((messages: MippyHistoryMessage[]) => Promise<string>)) {
         this.messages.push(message);
-        if (this.messages.length > this.maxMessages) {
+        if (summarizer != null && this.messages.length > this.maxMessages) {
             const summaryCount = Math.floor(this.maxMessages / 2);
             const summariseMessages = this.messages.slice(0, summaryCount);
             const summaryMessage = this.create("assistant", await summarizer(summariseMessages));

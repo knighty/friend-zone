@@ -1,4 +1,4 @@
-import { filter, Subject, throttleTime } from "rxjs";
+import { filter, Subject } from "rxjs";
 import { Mippy } from "../mippy/mippy";
 
 type SubtitlesUser = {
@@ -17,14 +17,6 @@ export default class Subtitles {
 
     constructor(mippy: Mippy) {
         this.mippy = mippy;
-
-        if (mippy) {
-            this.questions$.pipe(
-                throttleTime(5000),
-            ).subscribe(
-                question => this.mippy.ask("question", question, { name: question.user, source: "admin", allowTools: true })
-            )
-        }
     }
 
     observeFinalMessages() {
@@ -40,15 +32,5 @@ export default class Subtitles {
             text: text,
             final: type == "final"
         })
-
-        const regex = /(?:[\.\?]|^)(?:.{0,10})(?:mippy|mipi|mippie)[,!](.*)/i
-        const match = text.match(regex);
-        if (match && type == "final") {
-            const q = match[1];
-            this.questions$.next({
-                user: userId,
-                question: q
-            });
-        }
     }
 }

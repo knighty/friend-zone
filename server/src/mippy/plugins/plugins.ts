@@ -119,7 +119,7 @@ export class MippyPluginConfig<Definition extends MippyPluginConfigDefinition> {
 
 // Plugin Manager
 export class MippyPluginManager {
-    plugins: Record<string, (options: MippyPluginOptions) => MippyPluginDefinition> = {};
+    plugins: { id: string, factory: (options: MippyPluginOptions) => MippyPluginDefinition }[] = [];
     enabledPlugins: Record<string, MippyPluginOptions> = {};
 
     constructor(plugins: Record<string, MippyPluginOptions>) {
@@ -127,7 +127,10 @@ export class MippyPluginManager {
     }
 
     addPlugin<Options = any>(id: string, factory: (options: Options) => MippyPluginDefinition) {
-        this.plugins[id] = factory;
+        this.plugins.push({
+            id,
+            factory
+        });
     }
 
     initPlugins(mippy: Mippy) {
@@ -135,8 +138,10 @@ export class MippyPluginManager {
         for (let pluginId in this.enabledPlugins) {
             const options = this.enabledPlugins[pluginId];
             if (options.enabled || options.enabled === undefined) {
-                const plugin = this.plugins[pluginId](options);
-                plugins[pluginId] = plugin;
+                const plugin = this.plugins.find(p => p.id == pluginId)?.factory(options);
+                if (plugin) {
+                    plugins[pluginId] = plugin;
+                }
             }
         }
         mippy.initPlugins(plugins);

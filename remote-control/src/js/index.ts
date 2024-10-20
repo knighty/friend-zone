@@ -1,68 +1,6 @@
 import { createElement, fromDomEvent, observeScopedEvent, populateChildren } from "shared/utils";
 import { connectBrowserSocket } from "shared/websocket/browser";
 
-if (window.webkitSpeechRecognition) {
-    let lastId = 0;
-    let actualId = 0;
-    let lastMessage = "";
-    let recognizing = false;
-
-    let recognition = new window.webkitSpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    reset();
-    recognition.onend = () => {
-        console.log("restarting");
-        lastId = 0;
-        recognition.start();
-    }
-
-    recognition.onresult = function (event) {
-        const result = event.results[lastId];
-        if (result) {
-            if (result.isFinal) {
-                socket.send("subtitle", {
-                    type: "final",
-                    id: actualId,
-                    text: result[0].transcript
-                })
-                lastId++;
-                actualId++;
-            } else {
-                let interim_transcript = "";
-                for (var i = event.resultIndex; i < event.results.length; ++i) {
-                    if (event.results[i].isFinal) { } else {
-                        interim_transcript += event.results[i][0].transcript;
-                    }
-                }
-
-                if (interim_transcript != lastMessage) {
-                    socket.send("subtitle", {
-                        type: "interim",
-                        id: actualId,
-                        text: interim_transcript
-                    })
-                    lastMessage = interim_transcript;
-                }
-            }
-        }
-    }
-
-    function reset() {
-        recognizing = false;
-    }
-
-    function toggleStartStop() {
-        if (recognizing) {
-            recognition.stop();
-            reset();
-        } else {
-            recognition.start();
-            recognizing = true;
-        }
-    }
-}
-
 const socket = connectBrowserSocket<{
     Events: {
         connectionStatus: boolean

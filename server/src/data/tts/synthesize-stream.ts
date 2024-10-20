@@ -1,6 +1,6 @@
 import { green } from "kolorist";
 import child_process from "node:child_process";
-import { EMPTY, Observable } from "rxjs";
+import { EMPTY, Observable, throttleTime } from "rxjs";
 import { logger } from "shared/logger";
 import { exhaustMapWithTrailing } from "shared/rx";
 import { lastIndexOfRegex } from "shared/text-utils";
@@ -28,6 +28,7 @@ export function streamSynthesizeVoice(text: Observable<string>, voice: string): 
     let str = "";
 
     const partials$ = text.pipe(
+        throttleTime(500, undefined, { trailing: true, leading: false }),
         <In extends Observable<string>>(source: In) => {
             return new Observable<[string, number]>(subscriber => {
                 return source.subscribe({
@@ -36,16 +37,14 @@ export function streamSynthesizeVoice(text: Observable<string>, voice: string): 
                         if (str.length - currentPos > 200) {
                             const regex = /[\.\?\!\n](?: |\b|$)/g;
                             let endIndex = lastIndexOfRegex(str, regex);
-                            if (endIndex > currentPos - 200) {
+                            if (endIndex > -1 && endIndex > currentPos - 200) {
+                                log.info(`Next: ${endIndex}`);
                                 subscriber.next([str, endIndex]);
                                 currentPos = endIndex;
                             }
                         }
                     },
                     complete: () => {
-                        /*if (str == "") {
-                            log.error("Somehow completed partials without getting any text");
-                        }*/
                         if (currentPos < str.length)
                             subscriber.next([str, str.length]);
                         subscriber.complete();

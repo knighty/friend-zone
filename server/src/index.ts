@@ -142,7 +142,7 @@ if (isDiscordConfig(config.discord)) {
 
 // Mippy Plugins
 plugins.addPlugin("analyzeSubtitles", options => analyzeSubtitlesPlugin(subtitlesLog));
-plugins.addPlugin("wothSuggester", options => wothSuggesterPlugin(subtitlesLog, wordOfTheHour, options));
+plugins.addPlugin("wothSuggester", options => wothSuggesterPlugin(subtitlesLog, wordOfTheHour));
 plugins.addPlugin("voice", options => mippyVoicePlugin(fastifyApp, config.socketHost));
 plugins.addPlugin("screenshot", options => screenshotPlugin(fastifyApp, config, users));
 

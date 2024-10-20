@@ -176,7 +176,8 @@ export class MippyModule extends CustomElement<{
 
                     }
                 ]
-            }, (a, b) => a.id == b.id)
+            }, (a, b) => a.id == b.id),
+            share()
         ) : speechEvent$.pipe(
             concatScan(speech => {
                 const audio$ = playAudio(speech.id, speech.message.text.length / 15).pipe(
@@ -200,10 +201,10 @@ export class MippyModule extends CustomElement<{
                     })
                 );
 
-                const observable = merge(subtitle$).pipe(
+                const observable = subtitle$.pipe(
                     ignoreElements(),
                     startWith(true),
-                    endWith(false)
+                    endWith(false),
                 );
 
                 return [
@@ -213,7 +214,8 @@ export class MippyModule extends CustomElement<{
                         duration = speech.audio.duration;
                     }
                 ]
-            }, (a, b) => a.id == b.id)
+            }, (a, b) => a.id == b.id),
+            share()
         );
 
         const analyzeFrames$ = renderLoop$.pipe(

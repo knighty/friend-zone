@@ -179,7 +179,7 @@ class Dashboard extends HTMLElement {
                     const label = element.closest("label");
                     return {
                         element,
-                        value: element.value
+                        value: Number(element.value)
                     }
                 })
             ),

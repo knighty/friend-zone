@@ -1,7 +1,7 @@
 import { green } from 'kolorist';
 import OpenAI from 'openai';
 import { ChatCompletionMessageToolCall, CompletionUsage } from 'openai/resources/index.mjs';
-import { BehaviorSubject, catchError, concatMap, debounceTime, defer, EMPTY, exhaustMap, filter, first, from, map, mergeMap, Observable, share, Subject, switchMap, throttleTime, withLatestFrom } from "rxjs";
+import { BehaviorSubject, catchError, concatMap, debounceTime, EMPTY, exhaustMap, filter, first, from, map, mergeMap, Observable, share, startWith, Subject, switchMap, takeWhile, throttleTime, withLatestFrom } from "rxjs";
 import { logger } from "shared/logger";
 import { filterMap } from 'shared/rx';
 import { truncateString } from 'shared/text-utils';
@@ -78,9 +78,81 @@ export type MippyPartialResult = {
     finished: boolean
 }
 
+class ChatGPTResponse {
+    partial: MippyPartialResult = {
+        text: "",
+        tool_calls: undefined,
+        usage: undefined,
+        finished: false
+    };
+    finishedReason: 'stop' | 'length' | 'tool_calls' | 'content_filter' | 'function_call' | null = null;
+    updatePartial$ = new Subject<void>();
+    prompt: Prompt;
+
+    constructor(prompt: Prompt) {
+        this.prompt = prompt;
+    }
+
+    appendDelta(value: OpenAI.Chat.Completions.ChatCompletionChunk) {
+        if (value.choices[0]) {
+            if (value.choices[0].finish_reason) {
+                this.partial.finished = true;
+                this.finishedReason = value.choices[0].finish_reason;
+            }
+
+            const delta = value.choices[0].delta;
+            this.partial.text += delta.content ?? "";
+            if (delta.tool_calls) {
+                this.partial.tool_calls = this.partial.tool_calls ?? [];
+                for (let call of delta.tool_calls) {
+                    let current = this.partial.tool_calls[call.index];
+                    if (!current) {
+                        current = {
+                            id: "",
+                            type: "function",
+                            function: {
+                                name: "",
+                                arguments: "",
+                            }
+                        };
+                        this.partial.tool_calls[call.index] = current;
+                    }
+                    current.id += call.id ?? "";
+                    current.function.arguments += call.function?.arguments ?? "";
+                    current.function.name += call.function?.name ?? "";
+                }
+            }
+        }
+        if (value.usage) {
+            this.partial.usage = value.usage;
+        }
+        this.updatePartial$.next(undefined);
+    }
+
+    observePartial() {
+        return this.updatePartial$.pipe(
+            startWith(undefined),
+            map(() => this.partial),
+            takeWhile(partial => !partial.finished, true)
+        )
+    }
+
+    observeComplete() {
+        return this.observePartial().pipe(
+            filter(partial => partial.finished),
+            first(),
+            map(partial => ({
+                text: partial.text,
+                tool: partial.tool_calls,
+                prompt: this.prompt,
+            }))
+        )
+    }
+}
+
 export class ChatGPTMippyBrain implements MippyBrain {
     prompt$ = new Subject<Prompt>();
-    messages$: Observable<MippyResult>;
+    messages$ = new Subject<ChatGPTResponse>();
     config: MippyChatGPTConfig;
     users: Users;
     personality$ = new BehaviorSubject<string>("");
@@ -111,9 +183,10 @@ export class ChatGPTMippyBrain implements MippyBrain {
 
         this.hookHistoryPersistence(history$);
 
-        this.messages$ = this.prompt$.pipe(
+        this.prompt$.pipe(
             withLatestFrom(system$, history$, summarizer$),
-            concatMap(([prompt, system, history, summarizer]) => {
+            concatMap(async ([prompt, system, history, summarizer]) => {
+                // Init
                 const chatGptTimer = executionTimer();
                 const store = prompt.store === undefined ? true : prompt.store;
                 const promptMessage = isUserPrompt(prompt) ?
@@ -121,15 +194,17 @@ export class ChatGPTMippyBrain implements MippyBrain {
                     history.create("system", prompt.text);
                 const allowTools = canUseTools(prompt);
 
-                log.info(`Prompt: ${green(prompt.text)}`);
+                // Logging
+                log.info(`Prompt: ${green(truncateString(prompt.text, 200, true, true))}`);
                 log.info(`History: ${green(history.messages.length)} messages. Tools: ${allowTools ? system.toolsSchema.map(tool => green(tool.function.name)).join(", ") : green("not allowed")}`);
 
-                const response$ = defer(() => from(client.chat.completions.create({
+                // Prompt ChatGPT and get a response stream
+                const stream = await client.chat.completions.create({
                     messages: [
                         system.message,
                         ...history.summaries,
                         ...history.messages,
-                        ...(store ? [] : [promptMessage])
+                        promptMessage
                     ],
                     model: "gpt-4o-mini",
                     tool_choice: allowTools ? "auto" : undefined,
@@ -138,64 +213,34 @@ export class ChatGPTMippyBrain implements MippyBrain {
                     stream_options: {
                         include_usage: true
                     }
-                })).pipe(
-                    switchMap(obs => obs),
-                    share()
-                ));
+                });
 
-                const temp$ = store ? from(history.addMessage(promptMessage, summarizer)).pipe(switchMap(() => response$)) : response$;
+                // Create a response object and pass to the messages$ subject to be consumed
+                const response = new ChatGPTResponse(prompt);
+                this.messages$.next(response);
+                for await (let item of stream) {
+                    response.appendDelta(item);
+                }
 
-                return new Observable<MippyResult>(subscriber => {
-                    const partial: MippyPartialResult = {
-                        text: "",
-                        tool_calls: undefined,
-                        usage: undefined,
-                        finished: false
-                    }
+                // Complete - log
+                const timeTaken = chatGptTimer.end();
+                const tokens = response.partial.usage?.total_tokens.toString() ?? "";
+                const text = truncateString(response.partial.text, 200, true, true);
+                let toolsUsed: string[] = [];
+                if (response.partial.tool_calls && response.partial.tool_calls.length > 0) {
+                    toolsUsed = response.partial.tool_calls.map(tool => tool.function.name);
+                }
+                const toolsUsedLog = toolsUsed.length > 0 ? ` Tools: ${toolsUsed.map(green).join(", ")} ` : "";
+                log.info(`Response (${green(response.finishedReason ?? "")}) (${green(timeTaken)} - ${green(tokens)} tokens)${toolsUsedLog}: ${green(text)}`);
 
-                    const partial$ = new Subject<MippyPartialResult>();
-                    const complete$ = new Subject<MippyMessage>();
-
-                    subscriber.next({
-                        complete: complete$.pipe(first()),
-                        partial: partial$.pipe(share())
-                    })
-
-                    const responseSubscription = temp$.subscribe({
-                        next: value => {
-                            appendDelta(value, partial);
-                            partial$.next(partial);
-                        },
-                        complete: () => {
-                            const timeTaken = chatGptTimer.end();
-                            const tokens = partial.usage?.total_tokens.toString() ?? "";
-                            const text = truncateString(partial.text, 200, true, true);
-                            log.info(`Response (${green(timeTaken)} - ${green(tokens)} tokens): ${green(text)}`);
-                            complete$.next({
-                                text: partial.text,
-                                tool: partial.tool_calls,
-                                prompt: prompt,
-                            })
-                            subscriber.complete();
-                            partial$.complete();
-                        }
-                    })
-
-                    return complete$.pipe(
-                        switchMap(async message => {
-                            if (store)
-                                await history.addMessage(history.create("assistant", message.text ?? ""), summarizer);
-                            return message;
-                        })
-                    ).subscribe({
-                        complete: () => {
-                            responseSubscription.unsubscribe();
-                        }
-                    })
-                })
+                // Store response, summarising if necessary
+                if (store) {
+                    await history.addMessage(history.create("user", prompt.text), null);
+                    await history.addMessage(history.create("assistant", response.partial.text ?? ""), summarizer);
+                }
             }),
             share(),
-        );
+        ).subscribe();
     }
 
     setPersonality(personality: string) {
@@ -208,7 +253,7 @@ export class ChatGPTMippyBrain implements MippyBrain {
 
     observeCompleteMessages() {
         return this.messages$.pipe(
-            switchMap(result => result.complete)
+            concatMap(result => result.observeComplete())
         );
     }
 
@@ -220,7 +265,7 @@ export class ChatGPTMippyBrain implements MippyBrain {
 
     receivePartials(): Observable<Observable<MippyPartialResult>> {
         return this.messages$.pipe(
-            map(result => result.partial)
+            map(result => result.observePartial())
         );
     }
 

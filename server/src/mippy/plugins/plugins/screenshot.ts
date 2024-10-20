@@ -6,7 +6,7 @@ import path from "path";
 import { concatMap, EMPTY, switchMap, withLatestFrom } from "rxjs";
 import { logger } from "shared/logger";
 import { httpReadableStream } from "shared/network";
-import { Config, isTwitchConfig } from "../../../config";
+import { Config } from "../../../config";
 import Users from "../../../data/users";
 import { randomString } from "../../../utils";
 import { ChatGPTMippyBrain } from "../../chat-gpt-brain";
@@ -38,15 +38,7 @@ export function screenshotPlugin(fastify: FastifyInstance, config: Config, users
         permissions: [],
         init: async mippy => {
             if (mippy.brain instanceof ChatGPTMippyBrain) {
-                function getImageUrl() {
-                    if (isTwitchConfig(config.twitch)) {
-                        //return `https://static-cdn.jtvnw.net/previews-ttv/live_user_${config.twitch.channel}-960x540.jpg`
-                        return "https://preview.redd.it/who-wants-to-be-a-millionaire-125k-question-v0-bgiwe517dwkc1.jpeg?auto=webp&s=0e92a9c5627850089b5c0c252eb9d496f156be7b";
-                    }
-                    return null;
-                }
-
-                const sub = mippy.brain.observeToolMessage("getScreenshot").pipe(
+                const sub = mippy.brain.observeToolMessage("getScreen").pipe(
                     withLatestFrom(users.observe()),
                     concatMap(([message, activeUsers]) => {
                         log.info("Get screenshot requested");
@@ -59,11 +51,6 @@ export function screenshotPlugin(fastify: FastifyInstance, config: Config, users
                             );
                         }
                         return EMPTY;
-                        /*const imageUrl = getImageUrl();
-                        if (imageUrl) {
-                            const filename = await downloadImage(imageUrl);
-                            mippy.ask("generic", {}, { role: "user", image: [`http://51.191.172.95:3000/mippy/plugins/screenshot/images/${filename}`], store: false, source: "admin" })
-                        }*/
                     })
                 ).subscribe(filename => {
                     mippy.ask("generic", {}, { role: "user", image: [`http://51.191.172.95:3000/mippy/plugins/screenshot/images/${filename}`], store: false, source: "admin" })

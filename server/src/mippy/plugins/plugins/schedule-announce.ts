@@ -71,7 +71,7 @@ export function scheduleAnnouncePlugin(userToken: AuthTokenSource, broadcasterId
             ).subscribe(schedule => {
                 const thisWeekSegments = getWeekSchedule(schedule);
                 mippy.ask("sayGoodbye", {
-                    schedule: ""
+                    schedule: thisWeekSegments.map(formatSegment).join("\n")
                 }, { store: false, role: "system" })
             })
 

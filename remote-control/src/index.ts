@@ -2,14 +2,15 @@ import fastifyStatic from '@fastify/static';
 import fastifyView from "@fastify/view";
 import websocket from "@fastify/websocket";
 import Fastify, { FastifyInstance } from "fastify";
-import { Window } from "node-screenshots";
+import { Monitor, Window } from "node-screenshots";
 import path from "node:path";
-import { BehaviorSubject, combineLatest, distinctUntilChanged, EMPTY, filter, map, merge, Observable, of, shareReplay, Subject, switchMap, tap, timer } from "rxjs";
+import { BehaviorSubject, combineLatest, concatMap, distinctUntilChanged, EMPTY, filter, map, merge, Observable, of, shareReplay, Subject, switchMap, tap, timer, withLatestFrom } from "rxjs";
 import { log } from 'shared/logger';
 import { filterMap } from 'shared/rx';
 import { switchMapToggle } from 'shared/rx/utils';
 import { truncateString } from 'shared/text-utils';
 import { ObservableEventProvider, serverSocket } from 'shared/websocket/server';
+import sharp from "sharp";
 import { Config } from "./config";
 import { FeedSettings } from './data/feed';
 import { focusFeed } from './data/focus';
@@ -83,6 +84,11 @@ const selectedWindow$ = combineLatest(windows$, selectedWindowId$).pipe(
     })
 );
 
+type AskMippy = {
+    text: string,
+    image?: string
+}
+
 const user = {
     id: config.user,
     name: config.userName,
@@ -91,32 +97,72 @@ const user = {
     prompt: config.userPrompt
 };
 const subtitles$ = new Subject<{ id: number, text: string }>();
+const finalSubtitles$ = new Subject<{ id: number, text: string }>();
 const askMippy$ = new Subject<string>();
 const mippySay$ = new Subject<string>();
 const focus$ = focusFeed(config);
 const feedSettings = new FeedSettings();
+const subtitlesEnabled$ = new BehaviorSubject(config.subtitlesEnabled);
+const sendAsksEnabled$ = new BehaviorSubject(true);
+const sendScreenEnabled$ = new BehaviorSubject(true);
+
+const ask$ = askMippy$.pipe(
+    withLatestFrom(sendScreenEnabled$.pipe(switchMap(enabled => enabled ? selectedWindow$ : of(null)))),
+    concatMap(async ([text, window]) => {
+        if (window == null) {
+            return { text }
+        }
+        let monitor = Monitor.fromPoint(100, 100);
+        let image = await (window ? window.captureImage() : monitor.captureImage());
+        log.info("Captured screen grab");
+        const img = sharp(image.toPngSync());
+        let data = await img.resize(1024, 1024, { fit: 'inside' }).jpeg().toBuffer()
+        log.info("Sending screen grab");
+
+        return {
+            text: text,
+            image: data.toString("binary")
+        }
+    })
+)
 const remoteControl = initSocket(config.socket, {
     user: of(user),
     subtitles: subtitles$,
     "feed/register": feedSettings.active$.pipe(switchMapToggle(active => active, () => feedSettings.feed$, () => of(null))),
     "feed/focus": focus$.pipe(filter(focus => focus == true)),
     "feed/unfocus": focus$.pipe(filter(focus => focus == false)),
-    "mippy/ask": askMippy$,
+    "mippy/ask": ask$,
     "mippy/say": mippySay$,
 }, selectedWindow$);
-const subtitlesEnabled$ = new BehaviorSubject(config.subtitlesEnabled);
+
 combineLatest([remoteControl.subtitlesEnabled$, subtitlesEnabled$]).pipe(
     map(([a, b]) => a && b),
     distinctUntilChanged(),
     switchMap(enabled => {
         if (enabled && config.subtitles == "whisper") {
             return observeSubtitles(config.whisper).pipe(
-                tap(subtitle => subtitles$.next(subtitle))
+                tap(subtitle => {
+                    subtitles$.next(subtitle);
+                    if (subtitle.type == "final") {
+                        finalSubtitles$.next(subtitle);
+                    }
+                }),
             )
         }
         return EMPTY;
     })
 ).subscribe();
+
+sendAsksEnabled$.pipe(
+    switchMap(enabled => enabled ? finalSubtitles$ : EMPTY)
+).subscribe(sub => {
+    const regex = /(?:[\.\?]|^)(?:.{0,10})(?:mippy|mipi|mippie)[,!](.*)/i
+    const match = sub.text.match(regex);
+    if (match) {
+        const q = match[1];
+        askMippy$.next(q);
+    }
+})
 
 /*
 Fastify Setup
@@ -191,6 +237,8 @@ fastifyApp.register(async (fastify: FastifyInstance) => {
 
         configMessage<boolean>("feedActive").subscribe(active => feedSettings.active$.next(active));
         configMessage<boolean>("subtitlesEnabled").subscribe(enabled => subtitlesEnabled$.next(enabled));
+        configMessage<boolean>("sendAsksEnabled").subscribe(enabled => sendAsksEnabled$.next(enabled));
+        configMessage<boolean>("sendScreenEnabled").subscribe(enabled => sendScreenEnabled$.next(enabled));
 
         socket.on("mippy/ask").subscribe(question => {
             log.info(`Ask question: ${question}`, "mippy");

@@ -1,7 +1,6 @@
 import { FastifyInstance } from "fastify";
-import { BehaviorSubject, EMPTY, Observable, concatMap, ignoreElements, map, merge, of, reduce, share, switchMap, tap, timeout, withLatestFrom } from "rxjs";
+import { BehaviorSubject, EMPTY, Observable, Subject, concatMap, ignoreElements, last, map, merge, of, reduce, share, switchMap, tap, timeout, timer, withLatestFrom } from "rxjs";
 import { logger } from "shared/logger";
-import { ObservableMap } from "shared/rx";
 import { StreamSynthesisResult, streamSynthesizeVoice } from "../../../data/tts/synthesize-stream";
 import ejsLayout from "../../../layout";
 import { AudioRepository, AudioStream } from "../../../plugins/audio-socket";
@@ -53,8 +52,10 @@ function accumulatePartialMessage() {
 
 function synthesizeVoice(audioRepository: AudioRepository, inputStream: Observable<string>, voice: string) {
     const stream = audioRepository.create();
-    return streamSynthesizeVoice(inputStream, voice).pipe(
-        accumulateAudioStream(stream),
+    const synthesisResult$ = streamSynthesizeVoice(inputStream, voice).pipe(
+        accumulateAudioStream(stream)
+    );
+    const partialResult$ = synthesisResult$.pipe(
         map(value => ({
             id: stream.id,
             audio: {
@@ -68,28 +69,7 @@ function synthesizeVoice(audioRepository: AudioRepository, inputStream: Observab
         })),
         share()
     )
-}
-
-function concatMessages(tts: AudioRepository, history: ObservableMap<string, MippyStreamEventHistoryMessage>) {
-    return concatMap(
-        ([partial, voice]: [Observable<MippyPartialResult>, string]) => {
-            const event$ = synthesizeVoice(tts, partial.pipe(map(p => p.text)), voice);
-            const completeMessage$ = event$.pipe(
-                accumulatePartialMessage(),
-                tap(event => history.set(event.id, event)),
-                ignoreElements()
-            );
-            return merge(event$, completeMessage$).pipe(
-                timeout({
-                    each: 60000,
-                    with: () => {
-                        log.error("Timeout generating audio");
-                        return EMPTY;
-                    }
-                })
-            );
-        }
-    )
+    return partialResult$;
 }
 
 const pluginConfig = {
@@ -109,7 +89,8 @@ const pluginConfig = {
 } satisfies MippyPluginConfigDefinition
 
 export type MippyVoicePlugin = MippyPlugin & {
-    setVoice: (voice: string | null) => void
+    setVoice: (voice: string | null) => void,
+    relayMessage$: Observable<string>
 }
 
 export function mippyVoicePlugin(fastify: FastifyInstance, socketHost: string): MippyPluginDefinition {
@@ -133,9 +114,30 @@ export function mippyVoicePlugin(fastify: FastifyInstance, socketHost: string): 
 
             const message$ = merge(mippy.brain.receivePartials(), manualMessage$);
 
+            const relayMessage$ = new Subject<{ duration: number, text: string }>();
+
             const streamEvent$ = message$.pipe(
                 withLatestFrom(selectedVoice$),
-                concatMessages(audioRepository, mippy.messageHistory$),
+                concatMap(
+                    ([partial, voice]: [Observable<MippyPartialResult>, string]) => {
+                        const event$ = synthesizeVoice(audioRepository, partial.pipe(map(p => p.text)), voice);
+                        const completion$ = event$.pipe(
+                            accumulatePartialMessage(),
+                            last(),
+                            tap(m => relayMessage$.next(m)),
+                            ignoreElements()
+                        )
+                        return merge(event$, completion$).pipe(
+                            timeout({
+                                each: 60000,
+                                with: () => {
+                                    log.error("Timeout generating audio");
+                                    return EMPTY;
+                                }
+                            }),
+                        );
+                    }
+                ),
                 share()
             );
 
@@ -159,6 +161,11 @@ export function mippyVoicePlugin(fastify: FastifyInstance, socketHost: string): 
             }, { prefix: "/mippy/plugins/voice" })
 
             return {
+                relayMessage$: relayMessage$.pipe(
+                    concatMap(m => timer(m.duration * 1000).pipe(
+                        map(() => m.text)
+                    ))
+                ),
                 setVoice(voice) {
 
                 },

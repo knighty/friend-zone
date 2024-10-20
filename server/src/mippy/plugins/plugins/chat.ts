@@ -1,10 +1,6 @@
-import { EMPTY, filter, map, switchMap, tap } from "rxjs";
+import { distinct, EMPTY, filter, map, switchMap, withLatestFrom } from "rxjs";
 import TwitchChat from "../../../data/twitch-chat";
 import { MippyPluginConfig, MippyPluginConfigDefinition, MippyPluginDefinition } from "../plugins";
-
-function getDay(date: Date) {
-    return ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][date.getDay()];
-}
 
 const pluginConfig = {
     welcomeMode: {
@@ -17,6 +13,13 @@ const pluginConfig = {
             "firstChat": "First Time Chatters",
             "everyone": "Everyone",
         }
+    },
+    ignoreUsers: {
+        name: "Ignore Users",
+        description: "Users to ignore, comma seperated",
+        type: "string",
+        default: "mippybot, nightbot",
+        maxLength: 1000
     }
 } satisfies MippyPluginConfigDefinition;
 
@@ -27,30 +30,35 @@ export function chatPlugin(twitchChat: TwitchChat): MippyPluginDefinition {
         config: pluginConfig,
         async init(mippy, config: MippyPluginConfig<typeof pluginConfig>) {
             const mode$ = config.observe("welcomeMode");
-            const usersSeen = new Set<string>();
-
-            const firstMessageThisStream$ = twitchChat.observeMessages().pipe(
-                filter(message => !usersSeen.has(message.user)),
-                map(message => ({ user: message.user, info: "It's their first message here today" }))
+            const ignoreUsers$ = config.observe("ignoreUsers").pipe(
+                map(str => str.split(",").map(str => str.toLowerCase().trim()))
             )
 
             mode$.pipe(
                 switchMap(mode => {
                     switch (mode) {
                         case "everyone":
-                            return firstMessageThisStream$;
+                            return twitchChat.observeMessages().pipe(
+                                map(message => ({
+                                    message,
+                                    info: "It's their first message here today"
+                                }))
+                            );
                         case "firstChat":
                             return twitchChat.observeFirstMessages().pipe(
-                                map(message => ({ user: message.user, info: "It's their first time ever posting in the chat" }))
+                                map(message => ({
+                                    message,
+                                    info: "It's their first message ever in the stream"
+                                }))
                             );
                         default:
                             return EMPTY;
                     }
                 }),
-                tap(message => usersSeen.add(message.user))
-            ).subscribe(message => {
-                mippy.ask("sayHi", message, { source: "chat" })
-            });
+                withLatestFrom(ignoreUsers$),
+                filter(([data, ignoreUsers]) => !ignoreUsers.includes(data.message.user.toLowerCase()) && !data.message.highlighted),
+                distinct(([data]) => data.message.user),
+            ).subscribe(([message]) => mippy.ask("sayHi", { user: message.message.user, info: message.info }, { source: "chat" }));
 
             return {
                 disable() {

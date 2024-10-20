@@ -76,28 +76,6 @@ export function observeEventSub<Condition extends EventSub<any>>(authToken: Auth
         if (id)
             eventUnsub(authToken, id);
     })
-
-    /*return new Observable<void>(subscriber => {
-        const s = from(eventSub(authToken, payload)).subscribe(response => {
-            id = response.data[0].id;
-            subscriber.next(undefined);
-        });
-
-        return () => {
-            if (id)
-                eventUnsub(authToken, id);
-            s.unsubscribe();
-        }
-    })*/
-
-    /*return from(eventSub(authToken, payload)).pipe(
-        tap(response => id = response.data[0].id),
-        finalize(() => {
-            if (id) {
-                eventUnsub(authToken, id);
-            }
-        })
-    )*/
 }
 
 export async function eventUnsub(authToken: AuthTokenSource, id: string) {

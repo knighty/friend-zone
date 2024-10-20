@@ -1,15 +1,11 @@
-import { combineLatestWith, EMPTY, interval, merge, partition, switchMap, tap } from "rxjs";
+import { green } from "kolorist";
+import { EMPTY, interval, merge, partition, switchMap, tap, withLatestFrom } from "rxjs";
 import { logger } from "shared/logger";
 import { SubtitlesLog } from "../../../data/subtitles/logs";
 import WordOfTheHour from "../../../data/word-of-the-hour";
 import { ChatGPTMippyBrain } from "../../chat-gpt-brain";
 import { Mippy } from "../../mippy";
 import { MippyPluginConfig, MippyPluginConfigDefinition, MippyPluginDefinition } from "../plugins";
-
-type Options = {
-    automatedTimer: number, // Seconds
-    numSuggestedWords: number
-}
 
 const pluginConfig = {
     automatedFrequency: {
@@ -33,27 +29,33 @@ const pluginConfig = {
 } satisfies MippyPluginConfigDefinition;
 
 const log = logger("woth-suggester-plugin");
-export function wothSuggesterPlugin(subtitlesLog: SubtitlesLog, wordOfTheHour: WordOfTheHour, options: Options): MippyPluginDefinition {
+export function wothSuggesterPlugin(subtitlesLog: SubtitlesLog, wordOfTheHour: WordOfTheHour): MippyPluginDefinition {
     const init = async (mippy: Mippy, config: MippyPluginConfig<typeof pluginConfig>) => {
         let canRequest = true;
         if (mippy.brain instanceof ChatGPTMippyBrain) {
             const [word$, empty$] = partition(mippy.brain.observeTool("suggestWordOfTheHour"), args => args.word != "");
 
-            const suggest$ = merge([
+            const suggest$ = merge(
                 empty$,
                 config.observe("automatedFrequency").pipe(
-                    switchMap(automatedTimer => automatedTimer > 0 ? interval(options.automatedTimer * 1000 * 60) : EMPTY)
+                    switchMap(automatedTimer => {
+                        if (automatedTimer > 0) {
+                            log.info(`Automated word chosen ${green("enabled")} - Changing every ${green(automatedTimer)} minutes`);
+                            return interval(automatedTimer * 1000 * 60);
+                        }
+                        log.info(`Automated word choosing ${green("disabled")}`);
+                        return EMPTY;
+                    })
                 )
-                //options.automatedTimer ? interval(options.automatedTimer * 1000 * 60) : EMPTY
-            ]).pipe(
-                combineLatestWith(config.observe("suggestedWordCount")),
+            ).pipe(
+                withLatestFrom(config.observe("suggestedWordCount")),
                 switchMap(([a, words]) => subtitlesLog.analyzeLogs({
                     wordCounts: words
                 })),
                 tap(analysis => {
-                    //log.info("Automated word of the hour being chosen...")
+                    log.info("Automated word of the hour being chosen...")
                     mippy.ask("suggestWordOfTheHour", {
-                        mostSaidWords: analysis.mostSaidWords.join(", "),
+                        mostSaidWords: analysis.mostSaidWords.map(w => w.word).join(", "),
                     }, {
                         allowTools: true,
                         source: "admin",
