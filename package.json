@@ -24,8 +24,8 @@
         "webpack-cli": "^5.1.4"
     },
     "scripts": {
-        "update": "ts-node tools.ts install -g",
-        "install": "ts-node tools.ts install -a",
+        "update": "git pull",
+        "install-package": "ts-node tools.ts install -m -b --verbose",
         "build:public": "ts-node tools.ts install -b public --verbose",
         "build:remote-control": "ts-node tools.ts install -b remote-control --verbose",
         "server": "ts-node server/src/index.ts",
