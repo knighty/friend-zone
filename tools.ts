@@ -1,7 +1,7 @@
 import { exec } from "child_process";
 import { Command } from "commander";
 import fs from "fs/promises";
-import { bgBlue, bgGreen, blue, bold, green, options, SupportLevel } from 'kolorist';
+import { bgBlue, bgGreen, bgRed, blue, bold, green, options, SupportLevel } from 'kolorist';
 import path from "path";
 import { promisify } from "util";
 import { log } from "./shared/logger";
@@ -18,16 +18,63 @@ program
     .description('CLI for some FriendZone utilities')
     .version('0.8.0');
 
-async function runCommand(command: string, cwd?: string) {
+type CommandOptions = {
+    cwd?: string,
+    output?: boolean,
+    errors?: boolean,
+}
+
+async function runCommand(command: string, options?: CommandOptions) {
     const timer = executionTimer();
-    await execPromise(command, {
+    const output = options?.output ?? false;
+    const errors = options?.errors ?? true;
+    const cwd = options?.cwd ?? "";
+
+    return new Promise<void>((resolve, reject) => {
+        const process = exec(command, {
+            cwd: cwd,
+        })
+
+        let hasErrors = false;
+
+        process.stdout.setEncoding('utf8');
+        process.stdout.on("data", message => {
+            if (output) {
+                console.log(message);
+            }
+        })
+
+        process.stderr.setEncoding('utf8');
+        process.stderr.on("data", err => {
+            hasErrors = true;
+            if (errors) {
+                console.error(err);
+            }
+        })
+
+        process.on("exit", (code, signal) => {
+            if (hasErrors) {
+                reject();
+                return;
+            }
+            resolve();
+            console.log(`Executed in ${blue(timer.end())}`);
+        })
+    })
+
+
+    /*await execPromise(command, {
         cwd: cwd,
     }).then(value => {
-        if (value.stderr) {
+        if (value.stdout && output) {
+            console.log(value.stdout);
+        }
+        if (value.stderr && errors) {
             console.error(value.stderr);
         }
-    });
-    console.log(`Executed in ${blue(timer.end())}`);
+    }).catch(err => {
+        console.error(err);
+    });*/
 }
 
 function header(text: string) {
@@ -72,43 +119,53 @@ program.command('install')
     .option('-a, --all', 'Do all steps', false)
     .option('-p, --pull', 'Pull from github', false)
     .option('-m, --modules', 'Install modules', false)
-    .option('-b, --bundle', 'Bundle', false)
+    .option('-b, --bundle [package]', 'Bundle', false)
+    .option('--verbose', 'Verbose output', false)
     .action(async (options) => {
-        const timer = executionTimer({
-            format: "seconds"
-        });
+        try {
+            const verbose = options.verbose;
+            const timer = executionTimer({
+                format: "seconds"
+            });
 
-        if (options.pull || options.all) {
-            header("Pull code");
-            await runCommand(`git pull`);
+            if (options.pull || options.all) {
+                header("Pull code");
+                await runCommand(`git pull`, { output: verbose });
+            }
+
+            if (options.modules || options.all) {
+                header("Install modules");
+                subHeader(`main`);
+                await runCommand(`npm ci`, { output: verbose });
+                subHeader(`shared`);
+                await runCommand(`npm ci`, { cwd: path.join(__dirname, "shared"), output: verbose });
+                subHeader(`remote-control`);
+                await runCommand(`npm ci`, { cwd: path.join(__dirname, "remote-control"), output: verbose });
+                subHeader(`server`);
+                await runCommand(`npm ci`, { cwd: path.join(__dirname, "server"), output: verbose });
+                subHeader(`public`);
+                await runCommand(`npm ci`, { cwd: path.join(__dirname, "public"), output: verbose });
+            }
+
+            if (options.bundle || options.all) {
+                header("Bundle code");
+
+                if (options.bundle === true || options.bundle == "public" || options.bundle == "all") {
+                    subHeader("public");
+                    await runCommand(`npm run build:dev`, { cwd: path.join(__dirname, "public"), output: verbose });
+                }
+
+                if (options.bundle === true || options.bundle == "remote-control" || options.bundle == "all") {
+                    subHeader("remote-control");
+                    await runCommand(`npm run build:dev`, { cwd: path.join(__dirname, "remote-control"), output: verbose });
+                }
+            }
+
+            console.log("");
+            console.log(bgGreen(` Completed all tasks in ${bold(timer.end())}) `));
+        } catch (e) {
+            console.error(bgRed(` There were errors running tasks `));
         }
-
-        if (options.modules || options.all) {
-            header("Install modules");
-            subHeader(`main`);
-            await runCommand(`npm ci`, path.join(__dirname));
-            subHeader(`shared`);
-            await runCommand(`npm ci`, path.join(__dirname, "shared"));
-            subHeader(`remote-control`);
-            await runCommand(`npm ci`, path.join(__dirname, "remote-control"));
-            subHeader(`server`);
-            await runCommand(`npm ci`, path.join(__dirname, "server"));
-            subHeader(`public`);
-            await runCommand(`npm ci`, path.join(__dirname, "public"));
-        }
-
-        if (options.bundle || options.all) {
-            header("Bundle code");
-
-            subHeader("public");
-            await runCommand(`npm run build:dev`, path.join(__dirname, "public"));
-
-            subHeader("remote-control");
-            await runCommand(`npm run build:dev`, path.join(__dirname, "remote-control"));
-        }
-
-        console.log("");
-        console.log(bgGreen(` Completed all tasks in ${bold(timer.end())}) `));
     });
 
 program.parse();

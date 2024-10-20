@@ -3,14 +3,12 @@ import { FastifyInstance } from "fastify";
 import fs from "fs/promises";
 import { green } from "kolorist";
 import path from "path";
-import { concatMap, EMPTY, switchMap, withLatestFrom } from "rxjs";
 import { logger } from "shared/logger";
 import { httpReadableStream } from "shared/network";
 import { Config } from "../../../config";
 import Users from "../../../data/users";
 import { randomString } from "../../../utils";
 import { ChatGPTMippyBrain } from "../../chat-gpt-brain";
-import { isUserPrompt } from "../../mippy-brain";
 import { MippyPluginDefinition } from "../plugins";
 
 const downloadDir = path.join(__dirname, `../../../../../public/downloads/images/`);
@@ -38,7 +36,7 @@ export function screenshotPlugin(fastify: FastifyInstance, config: Config, users
         permissions: [],
         init: async mippy => {
             if (mippy.brain instanceof ChatGPTMippyBrain) {
-                const sub = mippy.brain.observeToolMessage("getScreen").pipe(
+                /*const sub = mippy.brain.observeToolMessage("getScreen").pipe(
                     withLatestFrom(users.observe()),
                     concatMap(([message, activeUsers]) => {
                         log.info("Get screenshot requested");
@@ -54,7 +52,7 @@ export function screenshotPlugin(fastify: FastifyInstance, config: Config, users
                     })
                 ).subscribe(filename => {
                     mippy.ask("generic", {}, { role: "user", image: [`http://51.191.172.95:3000/mippy/plugins/screenshot/images/${filename}`], store: false, source: "admin" })
-                })
+                })*/
 
                 fastify.register(async (fastify: FastifyInstance) => {
                     fastify.register(fastifyStatic, {
@@ -68,7 +66,7 @@ export function screenshotPlugin(fastify: FastifyInstance, config: Config, users
 
                 return {
                     disable() {
-                        sub.unsubscribe();
+                        //sub.unsubscribe();
                     },
                 }
             }

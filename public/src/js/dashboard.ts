@@ -1,4 +1,5 @@
 import { debounceTime, map, merge } from "rxjs";
+import { dom } from "shared/dom";
 import { createElement, fromDomEvent, observeScopedEvent } from "shared/utils";
 import { connectBrowserSocket } from "shared/websocket/browser";
 import { ObservableEventProvider } from "shared/websocket/event-provider";
@@ -54,90 +55,80 @@ class Dashboard extends HTMLElement {
             socket.send("config/feedPosition", position);
         });
 
-        fromDomEvent(document.getElementById("feedLayout"), "input").subscribe(event => {
+        fromDomEvent(dom.id("feedLayout"), "input").subscribe(event => {
             socket.send("config/feedLayout", (event.target as HTMLSelectElement).value);
         });
 
-        fromDomEvent(document.getElementById("slideshowFrequency"), "input").pipe(
+        fromDomEvent(dom.id("slideshowFrequency"), "input").pipe(
             debounceTime(500),
         ).subscribe(event => {
             socket.send("config/slideshowFrequency", (event.target as HTMLInputElement).value);
         });
 
-        fromDomEvent(document.getElementById("feedSize"), "input").pipe(
+        fromDomEvent(dom.id("feedSize"), "input").pipe(
             debounceTime(500),
         ).subscribe(event => {
             socket.send("config/feedSize", (event.target as HTMLInputElement).value);
         });
 
-        fromDomEvent(document.getElementById("feedCount"), "input").pipe(
+        fromDomEvent(dom.id("feedCount"), "input").pipe(
             debounceTime(500),
         ).subscribe(event => {
             socket.send("config/feedCount", (event.target as HTMLInputElement).value);
         });
 
-        fromDomEvent(document.getElementById("sayGoodbye"), "click").subscribe(event => {
+        fromDomEvent(dom.id("sayGoodbye"), "click").subscribe(event => {
             socket.send("sayGoodbye", null);
         });
 
-        socket.on("feedCount").subscribe(count => (document.getElementById("feedCount") as HTMLInputElement).value = count.toString());
-        socket.on("feedSize").subscribe(count => (document.getElementById("feedSize") as HTMLInputElement).value = count.toString());
-        socket.on("slideshowFrequency").subscribe(count => (document.getElementById("slideshowFrequency") as HTMLInputElement).value = count.toString());
-        socket.on("feedLayout").subscribe(layout => (document.getElementById("feedLayout") as HTMLSelectElement).value = layout);
+        socket.on("feedCount").subscribe(count => dom.id<HTMLInputElement>("feedCount").value = count.toString());
+        socket.on("feedSize").subscribe(count => dom.id<HTMLInputElement>("feedSize").value = count.toString());
+        socket.on("slideshowFrequency").subscribe(count => dom.id<HTMLInputElement>("slideshowFrequency").value = count.toString());
+        socket.on("feedLayout").subscribe(layout => dom.id<HTMLSelectElement>("feedLayout").value = layout);
 
-        const mippyElement = this.querySelector<HTMLElement>("#mippy");
+        const mippyElement = dom.id<HTMLElement>("mippy");
+        const configElement = dom.query<HTMLElement>(".plugin-config", this);
         const config = JSON.parse(mippyElement.dataset.config) as MippyPluginConfig;
         for (let pluginId in config) {
             const plugin = config[pluginId];
             if (plugin.config === undefined)
+                continue
+            if (Object.keys(plugin.config).length == 0)
                 continue;
             const element = createElement("section", {}, [
-                createElement("h1", {}, plugin.name),
+                dom.h1({}, plugin.name),
                 ...Object.keys(plugin.config).map(key => {
                     const configItem = plugin.config[key];
                     function getElements() {
                         switch (configItem.type) {
                             case "number": {
                                 return [
-                                    document.createTextNode(configItem.name),
-                                    createElement("input", {
-                                        type: "range",
-                                        attributes: {
-                                            min: configItem.min?.toString() ?? "",
-                                            max: configItem.max?.toString() ?? "",
-                                            step: configItem.step?.toString() ?? "",
-                                        },
-                                        value: plugin.values[key]
+                                    dom.text(configItem.name),
+                                    dom.input("range", plugin.values[key], {
+                                        min: configItem.min?.toString() ?? "",
+                                        max: configItem.max?.toString() ?? "",
+                                        step: configItem.step?.toString() ?? "",
                                     }),
-                                    createElement("input", {
-                                        type: "number",
-                                        value: plugin.values[key]
-                                    }),
+                                    dom.input("number", plugin.values[key]),
                                 ]
                             }
                             case "boolean": {
                                 return [
-                                    document.createTextNode(configItem.name),
-                                    createElement("input", {
-                                        type: "checkbox",
-                                        attributes: {
-                                            checked: plugin.values[key] ? "checked" : undefined
-                                        }
+                                    dom.text(configItem.name),
+                                    dom.input("checkbox", undefined, {
+                                        checked: plugin.values[key] ? "checked" : undefined
                                     })
                                 ]
                             }
                             case "string": {
                                 return [
-                                    document.createTextNode(configItem.name),
-                                    createElement("input", {
-                                        type: "text",
-                                        value: plugin.values[key]
-                                    })
+                                    dom.text(configItem.name),
+                                    dom.input("text", plugin.values[key])
                                 ]
                             }
                             case "enum": {
                                 return [
-                                    document.createTextNode(configItem.name),
+                                    dom.text(configItem.name),
                                     createElement("select", {
                                         value: plugin.values[key]
                                     }, Object.keys(configItem.values).map(
@@ -146,9 +137,9 @@ class Dashboard extends HTMLElement {
                                 ]
                             }
                         }
-                        return [];
+                        throw new Error("Invalid type");
                     }
-                    return createElement("label", {
+                    return dom.label({
                         data: {
                             type: configItem.type,
                             plugin: pluginId,
@@ -160,10 +151,10 @@ class Dashboard extends HTMLElement {
                     }, getElements())
                 })
             ])
-            this.querySelector<HTMLElement>(".plugin-config").appendChild(element);
+            configElement.appendChild(element);
         }
 
-        const e$ = observeScopedEvent<HTMLInputElement, "input">(mippyElement, "input", "[data-type='number'] input");
+        const e$ = observeScopedEvent<HTMLInputElement, "input">(configElement, "input", "[data-type='number'] input");
 
         e$.subscribe(([e, element]) => {
             const label = element.closest("label");
@@ -183,15 +174,16 @@ class Dashboard extends HTMLElement {
                     }
                 })
             ),
-            observeScopedEvent<HTMLInputElement, "input">(mippyElement, "input", "[data-type='boolean'] input").pipe(
+            observeScopedEvent<HTMLInputElement, "input">(configElement, "input", "[data-type='boolean'] input").pipe(
                 map(([e, element]) => {
+                    console.log("gerg");
                     return {
                         element,
                         value: element.checked
                     }
                 })
             ),
-            observeScopedEvent<HTMLInputElement, "input">(mippyElement, "input", "[data-type='enum'] select").pipe(
+            observeScopedEvent<HTMLInputElement, "input">(configElement, "input", "[data-type='enum'] select").pipe(
                 map(([e, element]) => {
                     return {
                         element,
@@ -199,7 +191,7 @@ class Dashboard extends HTMLElement {
                     }
                 })
             ),
-            observeScopedEvent<HTMLInputElement, "input">(mippyElement, "input", "[data-type='string'] input").pipe(
+            observeScopedEvent<HTMLInputElement, "input">(configElement, "input", "[data-type='string'] input").pipe(
                 debounceTime(500),
                 map(([e, element]) => {
                     return {

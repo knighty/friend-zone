@@ -198,11 +198,14 @@ export class ChatGPTMippyBrain implements MippyBrain {
                 log.info(`Prompt: ${green(truncateString(prompt.text, 200, true, true))}`);
                 log.info(`History: ${green(history.messages.length)} messages. Tools: ${allowTools ? system.toolsSchema.map(tool => green(tool.function.name)).join(", ") : green("not allowed")}`);
 
+                const summaryMessage = history.create("system", `# Summaries
+                    ${history.summaries.map(summary => summary.content).join("\n")}`)
+
                 // Prompt ChatGPT and get a response stream
                 const stream = await client.chat.completions.create({
                     messages: [
                         system.message,
-                        ...history.summaries,
+                        summaryMessage,
                         ...history.messages,
                         promptMessage
                     ],

@@ -100,7 +100,7 @@ let permissions: MippyPermission[] = [];
 function getBrain(): MippyBrain {
     if (isMippyChatGPT(config.mippy)) {
         permissions = config.mippy.permissions;
-        const mippyHistoryRepository = new MippyHistoryRepository(path.join(__dirname, "../../data/history.json"));
+        const mippyHistoryRepository = new MippyHistoryRepository(path.join(__dirname, "../../", config.mippy.history.file));
         if (!config.openai.key) {
             throw new Error("No OpenAI key provided");
         }
@@ -143,7 +143,7 @@ if (isDiscordConfig(config.discord)) {
 // Mippy Plugins
 plugins.addPlugin("analyzeSubtitles", options => analyzeSubtitlesPlugin(subtitlesLog));
 plugins.addPlugin("wothSuggester", options => wothSuggesterPlugin(subtitlesLog, wordOfTheHour));
-plugins.addPlugin("voice", options => mippyVoicePlugin(fastifyApp, config.socketHost));
+plugins.addPlugin("voice", options => mippyVoicePlugin(fastifyApp, config.socketHost, options));
 plugins.addPlugin("screenshot", options => screenshotPlugin(fastifyApp, config, users));
 
 if (isTwitchConfig(config.twitch)) {

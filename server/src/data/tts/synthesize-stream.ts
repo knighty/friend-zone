@@ -38,7 +38,6 @@ export function streamSynthesizeVoice(text: Observable<string>, voice: string): 
                             const regex = /[\.\?\!\n](?: |\b|$)/g;
                             let endIndex = lastIndexOfRegex(str, regex);
                             if (endIndex > -1 && endIndex > currentPos - 200) {
-                                log.info(`Next: ${endIndex}`);
                                 subscriber.next([str, endIndex]);
                                 currentPos = endIndex;
                             }
@@ -61,7 +60,6 @@ export function streamSynthesizeVoice(text: Observable<string>, voice: string): 
             pos = endPos;
             if (text == "")
                 return EMPTY;
-            log.info(`Synthesizing ${green(text.split(" ").length)} words`);
 
             return new Observable<StreamSynthesisResult>(subscriber => {
                 const synthesisTimer = executionTimer();
@@ -84,7 +82,7 @@ export function streamSynthesizeVoice(text: Observable<string>, voice: string): 
                 });
 
                 piper.addListener("close", () => {
-                    log.info(`Synthesized ${green(`${Math.floor(size / 1000)}kb`)} (${green(segments)} segments) of text in ${green(synthesisTimer.end())}`);
+                    log.info(`[${synthesisTimer.end()}] Synthesized voice - ${green(text.split(" ").length)} words, ${green(segments)} segments, ${green(`${Math.floor(size / 1000)}kb`)}`);
                     subscriber.next({
                         text,
                     });

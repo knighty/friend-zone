@@ -23,6 +23,15 @@
         "typescript": "^5.5.4",
         "webpack-cli": "^5.1.4"
     },
+    "scripts": {
+        "update": "ts-node tools.ts install -g",
+        "install": "ts-node tools.ts install -a",
+        "build:public": "ts-node tools.ts install -b public --verbose",
+        "build:remote-control": "ts-node tools.ts install -b remote-control --verbose",
+        "server": "ts-node server/src/index.ts",
+        "remote-control": "ts-node remote-control/src/index.ts",
+        "utils:clean": "ts-node tools.ts clear-temp-files --verbose"
+    },
     "devDependencies": {
         "@types/ejs": "^3.1.5",
         "@types/node": "^22.2.0",

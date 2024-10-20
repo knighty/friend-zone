@@ -238,6 +238,104 @@ export function observeShortLongPress(element: HTMLElement, longPressSeconds: nu
     ), longPress => !longPress);
 }
 
+type BaseType = {
+    attributes: Record<string, string>,
+    value: undefined
+}
+
+type ElementTypes = {
+    input: {
+        element: HTMLInputElement,
+        value: string,
+        attributes: {
+            type: "range",
+            min?: string,
+            max?: string,
+            step?: string,
+        } | {
+            type: "text"
+        } | {
+            type: "number",
+        } | {
+            type: "checkbox",
+            checked?: string
+        }
+    },
+    textarea: BaseType & {
+        element: HTMLTextAreaElement,
+        attributes: {
+            rows?: number,
+            cols?: number,
+            placeholder?: string,
+            required?: boolean,
+            name?: string,
+            maxlength?: number
+        }
+    },
+    h1: BaseType & {
+        element: HTMLHeadingElement,
+    },
+    h2: BaseType & {
+        element: HTMLHeadingElement,
+    },
+    h3: BaseType & {
+        element: HTMLHeadingElement,
+    },
+    h4: BaseType & {
+        element: HTMLHeadingElement,
+    },
+    h5: BaseType & {
+        element: HTMLHeadingElement,
+    },
+    h6: BaseType & {
+        element: HTMLHeadingElement,
+    }
+}
+
+export function domElement<E extends keyof ElementTypes>(type: E, params?: Partial<{
+    classes: string[];
+    attributes: ElementTypes[E]["attributes"];
+    data: Record<string, any>;
+    value: ElementTypes[E]["value"];
+}>, children?: (HTMLElement | Text)[] | string): ElementTypes[E]["element"] {
+    const element = document.createElement(type);
+
+    if (params === undefined) {
+        params = {};
+    }
+
+    if (params.classes) {
+        element.classList.add(...params.classes.filter(c => c !== undefined));
+    }
+    if (typeof children == "string") {
+        element.innerText = children;
+        element.innerHTML = children;
+        element.textContent = children;
+    }
+    if (Array.isArray(children)) {
+        setChildren(element, ...children);
+    }
+    if (params.attributes) {
+        for (let attr in params.attributes) {
+            if (params.attributes[attr] !== undefined)
+                element.setAttribute(attr, String(params.attributes[attr]));
+        }
+    }
+    if (params.data) {
+        for (let data in params.data) {
+            element.dataset[data] = params.data[data];
+        }
+    }
+    if (params.value !== undefined) {
+        if ("value" in element) {
+            element.value = params.value;
+        } else {
+            throw new SyntaxError(`Value was provided for an element without a value`);
+        }
+    }
+    return element as ElementTypes[E]["element"];
+}
+
 /**
  * Programatically create an html element
  * @param type 

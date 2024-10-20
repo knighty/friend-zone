@@ -78,13 +78,7 @@ const pluginConfig = {
         description: "What voice to use",
         type: "enum",
         default: "en_US-norman-medium.onnx",
-        values: {
-            "en_US-norman-medium.onnx": "Norman",
-            "en_US-ryan-high.onnx": "Ryan",
-            "en_US-hfc_female-medium.onnx": "Female",
-            "en_US-glados.onnx": "Glados",
-            "vasco.onnx": "Vasco",
-        }
+        values: {}
     }
 } satisfies MippyPluginConfigDefinition
 
@@ -93,8 +87,13 @@ export type MippyVoicePlugin = MippyPlugin & {
     relayMessage$: Observable<string>
 }
 
-export function mippyVoicePlugin(fastify: FastifyInstance, socketHost: string): MippyPluginDefinition {
+type Options = {
+    voices: Record<string, string>
+}
+
+export function mippyVoicePlugin(fastify: FastifyInstance, socketHost: string, options: Options): MippyPluginDefinition {
     const audioRepository = new AudioRepository();
+    pluginConfig.voice.values = options.voices;
 
     return {
         name: "Voice",

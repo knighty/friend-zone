@@ -13,6 +13,9 @@ function checkProps<T extends object, P extends keyof T>(o: T, props: P[]) {
 export type MippyChatGPTConfig = MippyBaseConfig & {
     enabled: true,
     brain: "chatgpt",
+    history: {
+        file: string
+    },
     systemPrompt: {
         prompt: string,
         personality: string,
@@ -117,8 +120,9 @@ Type Guards
 export function isMippyChatGPT(config: MippyConfig): config is MippyChatGPTConfig {
     return config.enabled
         && config.brain == "chatgpt"
-        && checkProps(config, ["permissions", "prompts", "systemPrompt", "filter"])
-        && checkProps(config.systemPrompt, ["personality", "prompt"]);
+        && checkProps(config, ["permissions", "prompts", "systemPrompt", "filter", "history"])
+        && checkProps(config.systemPrompt, ["personality", "prompt"])
+        && checkProps(config.history, ["file"]);
 }
 
 export function isMippyDumb(config: MippyConfig): config is MippyDumbConfig {

@@ -76,16 +76,15 @@ select {
 .button {
     display: block;
     color: #fff;
-    background-color: #333;
+    background-color: #3c404d;
     border: none;
     padding: 0.8em 1em;
-    border-radius: 1em;
-    margin: 1em 0;
+    border-radius: 0.5em;
     font-size: inherit;
     cursor: pointer;
 
     &:hover {
-        background-color: #555;
+        background-color: lighten(#3c404d, 20%);
     }
 }
 

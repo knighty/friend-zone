@@ -103,8 +103,8 @@ const mippySay$ = new Subject<string>();
 const focus$ = focusFeed(config);
 const feedSettings = new FeedSettings();
 const subtitlesEnabled$ = new BehaviorSubject(config.subtitlesEnabled);
-const sendAsksEnabled$ = new BehaviorSubject(true);
-const sendScreenEnabled$ = new BehaviorSubject(true);
+const sendAsksEnabled$ = new BehaviorSubject(false);
+const sendScreenEnabled$ = new BehaviorSubject(false);
 
 const ask$ = askMippy$.pipe(
     withLatestFrom(sendScreenEnabled$.pipe(switchMap(enabled => enabled ? selectedWindow$ : of(null)))),
@@ -114,10 +114,8 @@ const ask$ = askMippy$.pipe(
         }
         let monitor = Monitor.fromPoint(100, 100);
         let image = await (window ? window.captureImage() : monitor.captureImage());
-        log.info("Captured screen grab");
         const img = sharp(image.toPngSync());
         let data = await img.resize(1024, 1024, { fit: 'inside' }).jpeg().toBuffer()
-        log.info("Sending screen grab");
 
         return {
             text: text,

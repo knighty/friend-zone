@@ -1,4 +1,6 @@
-import { EMPTY, interval, Observable, switchMap, throttleTime } from "rxjs";
+import { green } from "kolorist";
+import { EMPTY, Observable, switchMap, throttleTime, timer } from "rxjs";
+import { logger } from "shared/logger";
 import { getSchedule } from "../../../data/twitch/api";
 import { Schedule } from "../../../data/twitch/api/schedule";
 import { AuthTokenSource } from "../../../data/twitch/auth-tokens";
@@ -19,6 +21,8 @@ const pluginConfig = {
         step: 1
     }
 } satisfies MippyPluginConfigDefinition;
+
+const log = logger("schedule-announcer-plugin");
 
 export function scheduleAnnouncePlugin(userToken: AuthTokenSource, broadcasterId: string, sayGoodbye$: Observable<void>): MippyPluginDefinition {
     function formatSegment(segment: {
@@ -50,7 +54,15 @@ export function scheduleAnnouncePlugin(userToken: AuthTokenSource, broadcasterId
                 switchMap(frequency => {
                     if (!frequency)
                         return EMPTY;
-                    return interval(frequency * 1000 * 60).pipe(
+
+                    const intervalTimer = frequency * 60 * 1000;
+                    const now = new Date();
+                    const secondsIntoHour = (now.getMinutes() * 60 + now.getSeconds()) * 1000;
+                    const nextTime = intervalTimer - secondsIntoHour % intervalTimer;
+
+                    log.info(`First schedule announce in ${green(nextTime / 1000)} seconds. Announcing every ${green(frequency)} minutes`);
+
+                    return timer(nextTime, intervalTimer).pipe(
                         switchMap(i => getSchedule(userToken, broadcasterId))
                     )
                 })
@@ -60,6 +72,7 @@ export function scheduleAnnouncePlugin(userToken: AuthTokenSource, broadcasterId
                     return;
 
                 const segment = thisWeekSegments[(i++) % thisWeekSegments.length];
+                log.info(`Announcing segment: ${green(formatSegment(segment))}`);
                 mippy.ask("scheduleAnnounce", {
                     schedule: formatSegment(segment)
                 }, { store: false })
