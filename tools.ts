@@ -22,6 +22,7 @@ type CommandOptions = {
     cwd?: string,
     output?: boolean,
     errors?: boolean,
+    errorsInStdOut?: boolean
 }
 
 async function runCommand(command: string, options?: CommandOptions) {
@@ -35,12 +36,16 @@ async function runCommand(command: string, options?: CommandOptions) {
             cwd: cwd,
         })
 
+        let out = "";
+
         let hasErrors = false;
 
         process.stdout.setEncoding('utf8');
         process.stdout.on("data", message => {
             if (output) {
                 console.log(message);
+            } else {
+                out += message;
             }
         })
 
@@ -53,7 +58,10 @@ async function runCommand(command: string, options?: CommandOptions) {
         })
 
         process.on("exit", (code, signal) => {
-            if (hasErrors) {
+            if (hasErrors || code != 0) {
+                if (options?.errorsInStdOut && out != "") {
+                    console.error(out);
+                }
                 reject();
                 return;
             }
@@ -152,12 +160,12 @@ program.command('install')
 
                 if (options.bundle === true || options.bundle == "public" || options.bundle == "all") {
                     subHeader("public");
-                    await runCommand(`npm run build:dev`, { cwd: path.join(__dirname, "public"), output: verbose });
+                    await runCommand(`npm run build:dev`, { cwd: path.join(__dirname, "public"), output: verbose, errorsInStdOut: true });
                 }
 
                 if (options.bundle === true || options.bundle == "remote-control" || options.bundle == "all") {
                     subHeader("remote-control");
-                    await runCommand(`npm run build:dev`, { cwd: path.join(__dirname, "remote-control"), output: verbose });
+                    await runCommand(`npm run build:dev`, { cwd: path.join(__dirname, "remote-control"), output: verbose, errorsInStdOut: true });
                 }
             }
 

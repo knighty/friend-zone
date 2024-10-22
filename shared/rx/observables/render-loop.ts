@@ -1,5 +1,8 @@
 import { animationFrames, filter, map, pairwise, share, skip } from "rxjs";
 
+/**
+ * Observable that outputs for each rendered frame on a browser
+ */
 export const renderLoop$ = animationFrames().pipe(
     skip(1),
     pairwise(),

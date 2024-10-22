@@ -1,5 +1,12 @@
 import { Observable, Subscription } from "rxjs";
 
+/**
+ * Like switchMap but when the outer observable completes, the inner does too
+ * regardless of how it's doing
+ * @param project 
+ * @param debug 
+ * @returns 
+ */
 export function switchMapComplete<In, T>(project: (value: In) => Observable<T>, debug = false) {
     return (source: Observable<In>) => {
         return new Observable<T>(subscriber => {

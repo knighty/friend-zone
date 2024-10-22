@@ -1,6 +1,9 @@
 import { Observable, Subject, map, merge, shareReplay, startWith } from "rxjs";
 import { filterMap } from "../../rx";
 
+/**
+ * An observable version of a Map with subjcts for events
+ */
 export class ObservableMap<Key, Value> {
     private data = new Map<Key, Value>();
     private set$ = new Subject<void>();

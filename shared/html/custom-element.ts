@@ -1,6 +1,6 @@
 import { map, Observable, Subject, switchMap, takeUntil } from "rxjs";
+import { Events, observeScopedEvent } from "../dom";
 import { ObservableMap } from "../rx/observables/map";
-import { Events, observeScopedEvent } from "../utils";
 
 type CustomElementTypeImpl<Data extends Record<string, any> = {}, Elements extends Record<string, any> = {}> = {
     Data: Data,

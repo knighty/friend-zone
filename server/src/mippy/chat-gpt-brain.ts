@@ -14,7 +14,7 @@ import { MippyHistory } from "./history/history";
 import { MippyHistoryRepository } from './history/repository';
 import { isUserPrompt, MippyBrain, MippyMessage, MippyPrompts, PartialPrompt, Prompt } from "./mippy-brain";
 
-const log = logger("mippy-chat-gpt-brain", true);
+const log = logger("brain", true);
 
 export type ToolCall<Args = any> = {
     id: string,
@@ -241,6 +241,10 @@ export class ChatGPTMippyBrain implements MippyBrain {
                     await history.addMessage(history.create("user", prompt.text), null);
                     await history.addMessage(history.create("assistant", response.partial.text ?? ""), summarizer);
                 }
+            }),
+            catchError(e => {
+                log.error(e);
+                return EMPTY;
             }),
             share(),
         ).subscribe();

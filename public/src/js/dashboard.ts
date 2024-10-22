@@ -1,6 +1,6 @@
 import { debounceTime, map, merge } from "rxjs";
-import { dom } from "shared/dom";
-import { createElement, fromDomEvent, observeScopedEvent } from "shared/utils";
+import { dom, fromDomEvent, observeScopedEvent } from "shared/dom";
+import { createElement } from "shared/utils";
 import { connectBrowserSocket } from "shared/websocket/browser";
 import { ObservableEventProvider } from "shared/websocket/event-provider";
 

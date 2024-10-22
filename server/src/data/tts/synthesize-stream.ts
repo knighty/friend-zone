@@ -1,6 +1,6 @@
 import { green } from "kolorist";
 import child_process from "node:child_process";
-import { EMPTY, Observable, throttleTime } from "rxjs";
+import { Observable, throttleTime } from "rxjs";
 import { logger } from "shared/logger";
 import { exhaustMapWithTrailing } from "shared/rx";
 import { lastIndexOfRegex } from "shared/text-utils";
@@ -28,16 +28,16 @@ export function streamSynthesizeVoice(text: Observable<string>, voice: string): 
     let str = "";
 
     const partials$ = text.pipe(
-        throttleTime(500, undefined, { trailing: true, leading: false }),
+        throttleTime(200, undefined, { trailing: true, leading: false }),
         <In extends Observable<string>>(source: In) => {
             return new Observable<[string, number]>(subscriber => {
                 return source.subscribe({
                     next: value => {
                         str = value;
-                        if (str.length - currentPos > 200) {
+                        if (str.length - currentPos > 50) {
                             const regex = /[\.\?\!\n](?: |\b|$)/g;
                             let endIndex = lastIndexOfRegex(str, regex);
-                            if (endIndex > -1 && endIndex > currentPos - 200) {
+                            if (endIndex > -1 && endIndex > currentPos - 50) {
                                 subscriber.next([str, endIndex]);
                                 currentPos = endIndex;
                             }
@@ -56,12 +56,15 @@ export function streamSynthesizeVoice(text: Observable<string>, voice: string): 
     let pos = 0;
     return partials$.pipe(
         exhaustMapWithTrailing(([text, endPos]) => {
-            text = text.substring(pos, endPos);
-            pos = endPos;
-            if (text == "")
-                return EMPTY;
-
             return new Observable<StreamSynthesisResult>(subscriber => {
+                text = text.substring(pos, endPos);
+                pos = endPos;
+                if (text == "") {
+                    log.info("Empty string");
+                    subscriber.complete();
+                    return;
+                }
+
                 const synthesisTimer = executionTimer();
                 let segments = 0;
                 let size = 0;
@@ -82,7 +85,7 @@ export function streamSynthesizeVoice(text: Observable<string>, voice: string): 
                 });
 
                 piper.addListener("close", () => {
-                    log.info(`[${synthesisTimer.end()}] Synthesized voice - ${green(text.split(" ").length)} words, ${green(segments)} segments, ${green(`${Math.floor(size / 1000)}kb`)}`);
+                    log.info(`[${synthesisTimer.end()}] Synthesized voice [${green(text.split(" ").length)} words | ${green(segments)} segments | ${green(`${Math.floor(size / 1000)}kb`)}]`);
                     subscriber.next({
                         text,
                     });

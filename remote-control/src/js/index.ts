@@ -1,4 +1,5 @@
-import { createElement, fromDomEvent, observeScopedEvent, populateChildren } from "shared/utils";
+import { fromDomEvent, observeScopedEvent, populateChildren } from "shared/dom";
+import { createElement } from "shared/utils";
 import { connectBrowserSocket } from "shared/websocket/browser";
 
 const socket = connectBrowserSocket<{
@@ -57,7 +58,7 @@ fromDomEvent(document.getElementById("mippySayButton"), "click").subscribe(e => 
 socket.on("windows").subscribe(windows => {
     populateChildren(
         document.querySelector<HTMLSelectElement>("#windows"),
-        Object.keys(windows),
+        Object.keys(windows).sort((a, b) => a.localeCompare(b)),
         (element, item) => (element as HTMLOptionElement).value == item,
         (item) => createElement("option", { value: item }, windows[item])
     )

@@ -13,7 +13,8 @@ type BasePrompt = {
     source?: "chat" | "admin",
     store?: boolean,
     allowTools?: boolean,
-    image?: string[]
+    image?: string[],
+    history?: boolean
 }
 
 type UserPrompt = BasePrompt & {

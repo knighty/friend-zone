@@ -1,5 +1,6 @@
 import { FastifyInstance } from "fastify";
 import { Observable, Subject } from "rxjs";
+import { log } from "shared/logger";
 import { InferObservable } from "shared/rx/utils";
 import { ObservableEventProvider, serverSocket } from "shared/websocket/server";
 import ExternalFeeds from "../data/external-feeds";
@@ -59,6 +60,9 @@ export function configSocket(events: WebsocketEvent[], feeds: ExternalFeeds, say
 
             socket.on("mippy/plugin/config").subscribe(data => {
                 const plugin = mippy.plugins[data.plugin];
+                if (!plugin) {
+                    log.error(`Tried to set value of plugin ${data.plugin} but it doesn't exist. Possibly not loaded`);
+                }
                 plugin.config.setValue(data.item, data.value);
             })
         })

@@ -36,12 +36,13 @@ export type SocketEvents = {
         id: string,
         audio: {
             duration: number,
-            finished: boolean,
         },
         message: {
             text: string
-            finished: boolean,
         },
+    } | {
+        id: string,
+        finished: true
     },
     mippyHistory: [
         string,

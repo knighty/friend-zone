@@ -5,7 +5,7 @@ import { executionTimer } from "shared/utils";
 import { MippyHistory } from "./history";
 import { MippyHistoryMessage } from "./message";
 
-const log = logger("mippy-history");
+const log = logger("history");
 
 type HistorySchema = {
     summaries: MippyHistoryMessage[],

@@ -54,7 +54,7 @@ const windows$ = new Observable<WindowCollection>(subscriber => {
 
         let changed = false;
         const newWindows: WindowCollection = {};
-        activeWindows.sort((a, b) => a.title.localeCompare(b.title)).forEach((item) => {
+        activeWindows.sort((a, b) => a.appName.localeCompare(b.appName)).forEach((item) => {
             newWindows[item.id] = item;
             //w[item.id] = `${item.title} - ${item.width} x ${item.height}`;
             if (!windows[item.id]) {
@@ -215,6 +215,7 @@ fastifyApp.register(async (fastify: FastifyInstance) => {
             windows: windows$.pipe(
                 map(windows => {
                     const w: Record<string, string> = {};
+                    w["monitor"] = "Monitor";
                     for (let id in windows) {
                         w[id] = truncateString(`${windows[id].appName} - ${windows[id].title}`, 60);
                     }

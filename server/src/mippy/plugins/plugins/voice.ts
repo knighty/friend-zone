@@ -1,6 +1,7 @@
 import { FastifyInstance } from "fastify";
-import { BehaviorSubject, EMPTY, Observable, Subject, concatMap, ignoreElements, last, map, merge, of, reduce, share, switchMap, tap, timeout, timer, withLatestFrom } from "rxjs";
+import { BehaviorSubject, EMPTY, Observable, Subject, concatMap, endWith, ignoreElements, last, map, merge, of, reduce, share, switchMap, tap, timeout, timer, withLatestFrom } from "rxjs";
 import { logger } from "shared/logger";
+import { concatMapPriority } from "shared/rx";
 import { StreamSynthesisResult, streamSynthesizeVoice } from "../../../data/tts/synthesize-stream";
 import ejsLayout from "../../../layout";
 import { AudioRepository, AudioStream } from "../../../plugins/audio-socket";
@@ -50,8 +51,7 @@ function accumulatePartialMessage() {
     }), { text: "", id: "", duration: 0 })
 }
 
-function synthesizeVoice(audioRepository: AudioRepository, inputStream: Observable<string>, voice: string) {
-    const stream = audioRepository.create();
+function synthesizeVoice(stream: AudioStream, inputStream: Observable<string>, voice: string) {
     const synthesisResult$ = streamSynthesizeVoice(inputStream, voice).pipe(
         accumulateAudioStream(stream)
     );
@@ -117,24 +117,26 @@ export function mippyVoicePlugin(fastify: FastifyInstance, socketHost: string, o
 
             const streamEvent$ = message$.pipe(
                 withLatestFrom(selectedVoice$),
-                concatMap(
+                concatMapPriority(
                     ([partial, voice]: [Observable<MippyPartialResult>, string]) => {
-                        const event$ = synthesizeVoice(audioRepository, partial.pipe(map(p => p.text)), voice);
-                        const completion$ = event$.pipe(
-                            accumulatePartialMessage(),
-                            last(),
-                            tap(m => relayMessage$.next(m)),
-                            ignoreElements()
-                        )
-                        return merge(event$, completion$).pipe(
+                        const stream = audioRepository.create();
+                        const event$ = synthesizeVoice(stream, partial.pipe(map(p => p.text)), voice).pipe(
                             timeout({
                                 each: 60000,
                                 with: () => {
                                     log.error("Timeout generating audio");
                                     return EMPTY;
                                 }
-                            }),
+                            })
                         );
+                        const completion$ = event$.pipe(
+                            accumulatePartialMessage(),
+                            last(),
+                            tap(m => relayMessage$.next(m)),
+                            switchMap(m => timer((m.duration + 3) * 1000)),
+                            ignoreElements()
+                        )
+                        return [merge(event$.pipe(endWith({ id: stream.id, finished: true })), completion$), 0] as const;
                     }
                 ),
                 share()

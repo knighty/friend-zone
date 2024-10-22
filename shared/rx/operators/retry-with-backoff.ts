@@ -7,6 +7,12 @@ type RetryOptions = {
     subject$?: Subject<boolean>,
 }
 
+/**
+ * Retry when an error occurs with exponential backoff when failure occur
+ * @param log 
+ * @param options 
+ * @returns 
+ */
 export function retryWithBackoff<T>(log: Logger, options: Partial<RetryOptions>) {
     const config: RetryOptions = {
         base: 1.1,

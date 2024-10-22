@@ -1,4 +1,4 @@
-import { setChildren } from "./utils";
+import { setChildren } from "./dom/nodes";
 
 type Inputs = {
     range: {
@@ -124,3 +124,28 @@ export const dom = {
     label, input, select,
     text
 }
+
+// Events
+export { fromDomEvent, pluckEventTarget } from "./dom/event";
+export * from "./dom/events";
+export { observeScopedEvent } from "./dom/scoped-event";
+
+// Inputs
+export { observeInput, observeInputField } from "./dom/input-field";
+
+// Nodes
+export { appendChildren, removeChildren, removeNode, setChildren } from "./dom/nodes";
+export { populateChildren } from "./dom/populate-children";
+
+// Images
+export { observeImageLoaded } from "./dom/image-loaded";
+
+// Mouse events
+export { observeShortLongPress } from "./dom/long-short-press";
+export { observeMouseDown } from "./dom/mouse-down";
+export { observeMouseMove, observeMouseMovedThreshold, observeMousePosition, observeMousePositionOffset } from "./dom/mouse-move";
+export { observeMouseUp } from "./dom/mouse-up";
+
+// Key events
+export { observeKey } from "./dom/key-press";
+

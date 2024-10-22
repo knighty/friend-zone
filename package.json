@@ -6,7 +6,6 @@
     "author": "",
     "license": "ISC",
     "dependencies": {
-        "@diffusionstudio/vits-web": "^1.0.3",
         "commander": "^12.1.0",
         "css-loader": "^6.8.1",
         "ejs": "^3.1.10",
@@ -24,13 +23,15 @@
         "webpack-cli": "^5.1.4"
     },
     "scripts": {
-        "update": "git pull",
-        "install-package": "ts-node tools.ts install -m -b --verbose",
-        "build:public": "ts-node tools.ts install -b public --verbose",
-        "build:remote-control": "ts-node tools.ts install -b remote-control --verbose",
+        "update": "git pull && npm ci",
+        "install:all": "ts-node tools.ts install -m -b",
+        "install:modules": "ts-node tools.ts install -m",
+        "build": "ts-node tools.ts install -b",
+        "build:public": "ts-node tools.ts install -b public",
+        "build:remote-control": "ts-node tools.ts install -b remote-control",
         "server": "ts-node server/src/index.ts",
         "remote-control": "ts-node remote-control/src/index.ts",
-        "utils:clean": "ts-node tools.ts clear-temp-files --verbose"
+        "utils:clean": "ts-node tools.ts clear-temp-files"
     },
     "devDependencies": {
         "@types/ejs": "^3.1.5",

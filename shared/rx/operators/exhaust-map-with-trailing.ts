@@ -1,5 +1,10 @@
 import { defer, exhaustMap, finalize, from, Observable, ObservableInput, OperatorFunction, Subject, throttle } from "rxjs"
 
+/**
+ * Liek exhaust map but it also runs for the last item encountered while running
+ * @param project 
+ * @returns 
+ */
 export function exhaustMapWithTrailing<T, R>(
     project: (value: T, index: number) => ObservableInput<R>
 ): OperatorFunction<T, R> {
