@@ -61,8 +61,8 @@ select {
         border-radius: 0.5em;
 
         &:focus {
-            background: #464b59;
-            border: 1px solid #5b6273;
+            background: darken(#272a33, 7%);
+            //border: 1px solid #5b6273;
         }
     }
 
@@ -78,13 +78,20 @@ select {
     color: #fff;
     background-color: #3c404d;
     border: none;
-    padding: 0.8em 1em;
+    padding: 0.5em 1em;
     border-radius: 0.5em;
     font-size: inherit;
     cursor: pointer;
+    border: 1px solid transparent;
 
     &:hover {
-        background-color: lighten(#3c404d, 20%);
+        background-color: lighten(#3c404d, 10%);
+        border: 1px solid lighten(#3c404d, 20%);
+    }
+
+    &:active {
+        background: darken(#272a33, 7%);
+        border: 1px solid lighten(#3c404d, 20%);
     }
 }
 

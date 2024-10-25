@@ -51,7 +51,8 @@ export type SocketEvents = {
             id: string,
             duration: number
         }
-    ]
+    ],
+    ticker: string
 };
 
 export const socket = connectBrowserSocket<{

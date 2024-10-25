@@ -3,8 +3,13 @@ import { log } from "shared/logger";
 import { StreamEventWatcher } from "../../../data/stream-event-watcher";
 import { getCategoryStreamsInfo } from "../../../data/twitch/api";
 import { UserAuthTokenSource } from "../../../data/twitch/auth-tokens";
+import { ChatGPTMippyBrain } from "../../chat-gpt-brain";
 import { MippyPluginConfig, MippyPluginConfigDefinition, MippyPluginDefinition } from "../plugins";
-import { MippyVoicePlugin } from "./voice";
+
+const redemptions = {
+    askMippy: "",
+    personality: "",
+}
 
 const eventConfig = {
     channelUpdate: {
@@ -54,7 +59,7 @@ const eventConfig = {
         description: "When a user redeems something",
         type: "boolean",
         default: false
-    }
+    },
 } satisfies MippyPluginConfigDefinition;
 
 const pluginConfig = {
@@ -67,13 +72,12 @@ function append<In extends Record<string, any>, Out extends Record<string, any>,
     );
 }
 
-export function streamEventsPlugin(authToken: UserAuthTokenSource, broadcasterId: string): MippyPluginDefinition {
+export function streamEventsPlugin(authToken: UserAuthTokenSource, broadcasterId: string, streamEventWatcher: StreamEventWatcher): MippyPluginDefinition {
     return {
         name: "Stream Events",
         permissions: ["sendMessage"],
         config: pluginConfig,
         init: async (mippy, config: MippyPluginConfig<typeof pluginConfig>) => {
-            const streamEventWatcher = new StreamEventWatcher(authToken);
             const broadcaster = { broadcaster_user_id: broadcasterId };
 
             function event<T>(key: keyof typeof eventConfig, observable: Observable<T>) {
@@ -119,9 +123,27 @@ export function streamEventsPlugin(authToken: UserAuthTokenSource, broadcasterId
             });
 
             event("redemptions", streamEventWatcher.onEvent("channel.channel_points_custom_reward_redemption.add", broadcaster)).subscribe(data => {
-                if (data.id == "rwgferge") {
+                switch (data.id) {
+                    case redemptions.askMippy: {
+                        mippy.ask("highlightedMessage", {
+                            user: data.user_name,
+                            message: data.user_input,
+                            logs: ""
+                        }, { store: false, source: "chat" })
+                    } break;
+
+                    case redemptions.personality: {
+                        if (mippy.brain instanceof ChatGPTMippyBrain) {
+                            mippy.brain.setPersonality("");
+                        }
+                    } break;
+                }
+                if (data.id == redemptions.askMippy) {
                     try {
-                        mippy.getPlugin<MippyVoicePlugin>("voice").setVoice("glados");
+                        if (mippy.brain instanceof ChatGPTMippyBrain) {
+                            mippy.brain.setPersonality("");
+                        }
+                        //mippy.getPlugin<MippyVoicePlugin>("voice").setVoice("glados");
                     } catch (e) {
                         log.error(e);
                     }

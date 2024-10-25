@@ -1,14 +1,14 @@
-import { Observable, combineLatest, map, of } from "rxjs";
+import { Observable, combineLatest, map } from "rxjs";
 import { observeDay } from "shared/rx";
 import { MippyChatGPTConfig } from "../../config";
 import Users from "../../data/users";
+import { Character } from "../chat-gpt-brain";
 import { ChatGPTTools } from "./tools";
 
-export function getSystemPrompt$(config: MippyChatGPTConfig, users: Users, tools: ChatGPTTools): Observable<string> {
+export function getSystemPrompt$(config: MippyChatGPTConfig, users: Users, tools: ChatGPTTools, personality$: Observable<string>, character$: Observable<Character>): Observable<string> {
     const userPrompt$ = users.users.values$.pipe(
         map(entries => entries.reduce((a, c) => a + "\n" + c.prompt, ""))
     );
-    const personality$ = of(config.systemPrompt.personality);
     const tools$ = tools.getSystemPrompt();
 
     return combineLatest([userPrompt$, personality$, tools$, observeDay()]).pipe(

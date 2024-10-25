@@ -18,9 +18,12 @@ import config, { isDiscordConfig, isMippyChatGPT, isMippyDumb, isTwitchConfig } 
 import DiscordVoiceState from './data/discord-voice-state';
 import ExternalFeeds from './data/external-feeds';
 import mockUsers from './data/mock-users';
+import { Redemptions } from './data/redemptions';
+import { StreamEventWatcher } from './data/stream-event-watcher';
 import Subtitles from './data/subtitles';
 import { SubtitlesLog } from './data/subtitles/logs';
 import TwitchChat, { TwitchChatLog } from './data/twitch-chat';
+import { getRedemptions } from './data/twitch/api';
 import { UserAuthTokenSource } from './data/twitch/auth-tokens';
 import Users from './data/users';
 import Webcam from './data/webcam';
@@ -34,7 +37,9 @@ import { Mippy } from './mippy/mippy';
 import { MippyBrain } from './mippy/mippy-brain';
 import { analyzeSubtitlesPlugin, createPollPlugin, createPredictionPlugin, highlightedMessagesPlugin, MippyPermissions as MippyPermission, MippyPluginConfigDefinition, MippyPluginConfigDefinitionValues, MippyPluginManager, mippyVoicePlugin, relayMessagesToTwitchPlugin, scheduleAnnouncerPlugin, streamEventsPlugin, wothSuggesterPlugin } from './mippy/plugins/plugins';
 import { chatPlugin } from './mippy/plugins/plugins/chat';
-import { screenshotPlugin } from './mippy/plugins/plugins/screenshot';
+import { personalityPlugin } from './mippy/plugins/plugins/personality';
+import { screenshotPlugin, ScreenshotRepository } from './mippy/plugins/plugins/screenshot';
+import { tickerPlugin } from './mippy/plugins/plugins/ticker';
 import { configSocket } from './plugins/config-socket';
 import { errorHandler } from './plugins/errors';
 import { fastifyFavicon } from "./plugins/favicon";
@@ -115,6 +120,7 @@ function getBrain(): MippyBrain {
     throw new Error("No valid brain for Mippy");
 }
 let brain = getBrain();
+const screenshotRepository = new ScreenshotRepository();
 const mippy = new Mippy(brain, config.mippy, permissions);
 const plugins = new MippyPluginManager(config.mippy.plugins);
 const subtitles = new Subtitles(mippy);
@@ -144,7 +150,8 @@ if (isDiscordConfig(config.discord)) {
 plugins.addPlugin("analyzeSubtitles", options => analyzeSubtitlesPlugin(subtitlesLog));
 plugins.addPlugin("wothSuggester", options => wothSuggesterPlugin(subtitlesLog, wordOfTheHour));
 plugins.addPlugin("voice", options => mippyVoicePlugin(fastifyApp, config.socketHost, options));
-plugins.addPlugin("screenshot", options => screenshotPlugin(fastifyApp, config, users));
+plugins.addPlugin("screenshot", options => screenshotPlugin(fastifyApp, config, users, screenshotRepository));
+plugins.addPlugin("ticker", options => tickerPlugin(fastifyApp, config.socketHost));
 
 if (isTwitchConfig(config.twitch)) {
     const twitch = config.twitch;
@@ -154,16 +161,34 @@ if (isTwitchConfig(config.twitch)) {
     const twitchChatLog = new TwitchChatLog(twitchChat);
     const broadcasterId = twitch.broadcasterId;
     const botId = twitch.botId;
+    const streamEventWatcher = new StreamEventWatcher(userToken);
+    const redemptions = new Redemptions(streamEventWatcher, broadcasterId);
 
     wordOfTheHour.watchTwitchChat(twitchChat);
 
     plugins.addPlugin("chat", options => chatPlugin(twitchChat));
     plugins.addPlugin("createPoll", options => createPollPlugin(userToken, broadcasterId, options));
     plugins.addPlugin("createPrediction", options => createPredictionPlugin(userToken, broadcasterId, options));
-    plugins.addPlugin("highlightedMessages", options => highlightedMessagesPlugin(twitchChat, twitchChatLog));
+    plugins.addPlugin("highlightedMessages", options => highlightedMessagesPlugin(twitchChat, twitchChatLog, redemptions));
+    plugins.addPlugin("personality", options => personalityPlugin(redemptions));
     plugins.addPlugin("relayMessagesToTwitch", options => relayMessagesToTwitchPlugin(broadcasterId, botId, botToken));
     plugins.addPlugin("scheduleAnnounce", options => scheduleAnnouncerPlugin(userToken, broadcasterId, sayGoodbye));
-    plugins.addPlugin("streamEvents", options => streamEventsPlugin(userToken, broadcasterId));
+    plugins.addPlugin("streamEvents", options => streamEventsPlugin(userToken, broadcasterId, streamEventWatcher));
+
+    /*getRedemptions(userToken, broadcasterId).then(redeems => {
+        for (let redeem of redeems) {
+            console.log(`${redeem.id} - ${redeem.title}`);
+        }
+    })*/
+
+    fastifyApp.get("/data/redemptions", async (req, res) => {
+        const redemptions = await getRedemptions(userToken, broadcasterId);
+        const response: Record<string, string> = {};
+        for (let redeem of redemptions) {
+            response[redeem.id] = redeem.title;
+        }
+        return response;
+    })
 }
 
 plugins.initPlugins(mippy);
@@ -231,7 +256,7 @@ const dataSources = objectMapArray({
 fastifyApp.register(socket(dataSources));
 
 // Remote control socket
-fastifyApp.register(remoteControlSocket(subtitles, feeds, users, mippy));
+fastifyApp.register(remoteControlSocket(subtitles, feeds, users, mippy, screenshotRepository));
 
 // Config socket
 fastifyApp.register(configSocket(dataSources, feeds, sayGoodbye, mippy), { prefix: "/config" });

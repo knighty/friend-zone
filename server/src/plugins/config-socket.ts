@@ -1,7 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { Observable, Subject } from "rxjs";
 import { log } from "shared/logger";
-import { InferObservable } from "shared/rx/utils";
+import { InferObservable } from "shared/rx";
 import { ObservableEventProvider, serverSocket } from "shared/websocket/server";
 import ExternalFeeds from "../data/external-feeds";
 import { Mippy } from "../mippy/mippy";

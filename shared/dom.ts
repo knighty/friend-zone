@@ -1,4 +1,6 @@
+import { fromElementEvent } from "./dom/event";
 import { setChildren } from "./dom/nodes";
+import { Constructor } from "./types";
 
 type Inputs = {
     range: {
@@ -13,7 +15,7 @@ type Inputs = {
     },
     checkbox: {
         checked: string
-    },
+    }
 };
 
 type HTMLElements = {
@@ -26,7 +28,9 @@ type HTMLElements = {
     input: HTMLInputElement,
     label: HTMLLabelElement,
     textarea: HTMLTextAreaElement,
-    select: HTMLSelectElement
+    select: HTMLSelectElement,
+    option: HTMLOptionElement,
+    div: HTMLDivElement,
 }
 
 type Attributes = {
@@ -39,7 +43,7 @@ type Params<A = any> = Partial<{
     data: Record<string, any>
 }>;
 
-function create<A extends Record<string, any>, K extends keyof HTMLElements, E = any>(type: K, callback?: (element: HTMLElements[K]) => void) {
+function create<A extends Record<string, any>, K extends keyof HTMLElements>(type: K, callback?: (element: HTMLElements[K]) => void) {
     return (params?: Partial<{
         attributes: A,
         classes: string[],
@@ -98,35 +102,77 @@ const h4 = create("h4");
 const h5 = create("h5");
 const h6 = create("h6");
 
-const select = create("select");
+const select = create<{
+    value: string
+}, "select">("select");
 
 const label = create("label");
+
+const option = create("option");
+
+const div = create("div");
+
+const textareaCreate = create("textarea");
+const textarea = (value: string, params?: Params) => {
+    const t = textareaCreate(params);
+    t.value = value;
+    return t;
+};
 
 const text = (text: string) => {
     return document.createTextNode(text);
 }
 
-const id = <T extends HTMLElement = HTMLElement>(id: string) => {
-    return document.getElementById(id) as T;
+const id = <T extends HTMLElement>(id: string, type: Constructor<T> = HTMLElement as any): T => {
+    const el = document.getElementById(id);
+    if (el == null) {
+        throw new Error(`Element with id "${id}" does not exist`)
+    }
+    if (el instanceof type) {
+        return el;
+    } else {
+        throw new Error(`Element with id "${id}" does not match the required type`)
+    }
 }
 
-const query = <T extends HTMLElement = HTMLElement>(query: string, root?: Element) => {
-    return (root ?? document).querySelector(query) as T;
+const elementEvent = fromElementEvent;
+
+const query = <T extends HTMLElement>(query: string, type: Constructor<T> = HTMLElement as any, root?: Element): T => {
+    let el = (root ?? document).querySelector(query);
+    if (el == null) {
+        throw new Error(`Element with id "${id}" does not exist`)
+    }
+    if (el instanceof type) {
+        return el;
+    } else {
+        throw new Error(`Element with id "${id}" does not match the required type`)
+    }
 }
 
 const queryAll = <T extends HTMLElement = HTMLElement>(query: string, root?: Element) => {
     return (root ?? document).querySelectorAll(query) as NodeListOf<T>;
 }
 
+const elements = <Elements extends Record<string, Constructor<any>>>(element: Node, elements: Elements) => {
+    //const cachedElements = 
+    return {
+        get: <K extends keyof Elements>(key: K): InstanceType<Elements[K]> => {
+            return id(String(key), elements[key]);
+        }
+    }
+}
+
 export const dom = {
-    id, query, queryAll,
+    elements,
+    id, query, queryAll, elementEvent,
     h1, h2, h3, h4, h5, h6,
-    label, input, select,
+    div,
+    label, input, select, option, textarea,
     text
 }
 
 // Events
-export { fromDomEvent, pluckEventTarget } from "./dom/event";
+export { fromDomEvent, fromElementEvent, pluckEventTarget } from "./dom/event";
 export * from "./dom/events";
 export { observeScopedEvent } from "./dom/scoped-event";
 
@@ -136,6 +182,7 @@ export { observeInput, observeInputField } from "./dom/input-field";
 // Nodes
 export { appendChildren, removeChildren, removeNode, setChildren } from "./dom/nodes";
 export { populateChildren } from "./dom/populate-children";
+export { sortChildren as orderChildren } from "./dom/sort-children";
 
 // Images
 export { observeImageLoaded } from "./dom/image-loaded";

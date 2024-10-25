@@ -1,4 +1,4 @@
-import fastifyStatic from "@fastify/static";
+import fastifyCaching from "@fastify/caching";
 import { FastifyInstance } from "fastify";
 import fs from "fs/promises";
 import { green } from "kolorist";
@@ -29,8 +29,23 @@ async function imageToFile(buffer: Buffer) {
     return filename;
 }
 
+export class ScreenshotRepository {
+    screenshots = new Map<string, Buffer>();
+
+    add(filename: string, image: Buffer) {
+        this.screenshots.set(filename, image);
+        setTimeout(() => {
+            this.screenshots.delete(filename);
+        }, 10 * 60 * 1000)
+        return `http://51.191.172.95:3000/mippy/plugins/screenshot/images/${filename}`
+    }
+
+    get(filename: string) {
+        return this.screenshots.get(filename);
+    }
+}
 const log = logger("screenshot-plugin");
-export function screenshotPlugin(fastify: FastifyInstance, config: Config, users: Users): MippyPluginDefinition {
+export function screenshotPlugin(fastify: FastifyInstance, config: Config, users: Users, screenshotRepository: ScreenshotRepository): MippyPluginDefinition {
     return {
         name: "Get Screenshot",
         permissions: [],
@@ -55,12 +70,17 @@ export function screenshotPlugin(fastify: FastifyInstance, config: Config, users
                 })*/
 
                 fastify.register(async (fastify: FastifyInstance) => {
-                    fastify.register(fastifyStatic, {
-                        root: downloadDir,
-                        cacheControl: true,
-                        maxAge: 3600 * 1000,
-                        prefix: "/images",
-                        decorateReply: false
+                    fastify.register(fastifyCaching, {
+                        expiresIn: 86400,
+                        privacy: fastifyCaching.privacy.PUBLIC
+                    })
+
+                    fastify.get<{
+                        Params: {
+                            filename: string
+                        }
+                    }>("/:filename", async (req, res) => {
+                        return screenshotRepository.get(req.params.filename);
                     });
                 }, { prefix: "mippy/plugins/screenshot" })
 

@@ -17,9 +17,8 @@ const pluginConfig = {
     ignoreUsers: {
         name: "Ignore Users",
         description: "Users to ignore, comma seperated",
-        type: "string",
-        default: "mippybot, nightbot",
-        maxLength: 1000
+        type: "string-array",
+        default: ["mippybot", "nightbot"],
     }
 } satisfies MippyPluginConfigDefinition;
 
@@ -31,7 +30,7 @@ export function chatPlugin(twitchChat: TwitchChat): MippyPluginDefinition {
         async init(mippy, config: MippyPluginConfig<typeof pluginConfig>) {
             const mode$ = config.observe("welcomeMode");
             const ignoreUsers$ = config.observe("ignoreUsers").pipe(
-                map(str => str.split(",").map(str => str.toLowerCase().trim()))
+                map(str => str.map(str => str.toLowerCase().trim()))
             )
 
             mode$.pipe(

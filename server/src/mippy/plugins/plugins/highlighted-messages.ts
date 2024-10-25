@@ -1,5 +1,6 @@
-import { EMPTY, map, merge, switchMap, withLatestFrom } from "rxjs";
+import { distinctUntilChanged, EMPTY, map, merge, switchMap, withLatestFrom } from "rxjs";
 import { throttleGroup } from "shared/rx";
+import { Redemptions } from "../../../data/redemptions";
 import TwitchChat, { TwitchChatLog } from "../../../data/twitch-chat";
 import { MippyPluginConfig, MippyPluginConfigDefinition, MippyPluginDefinition } from "../plugins";
 
@@ -27,15 +28,29 @@ const pluginConfig = {
         description: "A command in chat that can be used by admins to ask mippy",
         type: "string",
         default: "mippyask"
+    },
+    redemption: {
+        name: "Redemption ID",
+        description: "Redemption to use for highlighted messages",
+        type: "redemption",
+        default: ""
     }
 } satisfies MippyPluginConfigDefinition;
 
-export function highlightedMessagesPlugin(twitchChat: TwitchChat, twitchChatLog: TwitchChatLog): MippyPluginDefinition {
+export function highlightedMessagesPlugin(twitchChat: TwitchChat, twitchChatLog: TwitchChatLog, redemptions: Redemptions): MippyPluginDefinition {
     return {
         name: "Highlighted Messages",
         permissions: ["sendMessage"],
         config: pluginConfig,
         init: async (mippy, config: MippyPluginConfig<typeof pluginConfig>) => {
+            const redemptions$ = config.observe("redemption").pipe(
+                switchMap(id => redemptions.onRedeem(id)),
+                map(data => ({
+                    user: data.user_name,
+                    text: data.user_input
+                }))
+            )
+
             const message$ = merge(
                 twitchChat.observeHighlightedMessages().pipe(
                     throttleGroup(value => value.user, 20000)
@@ -43,6 +58,11 @@ export function highlightedMessagesPlugin(twitchChat: TwitchChat, twitchChatLog:
                 config.observe("command").pipe(
                     switchMap(command => command != "" ? twitchChat.observeCommand(command) : EMPTY),
                     map(command => ({ user: command.user, text: command.arguments.join(" ") }))
+                ),
+                config.observe("redemption").pipe(
+                    map(id => id != ""),
+                    distinctUntilChanged(),
+                    switchMap(watch => watch ? redemptions$ : EMPTY)
                 )
             )
 

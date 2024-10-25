@@ -20,6 +20,10 @@ export type MippyChatGPTConfig = MippyBaseConfig & {
         prompt: string,
         personality: string,
         tools: Record<string, string>,
+        personalities: Record<string, {
+            prompt: string,
+            voice?: string
+        }>
     },
     permissions: MippyPermissions[],
     prompts: Partial<{

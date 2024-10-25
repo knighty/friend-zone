@@ -54,11 +54,14 @@ export function createElement<T extends HTMLElement>(type: string, params?: Part
     return element as T;
 }
 
+// Types
+
 // Animations
 export { animation } from "./utils/animation";
 
 // Object utilities
 export { objectMap, objectMapArray } from "./utils/object-map";
+export { objectRandom } from "./utils/object-random";
 
 // Async utilities
 export { awaitResult } from "./utils/await-result";
@@ -67,6 +70,7 @@ export { awaitResult } from "./utils/await-result";
 export { executionTimer } from "./utils/execution-timer";
 
 // Array utilities
+export { arrayRandom } from "./utils/array-random";
 export { findNext } from "./utils/find-next";
 export { findPrevious } from "./utils/find-previous";
 export { groupArray } from "./utils/group-array";

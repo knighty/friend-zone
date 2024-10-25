@@ -1,3 +1,5 @@
+import { Observable } from "rxjs";
+
 // Observables
 export { observeDay } from "./rx/observables/date";
 export { observeLifecycle } from "./rx/observables/lifecycle";
@@ -26,3 +28,5 @@ export { mapTruncateString } from "./rx/operators/truncate-string";
 // Subscriptions
 export { Subscriptions } from "./rx/subscriptions";
 
+// Types
+export type InferObservable<T> = T extends Observable<infer U> ? U : never;

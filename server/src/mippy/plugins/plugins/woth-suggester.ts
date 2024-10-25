@@ -1,6 +1,7 @@
 import { green } from "kolorist";
 import { EMPTY, interval, merge, partition, switchMap, tap, withLatestFrom } from "rxjs";
 import { logger } from "shared/logger";
+import { arrayRandom } from "shared/utils";
 import { SubtitlesLog } from "../../../data/subtitles/logs";
 import WordOfTheHour from "../../../data/word-of-the-hour";
 import { ChatGPTMippyBrain } from "../../chat-gpt-brain";
@@ -29,6 +30,7 @@ const pluginConfig = {
 } satisfies MippyPluginConfigDefinition;
 
 const log = logger("woth-suggester-plugin");
+const useChatGptToPick = false;
 export function wothSuggesterPlugin(subtitlesLog: SubtitlesLog, wordOfTheHour: WordOfTheHour): MippyPluginDefinition {
     const init = async (mippy: Mippy, config: MippyPluginConfig<typeof pluginConfig>) => {
         let canRequest = true;
@@ -54,13 +56,17 @@ export function wothSuggesterPlugin(subtitlesLog: SubtitlesLog, wordOfTheHour: W
                 })),
                 tap(analysis => {
                     log.info("Automated word of the hour being chosen...")
-                    mippy.ask("suggestWordOfTheHour", {
-                        mostSaidWords: analysis.mostSaidWords.map(w => w.word).join(", "),
-                    }, {
-                        allowTools: true,
-                        source: "admin",
-                        role: "system"
-                    })
+                    if (useChatGptToPick) {
+                        mippy.ask("suggestWordOfTheHour", {
+                            mostSaidWords: analysis.mostSaidWords.map(w => w.word).join(", "),
+                        }, {
+                            allowTools: true,
+                            source: "admin",
+                            role: "system"
+                        })
+                    } else {
+                        wordOfTheHour.setWord(arrayRandom(analysis.mostSaidWords)?.word ?? null, "Mippy");
+                    }
                 })
             )
 

@@ -1,5 +1,7 @@
-import { debounceTime, map, merge } from "rxjs";
-import { dom, fromDomEvent, observeScopedEvent } from "shared/dom";
+import { debounceTime, map, merge, shareReplay, startWith, Subject, switchMap } from "rxjs";
+import { fromAjax } from "rxjs/internal/ajax/ajax";
+import { dom, observeScopedEvent, populateChildren } from "shared/dom";
+import { sortChildren } from "shared/dom/sort-children";
 import { createElement } from "shared/utils";
 import { connectBrowserSocket } from "shared/websocket/browser";
 import { ObservableEventProvider } from "shared/websocket/event-provider";
@@ -26,6 +28,7 @@ type MippyPluginConfigItemBoolean = MippyPluginConfigItemBase<boolean, "boolean"
 
 type MippyPluginConfigItemString = MippyPluginConfigItemBase<string, "string"> & {
     maxLength?: number,
+    multiline?: number
 }
 
 type MippyPluginConfigItemNumber = MippyPluginConfigItemBase<number, "number"> & {
@@ -38,7 +41,14 @@ type MippyPluginConfigItemEnum = MippyPluginConfigItemBase<string, "enum"> & {
     values: Record<string, string>
 }
 
-type MippyPluginConfigItem = MippyPluginConfigItemString | MippyPluginConfigItemNumber | MippyPluginConfigItemEnum | MippyPluginConfigItemBoolean;
+type MippyPluginConfigItemStringArray = MippyPluginConfigItemBase<string[], "string-array"> & {
+    maxCount?: number
+}
+
+type MippyPluginConfigItemRedemption = MippyPluginConfigItemBase<string, "redemption"> & {
+}
+
+type MippyPluginConfigItem = MippyPluginConfigItemString | MippyPluginConfigItemStringArray | MippyPluginConfigItemNumber | MippyPluginConfigItemEnum | MippyPluginConfigItemBoolean | MippyPluginConfigItemRedemption;
 
 export type MippyPluginConfigDefinition = Record<string, MippyPluginConfigItem>;
 
@@ -55,39 +65,57 @@ class Dashboard extends HTMLElement {
             socket.send("config/feedPosition", position);
         });
 
-        fromDomEvent(dom.id("feedLayout"), "input").subscribe(event => {
-            socket.send("config/feedLayout", (event.target as HTMLSelectElement).value);
+        const elements = dom.elements(document, {
+            feedLayout: HTMLSelectElement,
+            feedSize: HTMLInputElement,
+            feedCount: HTMLInputElement,
+            slideshowFrequency: HTMLInputElement,
+            sayGoodbye: HTMLButtonElement,
+            mippy: HTMLElement,
         });
 
-        fromDomEvent(dom.id("slideshowFrequency"), "input").pipe(
+        const refreshRedemptions$ = new Subject<void>();
+        const redemptions = refreshRedemptions$.pipe(
+            startWith(undefined),
+            switchMap(() => fromAjax<Record<string, string>>({
+                method: "GET",
+                url: "/data/redemptions"
+            })),
+            map(response => {
+                const values = response.response;
+                values[""] = "None"
+                return values;
+            }),
+            shareReplay(1)
+        )
+
+        dom.elementEvent(elements.get("feedLayout"), "input").subscribe(element => {
+            socket.send("config/feedLayout", element.value);
+        });
+
+        dom.elementEvent(elements.get("slideshowFrequency"), "input").pipe(
             debounceTime(500),
-        ).subscribe(event => {
-            socket.send("config/slideshowFrequency", (event.target as HTMLInputElement).value);
-        });
+        ).subscribe(element => socket.send("config/slideshowFrequency", element.value));
 
-        fromDomEvent(dom.id("feedSize"), "input").pipe(
+        dom.elementEvent(elements.get("feedSize"), "input").pipe(
             debounceTime(500),
-        ).subscribe(event => {
-            socket.send("config/feedSize", (event.target as HTMLInputElement).value);
-        });
+        ).subscribe(element => socket.send("config/feedSize", element.value));
 
-        fromDomEvent(dom.id("feedCount"), "input").pipe(
+        dom.elementEvent(elements.get("feedCount"), "input").pipe(
             debounceTime(500),
-        ).subscribe(event => {
-            socket.send("config/feedCount", (event.target as HTMLInputElement).value);
-        });
+        ).subscribe(element => socket.send("config/feedCount", element.value));
 
-        fromDomEvent(dom.id("sayGoodbye"), "click").subscribe(event => {
+        dom.elementEvent(elements.get("sayGoodbye"), "click").subscribe(event => {
             socket.send("sayGoodbye", null);
         });
 
-        socket.on("feedCount").subscribe(count => dom.id<HTMLInputElement>("feedCount").value = count.toString());
-        socket.on("feedSize").subscribe(count => dom.id<HTMLInputElement>("feedSize").value = count.toString());
-        socket.on("slideshowFrequency").subscribe(count => dom.id<HTMLInputElement>("slideshowFrequency").value = count.toString());
-        socket.on("feedLayout").subscribe(layout => dom.id<HTMLSelectElement>("feedLayout").value = layout);
+        socket.on("feedCount").subscribe(count => elements.get("feedCount").value = count.toString());
+        socket.on("feedSize").subscribe(count => elements.get("feedSize").value = count.toString());
+        socket.on("slideshowFrequency").subscribe(count => elements.get("slideshowFrequency").value = count.toString());
+        socket.on("feedLayout").subscribe(layout => elements.get("feedLayout").value = layout);
 
-        const mippyElement = dom.id<HTMLElement>("mippy");
-        const configElement = dom.query<HTMLElement>(".plugin-config", this);
+        const mippyElement = elements.get("mippy");
+        const configElement = dom.query(".plugin-config", HTMLElement, this);
         const config = JSON.parse(mippyElement.dataset.config) as MippyPluginConfig;
         for (let pluginId in config) {
             const plugin = config[pluginId];
@@ -98,23 +126,23 @@ class Dashboard extends HTMLElement {
             const element = createElement("section", {}, [
                 dom.h1({}, plugin.name),
                 ...Object.keys(plugin.config).map(key => {
-                    const configItem = plugin.config[key];
+                    const item = plugin.config[key];
                     function getElements() {
-                        switch (configItem.type) {
+                        switch (item.type) {
                             case "number": {
                                 return [
-                                    dom.text(configItem.name),
+                                    dom.text(item.name),
                                     dom.input("range", plugin.values[key], {
-                                        min: configItem.min?.toString() ?? "",
-                                        max: configItem.max?.toString() ?? "",
-                                        step: configItem.step?.toString() ?? "",
+                                        min: item.min?.toString() ?? "",
+                                        max: item.max?.toString() ?? "",
+                                        step: item.step?.toString() ?? "",
                                     }),
                                     dom.input("number", plugin.values[key]),
                                 ]
                             }
                             case "boolean": {
                                 return [
-                                    dom.text(configItem.name),
+                                    dom.text(item.name),
                                     dom.input("checkbox", undefined, {
                                         checked: plugin.values[key] ? "checked" : undefined
                                     })
@@ -122,18 +150,57 @@ class Dashboard extends HTMLElement {
                             }
                             case "string": {
                                 return [
-                                    dom.text(configItem.name),
-                                    dom.input("text", plugin.values[key])
+                                    dom.text(item.name),
+                                    (item.multiline && item.multiline > 1) ? dom.textarea(plugin.values[key], {
+                                        attributes: {
+                                            rows: String(item.multiline)
+                                        }
+                                    }) : dom.input("text", plugin.values[key])
+                                ]
+                            }
+                            case "string-array": {
+                                return [
+                                    dom.text(item.name),
+                                    ...(plugin.values[key] as string[]).map(v => dom.div({}, [
+                                        dom.input("text", v),
+                                        createElement("button", { classes: ["button", "delete"] }, "Delete"),
+                                    ])),
+                                    createElement("button", { classes: ["button", "add"] }, "Add")
                                 ]
                             }
                             case "enum": {
                                 return [
-                                    dom.text(configItem.name),
-                                    createElement("select", {
-                                        value: plugin.values[key]
-                                    }, Object.keys(configItem.values).map(
-                                        item => createElement("option", { value: item }, configItem.values[item])
+                                    dom.text(item.name),
+                                    dom.select({
+                                        attributes: {
+                                            value: plugin.values[key]
+                                        }
+                                    }, Object.keys(item.values).map(
+                                        key => createElement("option", { value: key }, item.values[key])
                                     ))
+                                ]
+                            }
+                            case "redemption": {
+                                const select = dom.select();
+                                let firstId = true;
+                                const button = createElement("button", { classes: ["button"] }, "⟳");
+                                button.addEventListener("click", () => refreshRedemptions$.next());
+                                redemptions.subscribe(redemptions => {
+                                    const value = firstId ? plugin.values[key] : select.value;
+                                    firstId = false;
+                                    populateChildren(
+                                        select,
+                                        Object.keys(redemptions),
+                                        (element, item) => (element as HTMLOptionElement).value == item,
+                                        (item) => createElement("option", { value: item }, redemptions[item])
+                                    )
+                                    sortChildren(select, (a, b) => a.textContent.localeCompare(b.textContent));
+                                    select.value = value;
+                                });
+                                return [
+                                    dom.text(item.name),
+                                    select,
+                                    button
                                 ]
                             }
                         }
@@ -141,12 +208,12 @@ class Dashboard extends HTMLElement {
                     }
                     return dom.label({
                         data: {
-                            type: configItem.type,
+                            type: item.type,
                             plugin: pluginId,
                             item: key
                         },
                         attributes: {
-                            title: configItem.description ?? ""
+                            title: item.description ?? ""
                         }
                     }, getElements())
                 })
@@ -161,6 +228,18 @@ class Dashboard extends HTMLElement {
             for (let input of label.querySelectorAll("input")) {
                 input.value = element.value;
             }
+        })
+
+        observeScopedEvent<HTMLButtonElement, "click">(configElement, "click", "[data-type='string-array'] button.add").subscribe(([e, element]) => {
+            element.closest("label").insertBefore(
+                dom.div({}, [
+                    dom.input("text", ""),
+                    createElement("button", { classes: ["button", "delete"] }, "Delete")
+                ]), element)
+        })
+
+        observeScopedEvent<HTMLButtonElement, "click">(configElement, "click", "[data-type='string-array'] button.delete").subscribe(([e, element]) => {
+            element.closest("div").remove();
         })
 
         merge(
@@ -191,12 +270,30 @@ class Dashboard extends HTMLElement {
                     }
                 })
             ),
-            observeScopedEvent<HTMLInputElement, "input">(configElement, "input", "[data-type='string'] input").pipe(
+            observeScopedEvent<HTMLInputElement, "input">(configElement, "input", "[data-type='redemption'] select").pipe(
+                map(([e, element]) => {
+                    return {
+                        element,
+                        value: element.value
+                    }
+                })
+            ),
+            observeScopedEvent<HTMLInputElement, "input">(configElement, "input", "[data-type='string'] input, [data-type='string'] textarea").pipe(
                 debounceTime(500),
                 map(([e, element]) => {
                     return {
                         element,
                         value: element.value
+                    }
+                })
+            ),
+            observeScopedEvent<HTMLInputElement, "input">(configElement, "input", "[data-type='string-array'] input").pipe(
+                debounceTime(500),
+                map(([e, element]) => {
+                    const inputs = Array.from(dom.queryAll<HTMLInputElement>("input", element.closest("label")));
+                    return {
+                        element,
+                        value: inputs.map(input => input.value)
                     }
                 })
             )

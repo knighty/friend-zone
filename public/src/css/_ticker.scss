@@ -1,0 +1,16 @@
+ticker-module {
+    display: inline;
+    font-weight: bold;
+    background: linear-gradient(
+        90deg,
+        white calc(var(--animation) * 100%),
+        #fff0 calc((var(--animation) + 0.1) * 100%)
+    );
+    display: inline;
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    font-family: "Balsamiq Sans";
+    opacity: var(--animation-2);
+    filter: drop-shadow(1px 1px 1px #000);
+}

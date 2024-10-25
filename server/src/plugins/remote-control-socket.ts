@@ -10,6 +10,7 @@ import ExternalFeeds from "../data/external-feeds";
 import Subtitles from "../data/subtitles";
 import Users from "../data/users";
 import { Mippy } from "../mippy/mippy";
+import { ScreenshotRepository } from "../mippy/plugins/plugins/screenshot";
 import { randomString } from "../utils";
 
 const log = logger("remote-control");
@@ -49,7 +50,7 @@ async function imageToFile(buffer: Buffer) {
     return filename;
 }
 
-export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds, users: Users, mippy: Mippy) => async (fastify: FastifyInstance, options: {}) => {
+export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds, users: Users, mippy: Mippy, screenshotRepository: ScreenshotRepository) => async (fastify: FastifyInstance, options: {}) => {
     fastify.get('/remote-control/websocket', { websocket: true }, (ws, req) => {
         let socket = serverSocket<{
             Events: {
@@ -92,10 +93,14 @@ export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds, 
                     socket.on("mippy/ask").pipe(
                         concatMap(async question => {
                             if (question.image) {
-                                const filename = await imageToFile(Buffer.from(question.image, "binary"));
+                                const filename = `${randomString(20)}.jpg`;
+                                const data = Buffer.from(question.image, "binary");
                                 return {
                                     text: question.text,
-                                    image: filename
+                                    image: {
+                                        filename,
+                                        data
+                                    }
                                 }
                             }
                             return {
@@ -103,12 +108,19 @@ export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds, 
                             }
                         })
                     ).subscribe(question => {
-                        mippy.ask("question", { question: question.text, user: userName }, { source: "admin", name: userName, allowTools: true, image: question.image ? [`http://51.191.172.95:3000/mippy/plugins/screenshot/images/${question.image}`] : undefined });
+                        const image = question.image ? [screenshotRepository.add(question.image.filename, question.image.data)] : undefined;
+                        mippy.ask("question", {
+                            question: question.text,
+                            user: userName
+                        }, {
+                            source: "admin",
+                            name: userName,
+                            allowTools: true,
+                            image
+                        });
                     })
 
-                    socket.on("mippy/say").subscribe(message => {
-                        mippy.say(message)
-                    })
+                    socket.on("mippy/say").subscribe(message => mippy.say(message))
 
                     let i = 0;
                     const screenGrabsSubscription = users.requestScreenGrab$.pipe(

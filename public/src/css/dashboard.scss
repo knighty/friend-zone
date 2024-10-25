@@ -47,10 +47,12 @@ label {
 }
 
 input,
-select {
+select,
+textarea {
     min-width: 0;
     padding: 0.5em 1em;
     font-size: inherit;
+    font-family: inherit;
     color: inherit;
     background: #3c404d;
     border: 1px solid #3c404d;
@@ -61,8 +63,8 @@ select {
         border-radius: 0.5em;
 
         &:focus {
-            background: #464b59;
-            border: 1px solid #5b6273;
+            background: darken(#272a33, 7%);
+            //border: 1px solid #5b6273;
         }
     }
 
@@ -73,19 +75,28 @@ select {
     }
 }
 
+textarea {
+}
+
 .button {
     display: block;
     color: #fff;
     background-color: #3c404d;
     border: none;
-    padding: 0.8em 1em;
-    border-radius: 1em;
-    margin: 1em 0;
+    padding: 0.5em 1em;
+    border-radius: 0.5em;
     font-size: inherit;
     cursor: pointer;
+    border: 1px solid transparent;
 
     &:hover {
-        background-color: #555;
+        background-color: lighten(#3c404d, 10%);
+        border: 1px solid lighten(#3c404d, 20%);
+    }
+
+    &:active {
+        background: darken(#272a33, 7%);
+        border: 1px solid lighten(#3c404d, 20%);
     }
 }
 
@@ -125,6 +136,43 @@ select {
 
             &[type="number"] {
                 width: 4em;
+            }
+        }
+    }
+
+    label[data-type="redemption"] {
+        display: grid;
+        grid-template-columns: 1fr min-content;
+        grid-template-rows: min-content min-content;
+        gap: 0 0.5em;
+
+        select,
+        button {
+            grid-row-start: 2;
+            margin: 0 !important;
+        }
+    }
+
+    label[data-type="string"] {
+        flex-wrap: wrap;
+
+        textarea {
+            flex-basis: 100%;
+        }
+    }
+
+    label[data-type="string-array"] {
+        flex-direction: column;
+        align-items: start;
+
+        > div {
+            display: flex;
+            flex-direction: row;
+            align-self: stretch;
+            gap: 0.5em;
+
+            input {
+                flex: 1;
             }
         }
     }

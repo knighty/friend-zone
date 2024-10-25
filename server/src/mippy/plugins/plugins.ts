@@ -33,6 +33,11 @@ type MippyPluginConfigItemBoolean = MippyPluginConfigItemBase<boolean, "boolean"
 
 type MippyPluginConfigItemString = MippyPluginConfigItemBase<string, "string"> & {
     maxLength?: number,
+    multiline?: number
+}
+
+type MippyPluginConfigItemStringArray = MippyPluginConfigItemBase<string[], "string-array"> & {
+    maxCount?: number
 }
 
 type MippyPluginConfigItemNumber = MippyPluginConfigItemBase<number, "number"> & {
@@ -45,7 +50,21 @@ type MippyPluginConfigItemEnum = MippyPluginConfigItemBase<string, "enum"> & {
     values: Record<string, string>
 }
 
-type MippyPluginConfigItem = MippyPluginConfigItemString | MippyPluginConfigItemNumber | MippyPluginConfigItemEnum | MippyPluginConfigItemBoolean;
+type MippyPluginConfigItemRedemption = MippyPluginConfigItemBase<string, "redemption"> & {
+}
+
+type MippyPluginConfigButton = MippyPluginConfigItemBase<boolean, "button"> & {
+
+}
+
+type MippyPluginConfigItem =
+    MippyPluginConfigItemString |
+    MippyPluginConfigItemStringArray |
+    MippyPluginConfigItemNumber |
+    MippyPluginConfigItemEnum |
+    MippyPluginConfigItemBoolean |
+    MippyPluginConfigButton |
+    MippyPluginConfigItemRedemption;
 
 export type MippyPluginConfigDefinition = Record<string, MippyPluginConfigItem>;
 

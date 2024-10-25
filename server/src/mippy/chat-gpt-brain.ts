@@ -1,11 +1,11 @@
 import { green } from 'kolorist';
 import OpenAI from 'openai';
 import { ChatCompletionMessageToolCall, CompletionUsage } from 'openai/resources/index.mjs';
-import { BehaviorSubject, catchError, concatMap, debounceTime, EMPTY, exhaustMap, filter, first, from, map, mergeMap, Observable, share, startWith, Subject, switchMap, takeWhile, throttleTime, withLatestFrom } from "rxjs";
+import { BehaviorSubject, catchError, concat, concatMap, debounceTime, EMPTY, exhaustMap, filter, first, from, map, mergeMap, Observable, of, share, startWith, Subject, switchMap, takeWhile, throttleTime, timer, withLatestFrom } from "rxjs";
 import { logger } from "shared/logger";
 import { filterMap } from 'shared/rx';
 import { truncateString } from 'shared/text-utils';
-import { executionTimer } from 'shared/utils';
+import { executionTimer, objectRandom } from 'shared/utils';
 import { isMippyChatGPT, MippyChatGPTConfig } from "../config";
 import Users from '../data/users';
 import { getSystem$, getSystemPrompt$ } from './chatgpt/system-prompt';
@@ -66,6 +66,13 @@ function canUseTools(prompt: Prompt) {
 
 const logError = <In>() => catchError<In, typeof EMPTY>(e => { log.error(e); return EMPTY; });
 
+export type Character = {
+    personality: string,
+    name: string,
+    voice: string,
+    image: string,
+}
+
 type MippyResult = {
     partial: Observable<MippyPartialResult>,
     complete: Observable<MippyMessage>
@@ -75,21 +82,24 @@ export type MippyPartialResult = {
     text: string,
     tool_calls?: Array<ChatCompletionMessageToolCall>//,Array<ChatCompletionChunk.Choice.Delta.ToolCall>,
     usage?: CompletionUsage,
-    finished: boolean
+    finished: boolean,
+    character?: Character
 }
 
 class ChatGPTResponse {
-    partial: MippyPartialResult = {
-        text: "",
-        tool_calls: undefined,
-        usage: undefined,
-        finished: false
-    };
+    partial: MippyPartialResult;
     finishedReason: 'stop' | 'length' | 'tool_calls' | 'content_filter' | 'function_call' | null = null;
     updatePartial$ = new Subject<void>();
     prompt: Prompt;
 
-    constructor(prompt: Prompt) {
+    constructor(prompt: Prompt, character: Character) {
+        this.partial = {
+            text: "",
+            tool_calls: undefined,
+            usage: undefined,
+            finished: false,
+            character
+        };
         this.prompt = prompt;
     }
 
@@ -155,7 +165,7 @@ export class ChatGPTMippyBrain implements MippyBrain {
     messages$ = new Subject<ChatGPTResponse>();
     config: MippyChatGPTConfig;
     users: Users;
-    personality$ = new BehaviorSubject<string>("");
+    personality$ = new Subject<string>();
     tools$ = new BehaviorSubject<Record<string, string>>({});
     messageRepository: MippyHistoryRepository;
 
@@ -173,7 +183,23 @@ export class ChatGPTMippyBrain implements MippyBrain {
         this.users = users;
         this.messageRepository = messageRepository;
 
-        const systemPrompt$ = getSystemPrompt$(config, users, tools);
+        const personality$ = this.personality$.pipe(
+            concatMap(personality => concat(
+                of(personality),
+                timer(1000 * 60 * 10).pipe(map(() => null))
+            )),
+            startWith<string | null>(null),
+            map(personality => personality ?? config.systemPrompt.personality)
+        );
+
+        const character$: Observable<Character> = of({
+            name: "Mippy",
+            voice: "",
+            personality: "",
+            image: ""
+        })
+
+        const systemPrompt$ = getSystemPrompt$(config, users, tools, personality$, character$);
         const system$ = getSystem$(config, tools, systemPrompt$);
 
         const history$ = from(messageRepository.getHistory()).pipe(share())
@@ -184,8 +210,8 @@ export class ChatGPTMippyBrain implements MippyBrain {
         this.hookHistoryPersistence(history$);
 
         this.prompt$.pipe(
-            withLatestFrom(system$, history$, summarizer$),
-            concatMap(async ([prompt, system, history, summarizer]) => {
+            withLatestFrom(system$, history$, summarizer$, character$),
+            concatMap(async ([prompt, system, history, summarizer, character]) => {
                 // Init
                 const chatGptTimer = executionTimer();
                 const store = prompt.store === undefined ? true : prompt.store;
@@ -219,7 +245,7 @@ export class ChatGPTMippyBrain implements MippyBrain {
                 });
 
                 // Create a response object and pass to the messages$ subject to be consumed
-                const response = new ChatGPTResponse(prompt);
+                const response = new ChatGPTResponse(prompt, character);
                 this.messages$.next(response);
                 for await (let item of stream) {
                     response.appendDelta(item);
@@ -251,10 +277,13 @@ export class ChatGPTMippyBrain implements MippyBrain {
     }
 
     setPersonality(personality: string) {
-        if (personality == "reset") {
-            this.personality$.next(this.config.systemPrompt.prompt);
-        } else {
-            this.personality$.next(personality);
+        this.personality$.next(personality);
+    }
+
+    setRandomPersonality() {
+        const personality = objectRandom(this.config.systemPrompt.personalities);
+        if (personality) {
+            this.personality$.next(personality.prompt);
         }
     }
 

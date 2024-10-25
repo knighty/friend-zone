@@ -7,7 +7,6 @@ import path from "node:path";
 import { BehaviorSubject, combineLatest, concatMap, distinctUntilChanged, EMPTY, filter, map, merge, Observable, of, shareReplay, Subject, switchMap, tap, timer, withLatestFrom } from "rxjs";
 import { log } from 'shared/logger';
 import { filterMap } from 'shared/rx';
-import { switchMapToggle } from 'shared/rx/utils';
 import { truncateString } from 'shared/text-utils';
 import { ObservableEventProvider, serverSocket } from 'shared/websocket/server';
 import sharp from "sharp";
@@ -57,7 +56,7 @@ const windows$ = new Observable<WindowCollection>(subscriber => {
         activeWindows.sort((a, b) => a.appName.localeCompare(b.appName)).forEach((item) => {
             newWindows[item.id] = item;
             //w[item.id] = `${item.title} - ${item.width} x ${item.height}`;
-            if (!windows[item.id]) {
+            if (!windows[item.id] || windows[item.id].title != newWindows[item.id].title) {
                 changed = true;
             }
         });
@@ -126,7 +125,7 @@ const ask$ = askMippy$.pipe(
 const remoteControl = initSocket(config.socket, {
     user: of(user),
     subtitles: subtitles$,
-    "feed/register": feedSettings.active$.pipe(switchMapToggle(active => active, () => feedSettings.feed$, () => of(null))),
+    "feed/register": feedSettings.active$.pipe(active => active ? feedSettings.feed$ : of(null)),
     "feed/focus": focus$.pipe(filter(focus => focus == true)),
     "feed/unfocus": focus$.pipe(filter(focus => focus == false)),
     "mippy/ask": ask$,
@@ -217,7 +216,7 @@ fastifyApp.register(async (fastify: FastifyInstance) => {
                     const w: Record<string, string> = {};
                     w["monitor"] = "Monitor";
                     for (let id in windows) {
-                        w[id] = truncateString(`${windows[id].appName} - ${windows[id].title}`, 60);
+                        w[id] = truncateString(`[${windows[id].appName}]: ${windows[id].title}`, 60);
                     }
                     return w;
                 })
