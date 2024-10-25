@@ -2,7 +2,7 @@ import { logger } from "shared/logger";
 
 export { sendChatMessage } from "./api/chat";
 export { eventSub, eventUnsub, unsubscribeDisconnected } from "./api/event-sub";
-export { getFollowers } from "./api/followers";
+export { getFollowers, getLatestFollower, getLatestSubscriber } from "./api/followers";
 export { createPoll } from "./api/polls";
 export { createPrediction, endPrediction } from "./api/predictions";
 export { getRedemptions } from "./api/redemptions";

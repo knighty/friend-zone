@@ -1,20 +1,30 @@
 ticker-module {
-    margin: 1em;
+    padding: 1em;
     display: block;
+    height: 100%;
+
+    .container {
+        display: block;
+        will-change: transform;
+        transform: translate(0px, calc(var(--translate) * 1em));
+    }
 
     .text {
         display: inline;
-        font-weight: bold;
-        background: linear-gradient(
+        padding: 0.2em;
+        -webkit-mask-image: linear-gradient(
             90deg,
-            white calc(var(--animation) * 100%),
-            #fff0 calc((var(--animation) + 0.1) * 100%)
+            #ffff calc(-10% + var(--animation) * 110%),
+            #fff0 calc((var(--animation) + 0.1) * 110%)
         );
-        background-clip: text;
-        -webkit-background-clip: text;
-        color: transparent;
+        color: #fff;
         font-family: "Balsamiq Sans";
-        opacity: var(--animation-2);
-        filter: drop-shadow(1px 1px 1px #000);
+        opacity: var(--fade);
+        text-shadow: 1px 1px 3px #000;
+
+        span {
+            color: #32a8a8;
+            font-weight: bold;
+        }
     }
 }

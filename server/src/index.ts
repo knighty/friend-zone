@@ -151,7 +151,6 @@ plugins.addPlugin("analyzeSubtitles", options => analyzeSubtitlesPlugin(subtitle
 plugins.addPlugin("wothSuggester", options => wothSuggesterPlugin(subtitlesLog, wordOfTheHour));
 plugins.addPlugin("voice", options => mippyVoicePlugin(fastifyApp, config.socketHost, options));
 plugins.addPlugin("screenshot", options => screenshotPlugin(fastifyApp, config, users, screenshotRepository));
-plugins.addPlugin("ticker", options => tickerPlugin(fastifyApp, config.socketHost));
 
 if (isTwitchConfig(config.twitch)) {
     const twitch = config.twitch;
@@ -166,6 +165,7 @@ if (isTwitchConfig(config.twitch)) {
 
     wordOfTheHour.watchTwitchChat(twitchChat);
 
+    plugins.addPlugin("ticker", options => tickerPlugin(fastifyApp, config.socketHost, userToken, broadcasterId));
     plugins.addPlugin("chat", options => chatPlugin(twitchChat));
     plugins.addPlugin("createPoll", options => createPollPlugin(userToken, broadcasterId, options));
     plugins.addPlugin("createPrediction", options => createPredictionPlugin(userToken, broadcasterId, options));
