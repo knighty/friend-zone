@@ -79,7 +79,7 @@ export function screenshotPlugin(fastify: FastifyInstance, config: Config, users
                         Params: {
                             filename: string
                         }
-                    }>("/:filename", async (req, res) => {
+                    }>("/images/:filename", async (req, res) => {
                         return screenshotRepository.get(req.params.filename);
                     });
                 }, { prefix: "mippy/plugins/screenshot" })

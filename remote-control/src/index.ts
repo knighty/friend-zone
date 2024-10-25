@@ -76,6 +76,10 @@ const windows$ = new Observable<WindowCollection>(subscriber => {
 const selectedWindowId$ = new BehaviorSubject<string>("");
 const selectedWindow$ = combineLatest(windows$, selectedWindowId$).pipe(
     map(([windows, id]) => {
+        if (id == "monitor") {
+            let monitor = Monitor.fromPoint(100, 100);
+            return monitor;
+        }
         if (windows[id]) {
             return windows[id];
         }
@@ -107,12 +111,12 @@ const sendScreenEnabled$ = new BehaviorSubject(false);
 
 const ask$ = askMippy$.pipe(
     withLatestFrom(sendScreenEnabled$.pipe(switchMap(enabled => enabled ? selectedWindow$ : of(null)))),
-    concatMap(async ([text, window]) => {
-        if (window == null) {
+    concatMap(async ([text, source]) => {
+        if (source == null) {
             return { text }
         }
-        let monitor = Monitor.fromPoint(100, 100);
-        let image = await (window ? window.captureImage() : monitor.captureImage());
+        console.log("sending screen");
+        let image = await source.captureImage();
         const img = sharp(image.toPngSync());
         let data = await img.resize(1024, 1024, { fit: 'inside' }).jpeg().toBuffer()
 

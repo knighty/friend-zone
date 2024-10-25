@@ -6,7 +6,7 @@ import { connectClient } from "shared/websocket/client";
 import { ObservableEventProvider } from "shared/websocket/event-provider";
 
 const log = logger("remote-control");
-export function initSocket(url: string, data: Record<string, Observable<any>>, window$: Observable<Window>) {
+export function initSocket(url: string, data: Record<string, Observable<any>>, window$: Observable<Window | Monitor>) {
     const socket = connectClient<{
         Events: {
             subtitles: { enabled: boolean },

@@ -7,10 +7,13 @@ import { socket } from "../socket";
 export class TickerModule extends CustomElement<{
     Data: {
         ticker: string
+    },
+    Elements: {
+        text: HTMLSpanElement
     }
 }> {
     setup(): void {
-        this.innerHTML = ``
+        this.innerHTML = `<span data-element="text" class="text"></span>`
         this.bindData("ticker", socket.on("ticker"));
     }
 
@@ -33,7 +36,7 @@ export class TickerModule extends CustomElement<{
                         tap(t => this.style.setProperty("--animation-2", (1 - t).toString()))
                     ),
                     defer(() => {
-                        this.textContent = message;
+                        this.element("text").textContent = message;
                         return merge(
                             animation(2).pipe(
                                 tap(t => this.style.setProperty("--animation-2", (t).toString()))
