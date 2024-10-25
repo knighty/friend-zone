@@ -31,7 +31,7 @@ const bounceOut: EasingFunction = function (x) {
     }
 };
 
-const easingsFunctions = {
+const curves = {
     linear: (x) => x,
     easeInQuad: function (x) {
         return x * x;
@@ -149,4 +149,5 @@ const easingsFunctions = {
     },
 } satisfies EasingDictionary;
 
-export default easingsFunctions;
+export { curves };
+

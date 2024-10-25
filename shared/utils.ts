@@ -54,6 +54,9 @@ export function createElement<T extends HTMLElement>(type: string, params?: Part
     return element as T;
 }
 
+// Maths
+export { curves } from "./utils/curves";
+
 // Types
 
 // Animations

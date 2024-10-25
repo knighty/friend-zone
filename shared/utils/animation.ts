@@ -1,5 +1,5 @@
 import { animationFrames, endWith, map, takeWhile } from "rxjs";
-import curves from "./curves";
+import { curves } from "../utils";
 
 /**
  * Observable for an animation over values from start to end over duration

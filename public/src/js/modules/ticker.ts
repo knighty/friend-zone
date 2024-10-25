@@ -1,7 +1,6 @@
 import { concat, defer, merge, switchMap, tap } from "rxjs";
 import { CustomElement } from "shared/html/custom-element";
-import { animation } from "shared/utils";
-import curves from "shared/utils/curves";
+import { animation, curves } from "shared/utils";
 import { socket } from "../socket";
 
 export class TickerModule extends CustomElement<{
