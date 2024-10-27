@@ -1,7 +1,7 @@
 import { FastifyInstance } from "fastify";
-import { BehaviorSubject, EMPTY, Observable, Subject, concatMap, endWith, ignoreElements, last, map, merge, of, reduce, share, switchMap, tap, timeout, timer, withLatestFrom } from "rxjs";
+import { BehaviorSubject, EMPTY, Observable, Subject, concatMap, ignoreElements, map, merge, of, reduce, share, switchMap, tap, timeout, timer, withLatestFrom } from "rxjs";
 import { logger } from "shared/logger";
-import { concatMapPriority } from "shared/rx";
+import { concatMapPriority, tapFirst } from "shared/rx";
 import { StreamSynthesisResult, streamSynthesizeVoice } from "../../../data/tts/synthesize-stream";
 import ejsLayout from "../../../layout";
 import { AudioRepository, AudioStream } from "../../../plugins/audio-socket";
@@ -120,7 +120,9 @@ export function mippyVoicePlugin(fastify: FastifyInstance, socketHost: string, o
                 concatMapPriority(
                     ([partial, voice]: [Observable<MippyPartialResult>, string]) => {
                         const stream = audioRepository.create();
+                        let startTime: number = Date.now();
                         const event$ = synthesizeVoice(stream, partial.pipe(map(p => p.text)), voice).pipe(
+                            tapFirst(() => startTime = Date.now()),
                             timeout({
                                 each: 60000,
                                 with: () => {
@@ -129,14 +131,30 @@ export function mippyVoicePlugin(fastify: FastifyInstance, socketHost: string, o
                                 }
                             })
                         );
-                        const completion$ = event$.pipe(
+                        // For completion we accumulate all of the partial messages together to get the full duration/text
+                        const completed$ = event$.pipe(
                             accumulatePartialMessage(),
-                            last(),
-                            tap(m => relayMessage$.next(m)),
-                            switchMap(m => timer((m.duration + 3) * 1000)),
-                            ignoreElements()
+                            switchMap(m => {
+                                // If the duration is greater than 0 it means we generated some audio and so we should
+                                // pass that on to the relay and wait until it's probably finished playing on the client
+                                if (m.duration > 0) {
+                                    // Wait for however long is left from the start time to the end of the audio
+                                    const timer$ = timer(m.duration * 1000 - (Date.now() - startTime)).pipe(
+                                        switchMap(() => {
+                                            // Send the message to the relay (to post on twitch) then wait a few more seconds
+                                            // for some breathing room
+                                            relayMessage$.next(m);
+                                            return timer(3 * 1000);
+                                        }),
+                                        ignoreElements(),
+                                    );
+                                    const final$ = of({ id: stream.id, finished: true });
+                                    return merge(timer$, final$);
+                                }
+                                return EMPTY;
+                            }),
                         )
-                        return [merge(event$.pipe(endWith({ id: stream.id, finished: true })), completion$), 0] as const;
+                        return [merge(event$, completed$), 0] as const;
                     }
                 ),
                 share()

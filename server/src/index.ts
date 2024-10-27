@@ -183,11 +183,14 @@ if (isTwitchConfig(config.twitch)) {
 
     fastifyApp.get("/data/redemptions", async (req, res) => {
         const redemptions = await getRedemptions(userToken, broadcasterId);
-        const response: Record<string, string> = {};
+        const enabled: Record<string, string> = {};
+        const disabled: Record<string, string> = {};
         for (let redeem of redemptions) {
-            response[redeem.id] = redeem.title;
+            (redeem.is_enabled ? enabled : disabled)[redeem.id] = redeem.title;
         }
-        return response;
+        return {
+            enabled, disabled
+        };
     })
 }
 

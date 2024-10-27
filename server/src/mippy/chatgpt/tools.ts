@@ -43,7 +43,7 @@ export type ToolArguments = {
 }
 
 const toolsSchema: ChatCompletionTool[] = [
-    toolFunction("createPoll", "Creates a poll", {
+    toolFunction("createPoll", "Creates a poll. Call this when the user asks you to create a poll", {
         type: "object",
         additionalProperties: false,
         properties: {
@@ -60,12 +60,12 @@ const toolsSchema: ChatCompletionTool[] = [
             },
             duration: {
                 type: "number",
-                description: "The duration of the poll in seconds",
+                description: "The duration of the poll in seconds. Default is 180 seconds",
             }
         },
         required: ["title", "options", "duration"]
     }),
-    toolFunction("createPrediction", "Creates a prediction", {
+    toolFunction("createPrediction", "Creates a prediction. Call this when the user asks you to create a prediction", {
         type: "object",
         additionalProperties: false,
         properties: {
@@ -82,7 +82,7 @@ const toolsSchema: ChatCompletionTool[] = [
             },
             duration: {
                 type: "number",
-                description: "The duration of the poll in seconds",
+                description: "The duration of the prediction in seconds. Default is 180 seconds",
             }
         },
         required: ["title", "options", "duration"]
@@ -104,12 +104,12 @@ const toolsSchema: ChatCompletionTool[] = [
         properties: {},
         required: []
     }),
-    toolFunction("suggestWordOfTheHour", "Suggest word of the hour", {
+    toolFunction("suggestWordOfTheHour", "Function to call to change the word of the hour", {
         type: "object",
         additionalProperties: false,
         properties: {
             word: {
-                description: "The word to use. Supply an empty string if you're not sure what to set",
+                description: "The word to use. Provide an empty string if you're not sure what to set",
                 type: "string"
             }
         },

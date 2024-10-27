@@ -1,15 +1,8 @@
 import { distinctUntilChanged, EMPTY, filter, from, map, Observable, switchMap } from "rxjs";
-import { log } from "shared/logger";
 import { StreamEventWatcher } from "../../../data/stream-event-watcher";
 import { getCategoryStreamsInfo } from "../../../data/twitch/api";
 import { UserAuthTokenSource } from "../../../data/twitch/auth-tokens";
-import { ChatGPTMippyBrain } from "../../chat-gpt-brain";
 import { MippyPluginConfig, MippyPluginConfigDefinition, MippyPluginDefinition } from "../plugins";
-
-const redemptions = {
-    askMippy: "",
-    personality: "",
-}
 
 const eventConfig = {
     channelUpdate: {
@@ -120,34 +113,6 @@ export function streamEventsPlugin(authToken: UserAuthTokenSource, broadcasterId
 
             event("adBreaks", streamEventWatcher.onEvent("channel.ad_break.begin", broadcaster)).subscribe(e => {
                 mippy.ask("adBreak", { duration: e.duration_seconds }, { allowTools: false });
-            });
-
-            event("redemptions", streamEventWatcher.onEvent("channel.channel_points_custom_reward_redemption.add", broadcaster)).subscribe(data => {
-                switch (data.id) {
-                    case redemptions.askMippy: {
-                        mippy.ask("highlightedMessage", {
-                            user: data.user_name,
-                            message: data.user_input,
-                            logs: ""
-                        }, { store: false, source: "chat" })
-                    } break;
-
-                    case redemptions.personality: {
-                        if (mippy.brain instanceof ChatGPTMippyBrain) {
-                            mippy.brain.setPersonality("");
-                        }
-                    } break;
-                }
-                if (data.id == redemptions.askMippy) {
-                    try {
-                        if (mippy.brain instanceof ChatGPTMippyBrain) {
-                            mippy.brain.setPersonality("");
-                        }
-                        //mippy.getPlugin<MippyVoicePlugin>("voice").setVoice("glados");
-                    } catch (e) {
-                        log.error(e);
-                    }
-                }
             });
 
             event("chatSettings", streamEventWatcher.onEvent("channel.chat_settings.update", {

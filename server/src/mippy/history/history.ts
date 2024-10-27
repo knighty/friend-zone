@@ -67,7 +67,7 @@ export class MippyHistory {
             const params: OpenAI.Chat.ChatCompletionCreateParams = {
                 messages: [
                     ...messages,
-                    this.create("user", "Summarise the important parts of the chat up until now in a few paragraphs"),
+                    this.create("user", "Summarise a factual list of the important parts of the chat up until as succinctly as possible"),
                 ],
                 model: "gpt-4o-mini",
             };

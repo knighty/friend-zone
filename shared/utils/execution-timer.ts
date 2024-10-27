@@ -3,6 +3,10 @@ export function executionTimer(options?: Partial<{
 }>) {
     const start = performance.now();
     return {
+        duration: () => {
+            const end = performance.now();
+            return Math.floor(end - start);
+        },
         end: () => {
             const end = performance.now();
             const duration = Math.floor(end - start);

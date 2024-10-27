@@ -77,13 +77,16 @@ class Dashboard extends HTMLElement {
         const refreshRedemptions$ = new Subject<void>();
         const redemptions = refreshRedemptions$.pipe(
             startWith(undefined),
-            switchMap(() => fromAjax<Record<string, string>>({
+            switchMap(() => fromAjax<{
+                enabled: Record<string, string>,
+                disabled: Record<string, string>
+            }>({
                 method: "GET",
                 url: "/data/redemptions"
             })),
             map(response => {
                 const values = response.response;
-                values[""] = "None"
+                values.enabled[""] = "None"
                 return values;
             }),
             shareReplay(1)
@@ -181,7 +184,9 @@ class Dashboard extends HTMLElement {
                                 ]
                             }
                             case "redemption": {
-                                const select = dom.select();
+                                const enabledGroup = dom.optgroup({ attributes: { label: "Enabled" } });
+                                const disabledGroup = dom.optgroup({ attributes: { label: "Disabled" } });
+                                const select = dom.select({}, [enabledGroup, disabledGroup]);
                                 let firstId = true;
                                 const button = createElement("button", { classes: ["button"] }, "⟳");
                                 button.addEventListener("click", () => refreshRedemptions$.next());
@@ -189,12 +194,19 @@ class Dashboard extends HTMLElement {
                                     const value = firstId ? plugin.values[key] : select.value;
                                     firstId = false;
                                     populateChildren(
-                                        select,
-                                        Object.keys(redemptions),
+                                        enabledGroup,
+                                        Object.keys(redemptions.enabled),
                                         (element, item) => (element as HTMLOptionElement).value == item,
-                                        (item) => createElement("option", { value: item }, redemptions[item])
+                                        (item) => createElement("option", { value: item }, redemptions.enabled[item])
                                     )
-                                    sortChildren(select, (a, b) => a.textContent.localeCompare(b.textContent));
+                                    populateChildren(
+                                        disabledGroup,
+                                        Object.keys(redemptions.disabled),
+                                        (element, item) => (element as HTMLOptionElement).value == item,
+                                        (item) => createElement("option", { value: item }, redemptions.disabled[item])
+                                    )
+                                    sortChildren(enabledGroup, (a, b) => a.textContent.localeCompare(b.textContent));
+                                    sortChildren(disabledGroup, (a, b) => a.textContent.localeCompare(b.textContent));
                                     select.value = value;
                                 });
                                 return [

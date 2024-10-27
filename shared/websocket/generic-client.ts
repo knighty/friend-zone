@@ -1,4 +1,4 @@
-import { BehaviorSubject, Observable, shareReplay, Subject, takeUntil, tap } from "rxjs";
+import { BehaviorSubject, catchError, EMPTY, Observable, shareReplay, Subject, takeUntil, tap } from "rxjs";
 import { logger } from "../logger";
 import { retryWithBackoff } from "../rx/operators/retry-with-backoff";
 import { EventProvider } from "./event-provider";
@@ -14,7 +14,7 @@ export function connectGenericClient(socketFactory: (url: string) => GenericSock
     return function <T extends Socket>(url: string, eventProvider?: EventProvider, opts?: Options) {
         const options: Required<Options> = {
             retry: true,
-            retryBase: 1.1,
+            retryBase: 1.5,
             retryMax: 60 * 1000,
             ...opts
         };
@@ -60,6 +60,10 @@ export function connectGenericClient(socketFactory: (url: string) => GenericSock
                 base: options.retryBase,
                 max: options.retryMax
             }) : tap(),
+            catchError(e => {
+                log.error(new Error("Could not connect to server", { cause: e }));
+                return EMPTY;
+            }),
             shareReplay(1),
         )
 

@@ -13,7 +13,7 @@ export class Redemptions {
 
     onRedeem(id: string) {
         return this.source.pipe(
-            filter(d => d.id == id)
+            filter(d => d.reward.id == id)
         )
     }
 }

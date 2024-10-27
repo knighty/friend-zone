@@ -30,6 +30,7 @@ type HTMLElements = {
     textarea: HTMLTextAreaElement,
     select: HTMLSelectElement,
     option: HTMLOptionElement,
+    optgroup: HTMLOptGroupElement,
     div: HTMLDivElement,
 }
 
@@ -109,6 +110,9 @@ const select = create<{
 const label = create("label");
 
 const option = create("option");
+const optgroup = create<{
+    label: string
+}, "optgroup">("optgroup");
 
 const div = create("div");
 
@@ -167,7 +171,7 @@ export const dom = {
     id, query, queryAll, elementEvent,
     h1, h2, h3, h4, h5, h6,
     div,
-    label, input, select, option, textarea,
+    label, input, select, option, textarea, optgroup,
     text
 }
 

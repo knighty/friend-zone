@@ -58,6 +58,9 @@ export default class WordOfTheHour {
                 case "set": {
                     this.setWord(command.arguments[1] ?? null);
                 } break;
+                case "clear": {
+                    this.setWord(null);
+                } break;
                 default: {
                     const count = Number(command.arguments[1]);
                     if (!isNaN(count)) {
@@ -90,13 +93,13 @@ export default class WordOfTheHour {
     incrementUserCount(user: string) {
         const count = this.counts.atomicSet(user, value => value + 1, 0);
         log.info(`Set ${user} to ${count}`);
-        this.mippy.ask("wothSetCount", { user, count, word: this.word$.getValue() ?? "" }, { allowTools: false });
+        this.mippy.ask("wothSetCount", { user, count, word: this.word$.getValue() ?? "" }, { allowTools: false, store: false });
     }
 
     setUserCount(user: string, count: number) {
         log.info(`Set ${user} to ${count}`);
         this.counts.set(user, count);
-        this.mippy.ask("wothSetCount", { user, count, word: this.word$.getValue() ?? "" }, { allowTools: false });
+        this.mippy.ask("wothSetCount", { user, count, word: this.word$.getValue() ?? "" }, { allowTools: false, store: false });
     }
 
     reset() {

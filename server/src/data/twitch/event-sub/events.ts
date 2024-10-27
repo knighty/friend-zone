@@ -78,6 +78,12 @@ export type Events = {
         status: "unknown" | "unfulfilled" | "fulfilled" | "canceled";
         user_input: string;
         redeemed_at: string;
+        reward: {
+            id: string,
+            title: string,
+            prompt: string,
+            cost: number
+        }
     } & Broadcaster & User>;
 
     "channel.poll.end": Event<{
