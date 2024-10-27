@@ -1,7 +1,7 @@
 import { exec } from "child_process";
 import { Command } from "commander";
 import fs from "fs/promises";
-import { bgBlue, bgGreen, bgRed, blue, bold, green, options, SupportLevel } from 'kolorist';
+import { bgBlue, bgGreen, bgRed, bgWhite, bold, green, options, SupportLevel } from 'kolorist';
 import path from "path";
 import { promisify } from "util";
 import { log } from "./shared/logger";
@@ -66,7 +66,7 @@ async function runCommand(command: string, options?: CommandOptions) {
                 return;
             }
             resolve();
-            console.log(`Executed in ${blue(timer.end())}`);
+            console.log(`Executed in ${bold(timer.end())}`);
         })
     })
 
@@ -91,7 +91,7 @@ function header(text: string) {
 }
 
 function subHeader(text: string) {
-    console.log(blue(bold(`- ${text}`)));
+    console.log(`${bgWhite(" * ")} ${bold(text)}`);
 }
 
 program.command('clear-temp-files')

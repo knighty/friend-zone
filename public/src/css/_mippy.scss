@@ -11,6 +11,16 @@ mippy-module {
         grid-area: subtitles;
         opacity: 0;
         z-index: 1000;
+    }
+    input {
+        grid-area: subtitles;
+        opacity: 0;
+        z-index: 2000;
+        -webkit-appearance: none;
+        background-color: gray;
+        height: 20px;
+        border-radius: 15px;
+        padding: 0 3px;
 
         &:hover {
             opacity: 1;

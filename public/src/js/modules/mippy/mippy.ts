@@ -1,4 +1,5 @@
-import { concatMap, distinctUntilChanged, EMPTY, filter, fromEvent, ignoreElements, interval, map, merge, scan, share, switchMap, takeUntil, tap } from 'rxjs';
+import { concatMap, distinctUntilChanged, EMPTY, filter, fromEvent, ignoreElements, interval, map, merge, scan, share, startWith, switchMap, takeUntil, tap } from 'rxjs';
+import { dom } from 'shared/dom';
 import { CustomElement } from "shared/html/custom-element";
 import { debounceState, drain, mapTruncateString, renderLoop$, sampleEvery, tapFirst, toggleClass } from 'shared/rx';
 import { truncateString } from "shared/text-utils";
@@ -8,7 +9,8 @@ import { FrequencyGraph } from './frequency-graph';
 
 const template = `
 <frequency-graph data-element="frequencyGraph"></frequency-graph>
-<audio controls data-element="audio"></audio>
+<audio data-element="audio"></audio>
+<input type="range" data-element="volume" min="0" max="100" />
 <div data-element="avatar" class="avatar">
     <img class="image" data-element="mippy" src="${require("../../../images/mippy.png")}" />
 </div>
@@ -48,7 +50,8 @@ export class MippyModule extends CustomElement<{
         audio: HTMLAudioElement,
         mippy: HTMLElement,
         avatar: HTMLElement,
-        frequencyGraph: FrequencyGraph
+        frequencyGraph: FrequencyGraph,
+        volume: HTMLInputElement
     }
 }> {
     audioCtx = new AudioContext();
@@ -104,6 +107,16 @@ export class MippyModule extends CustomElement<{
         const audio = this.element("audio");
         const source = audioCtx.createMediaElementSource(audio);
         source.connect(speechDestination);
+
+        const volume = Number(localStorage.getItem("volume") ?? "50");
+        this.element("volume").value = volume.toString();
+        dom.elementEvent(this.element("volume"), "input").pipe(
+            map(element => Number(element.value)),
+            startWith(volume),
+        ).subscribe(volume => {
+            speechDestination.gain.value = volume / 100;
+            localStorage.setItem("volume", volume.toString());
+        })
 
         function updateSubtitles(text: string) {
             subtitleElement.textContent = text;

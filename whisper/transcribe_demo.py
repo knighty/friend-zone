@@ -12,7 +12,8 @@ from datetime import datetime, UTC, timedelta
 from queue import Queue
 from time import sleep, time
 from sys import platform
-
+from faster_whisper import WhisperModel
+from huggingface_hub import snapshot_download
 
 def main():
     parser = argparse.ArgumentParser()
@@ -46,6 +47,9 @@ def main():
     # We use SpeechRecognizer to record our audio because it has a nice feature where it can detect when speech ends.
     recorder = sr.Recognizer()
     recorder.energy_threshold = args.energy_threshold
+    recorder.pause_threshold = 1.0
+    #recorder.phrase_threshold = 0
+    #recorder.non_speaking_duration = 0
     # Definitely do this, dynamic energy compensation lowers the energy threshold dramatically to a point where the SpeechRecognizer never stops recording.
     recorder.dynamic_energy_threshold = False
 
@@ -70,7 +74,10 @@ def main():
     model = args.model
     if args.model != "large" and args.model != "turbo" and not args.non_english:
         model = model + ".en"
-    audio_model = whisper.load_model(model, in_memory=True)
+    audio_model = WhisperModel(model, device="cuda", compute_type="int8_float16")#  WhisperModel(model, device="cuda", compute_type="int8_float16")
+    
+
+
 
     record_timeout = args.record_timeout
     phrase_timeout = args.phrase_timeout
@@ -91,7 +98,7 @@ def main():
 
     # Create a background thread that will pass us raw audio bytes.
     # We could do this manually but SpeechRecognizer provides a nice helper.
-    recorder.listen_in_background(source, record_callback, phrase_time_limit=1)
+    recorder.listen_in_background(source, record_callback, phrase_time_limit=None)
 
     # Cue the user that we're ready to go.
     print("Model loaded.\n", flush=True)
@@ -134,18 +141,18 @@ def main():
                 # Read the transcription.
                 print("transcribing " + str(round(len(audio_data) / 1000,0)) + "kb...\n", flush=True);
                 start = time();
-                result = audio_model.transcribe(audio_np, no_speech_threshold=args.no_speech_threshold, fp16=torch.cuda.is_available(), initial_prompt='A conversation between friends called Knighty, Lethallin, Megadanxzero, Dan, PHN, Leth, Graeme, Peter, Alan')
-                end = time();
-                print("transcribed in " + str(round(end - start, 2)) + "s\n", flush=True);
+                segments, info = audio_model.transcribe(audio_np, language="en", no_speech_threshold=args.no_speech_threshold, initial_prompt='A conversation between friends called Knighty, Lethallin, Megadanxzero, Dan, PHN, Leth, Graeme, Peter, Alan')
                 #print(result);
                 response = [];
                 text = ""
-                for segment in result['segments']:
+                for segment in segments:
                     response.append({
-                        "text": segment['text'],
-                        "probability": segment['no_speech_prob']
+                        "text": segment.text,
+                        "probability": segment.no_speech_prob
                     })
-                    text = text + "" if segment['no_speech_prob'] > args.min_probability else segment['text']
+                    text = text + "" if segment.no_speech_prob > args.min_probability else segment.text
+                end = time();
+                print("transcribed in " + str(round(end - start, 2)) + "s\n", flush=True);
 
                 if text == last_text:
                     if now > last_new_text_time - 3:
