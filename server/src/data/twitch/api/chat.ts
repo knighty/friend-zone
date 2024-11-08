@@ -24,6 +24,12 @@ export type ChatSettingsResponse = {
     non_moderator_chat_delay_duration: number
 }
 
+export type ChatUser = {
+    user_id: string,
+    user_login: string,
+    user_name: string
+}
+
 const maxLength = 500;
 
 export async function sendChatMessage(authToken: AuthTokenSource, broadcasterId: string, senderId: string, message: string): Promise<ChatSendResponse> {
@@ -62,3 +68,15 @@ export async function getChatSettings(authToken: AuthTokenSource, broadcasterId:
     }
     throw new Error("Failed to get chat settings");
 };
+
+export async function getChatMembers(authToken: AuthTokenSource, broadcasterId: string) {
+    const response = await twitchRequest<JSONResponse<ChatUser>>({
+        method: "GET",
+        path: `/helix/chat/chatters`,
+        params: {
+            broadcaster_id: broadcasterId,
+            moderator_id: broadcasterId
+        }
+    }, authToken);
+    return response.data;
+}

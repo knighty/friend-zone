@@ -14,6 +14,12 @@ const pluginConfig = {
         type: "boolean",
         default: false
     },
+    titleTemplate: {
+        name: "Title Template",
+        description: "The template for setting a title. Can be blank. Use $title for the set title",
+        type: "string",
+        default: "",
+    },
     setCategory: {
         name: "Set Category",
         description: "Whether Mippy can set the stream category",
@@ -54,7 +60,8 @@ export function streamSettingsPlugin(authToken: AuthTokenSource, broadcasterId: 
                                 "",
                                 ["admin", "moderator"],
                                 async tool => {
-                                    const title = `Friend Zone: ${tool.function.arguments.title}`;
+                                    const template = config.get("titleTemplate");
+                                    const title = template == "" ? tool.function.arguments.title : template.replace("$title", tool.function.arguments.title);
                                     log.info(`Set the title to ${green(title)}`);
                                     const [error] = await awaitResult(setChannelInformation(authToken, broadcasterId, {
                                         title: title
@@ -65,7 +72,8 @@ export function streamSettingsPlugin(authToken: AuthTokenSource, broadcasterId: 
                                     }
                                     return `Successfully changed title to ${title}`;
                                 }
-                            ) : EMPTY)),
+                            ) : EMPTY)
+                        ),
 
                         config.observe("setCategory").pipe(
                             switchMap(enabled => enabled ? brain.tools.observe<{

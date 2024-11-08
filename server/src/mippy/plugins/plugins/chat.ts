@@ -1,6 +1,11 @@
 import { distinct, EMPTY, filter, map, switchMap, withLatestFrom } from "rxjs";
+import { log } from "shared/logger";
+import { awaitResult } from "shared/utils";
 import { Stream } from "../../../data/stream";
 import TwitchChat from "../../../data/twitch-chat";
+import { getChatMembers } from "../../../data/twitch/api/chat";
+import { AuthTokenSource } from "../../../data/twitch/auth-tokens";
+import { ChatGPTMippyBrain } from "../../chat-gpt-brain";
 import { MippyPluginConfig, MippyPluginConfigDefinition, MippyPluginDefinition } from "../plugins";
 
 const pluginConfig = {
@@ -23,7 +28,7 @@ const pluginConfig = {
     }
 } satisfies MippyPluginConfigDefinition;
 
-export function chatPlugin(twitchChat: TwitchChat, stream: Stream): MippyPluginDefinition {
+export function chatPlugin(twitchChat: TwitchChat, stream: Stream, authToken: AuthTokenSource, broadcasterId: string): MippyPluginDefinition {
     return {
         name: "Twitch Chat",
         permissions: ["sendMessage"],
@@ -33,6 +38,24 @@ export function chatPlugin(twitchChat: TwitchChat, stream: Stream): MippyPluginD
             const ignoreUsers$ = config.observe("ignoreUsers").pipe(
                 map(str => str.map(str => str.toLowerCase().trim()))
             )
+
+            if (mippy.brain instanceof ChatGPTMippyBrain) {
+                mippy.brain.tools.register(
+                    "get_chat_users",
+                    "Gets a list of the users in the stream chat",
+                    undefined,
+                    "",
+                    ["admin", "chat", "moderator"],
+                    async tool => {
+                        const [error, users] = await awaitResult(getChatMembers(authToken, broadcasterId));
+                        if (error) {
+                            log.error(error);
+                            return "There was an error geting the list of chatters";
+                        }
+                        return `# Chat Members:\n${users.map(user => user.user_name).join("\n")}`;
+                    }
+                )
+            }
 
             stream.whenLive(mode$).pipe(
                 switchMap(mode => {

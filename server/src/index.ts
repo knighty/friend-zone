@@ -202,7 +202,7 @@ if (isTwitchConfig(config.twitch)) {
     wordOfTheHour.watchTwitchChat(twitchChat);
 
     plugins.addPlugin("ticker", options => tickerPlugin(fastifyApp, config.socketHost, userToken, broadcasterId));
-    plugins.addPlugin("chat", options => chatPlugin(twitchChat, stream));
+    plugins.addPlugin("chat", options => chatPlugin(twitchChat, stream, userToken, broadcasterId));
     plugins.addPlugin("createPoll", options => createPollPlugin(userToken, broadcasterId, stream, options));
     plugins.addPlugin("createPrediction", options => createPredictionPlugin(userToken, broadcasterId, messageSender, stream, options));
     plugins.addPlugin("highlightedMessages", options => highlightedMessagesPlugin(twitchChat, twitchChatLog, redemptions));
@@ -261,6 +261,7 @@ fastifyApp.register(twitchRouter({
             "channel:manage:redemptions",
             "channel:manage:predictions",
             "channel:manage:broadcast",
+            "moderator:read:chatters",
             "bits:read",
         ],
         filePath: path.join(__dirname, "../../twitch.json")

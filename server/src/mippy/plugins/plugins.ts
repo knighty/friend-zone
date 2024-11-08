@@ -127,6 +127,10 @@ export class MippyPluginConfig<Definition extends MippyPluginConfigDefinition> {
         }
     }
 
+    get<Key extends keyof Definition>(key: Key): Definition[Key]["default"] {
+        return this.values[key] as Definition[Key]["default"];
+    }
+
     observe<Key extends keyof Definition>(key: Key): Observable<Definition[Key]["default"]> {
         return this.update$.pipe(
             filter(updatedKey => key == updatedKey),
