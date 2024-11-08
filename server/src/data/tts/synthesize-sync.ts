@@ -3,6 +3,7 @@ import child_process from "node:child_process";
 import path from "path";
 import { EMPTY, Observable } from "rxjs";
 import { logger } from "shared/logger";
+import { randomString } from "shared/text-utils";
 import { executionTimer } from "shared/utils";
 import { Phoneme } from "./rhubarb";
 import { ttsDirs } from "./tts";
@@ -13,18 +14,6 @@ export type SynthesisResult = {
     phonemes?: Phoneme[],
 }
 
-function makeid(length: number) {
-    let result = '';
-    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    const charactersLength = characters.length;
-    let counter = 0;
-    while (counter < length) {
-        result += characters.charAt(Math.floor(Math.random() * charactersLength));
-        counter += 1;
-    }
-    return result;
-}
-
 const log = logger("piper");
 
 export function synthesizeVoice(text: string, lipShapes = false): Observable<SynthesisResult> {
@@ -32,7 +21,7 @@ export function synthesizeVoice(text: string, lipShapes = false): Observable<Syn
         return EMPTY;
 
     return new Observable<Omit<SynthesisResult, "phonemes">>(subscriber => {
-        const id = makeid(10);
+        const id = randomString(10);
         const filename = `output-${id}.wav`;
         const filepath = path.join(ttsDirs.outputDir, filename);
         text = text.replaceAll("*", "");

@@ -1,10 +1,12 @@
 import { Observable } from "rxjs";
 
 // Observables
+export { ObservableArray } from "./rx/observables/array";
 export { observeDay } from "./rx/observables/date";
 export { observeLifecycle } from "./rx/observables/lifecycle";
 export { ObservableMap } from "./rx/observables/map";
 export { randomInterval } from "./rx/observables/random-interval";
+export { refreshable } from "./rx/observables/refreshable";
 export { renderLoop$ } from "./rx/observables/render-loop";
 
 // Operators

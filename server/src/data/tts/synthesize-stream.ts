@@ -89,8 +89,6 @@ export function streamSynthesizeVoice(text: Observable<string>, voice: string): 
                 });
 
                 piper.addListener("close", (code, signal) => {
-                    console.log(code);
-                    console.log(signal?.toString());
                     const duration = (size / 2) / 22050;
                     const executionTime = synthesisTimer.duration();
                     log.info(`[${green(synthesisTimer.end())}] Synthesized ${green(`${duration.toFixed(2)}s`)} of voice [${green(text.split(" ").length)} words | ${green(((duration * 1000) / executionTime).toFixed(1))} rtf]`);

@@ -14,6 +14,8 @@ export const socket = (events: WebsocketEvent[], url: string = "/websocket") => 
                 a[stream.type] = stream.data
                 return a;
             }, {} as Record<string, Observable<any>>)
-        ));
+        ), {
+            url: req.url
+        });
     })
 }

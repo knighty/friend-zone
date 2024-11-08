@@ -20,6 +20,12 @@ export type StreamResponse = {
     is_mature: false;
 };
 
+type Category = {
+    box_art_url: string,
+    name: string,
+    id: string
+}
+
 export async function getStream(authToken: AuthTokenSource, userId: number): Promise<StreamResponse | undefined> {
     const response = await twitchRequest<JSONResponse<StreamResponse>>({
         method: "GET",
@@ -51,3 +57,33 @@ export async function getCategoryStreamsInfo(authToken: AuthTokenSource, categor
         return state;
     }, { viewers: 0 });
 };
+
+export async function searchCategories(authToken: AuthTokenSource, category: string) {
+    const response = await twitchRequest<JSONResponse<Category>>({
+        method: "GET",
+        path: `/helix/search/categories`,
+        params: {
+            query: category
+        }
+    }, authToken);
+
+    return response.data;
+};
+
+export async function setChannelInformation(authToken: AuthTokenSource, broadcasterId: string, info: Partial<{
+    title: string,
+    game_id: string
+}>) {
+    const response = await twitchRequest<JSONResponse<StreamResponse>>({
+        method: "PATCH",
+        path: `/helix/channels`,
+        params: {
+            broadcaster_id: broadcasterId
+        }
+    }, authToken, info);
+
+    return response.data.reduce((state, stream) => {
+        state.viewers += stream.viewer_count;
+        return state;
+    }, { viewers: 0 });
+}

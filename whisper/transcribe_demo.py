@@ -13,7 +13,6 @@ from queue import Queue
 from time import sleep, time
 from sys import platform
 from faster_whisper import WhisperModel
-from huggingface_hub import snapshot_download
 
 def main():
     parser = argparse.ArgumentParser()
@@ -163,6 +162,8 @@ def main():
 
                 if len(response) > 0:
                     print("subtitle " + str(id) + " " + json.dumps(response) + "\n", flush=True)
+                
+                complete = True;
 
                 # This is the last time we received new audio data from the queue.
                 phrase_time = now

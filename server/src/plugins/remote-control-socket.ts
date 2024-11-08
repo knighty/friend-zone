@@ -5,13 +5,14 @@ import path from "path";
 import { concatMap, distinctUntilChanged, EMPTY, filter, finalize, map, merge, Observable, of, shareReplay, switchMap, take, takeUntil, tap } from "rxjs";
 import { logger } from "shared/logger";
 import { switchMapComplete } from "shared/rx";
+import { randomString } from "shared/text-utils";
 import { ObservableEventProvider, serverSocket } from "shared/websocket/server";
 import ExternalFeeds from "../data/external-feeds";
+import { Stream } from "../data/stream";
 import Subtitles from "../data/subtitles";
 import Users from "../data/users";
 import { Mippy } from "../mippy/mippy";
 import { ScreenshotRepository } from "../mippy/plugins/plugins/screenshot";
-import { randomString } from "../utils";
 
 const log = logger("remote-control");
 
@@ -50,7 +51,7 @@ async function imageToFile(buffer: Buffer) {
     return filename;
 }
 
-export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds, users: Users, mippy: Mippy, screenshotRepository: ScreenshotRepository) => async (fastify: FastifyInstance, options: {}) => {
+export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds, users: Users, mippy: Mippy, screenshotRepository: ScreenshotRepository, stream: Stream) => async (fastify: FastifyInstance, options: {}) => {
     fastify.get('/remote-control/websocket', { websocket: true }, (ws, req) => {
         let socket = serverSocket<{
             Events: {
@@ -68,7 +69,9 @@ export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds, 
             }
         }>(ws, new ObservableEventProvider({
             subtitles: of({ enabled: true })
-        }));
+        }), {
+            url: req.url
+        });
 
         socket.on("user", true).pipe(
             take(1),
@@ -86,21 +89,21 @@ export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds, 
                     const userRegistration = users.register(userId, user);
                     callback({ message: `You were successfully registered with id ${userId}` })
 
-                    socket.on("subtitles").subscribe(data => {
+                    socket.on("subtitles").pipe(
+                        stream.doWhenLive()
+                    ).subscribe(data => {
                         subtitles.handle(userId, data.id, data.type, data.text);
                     });
 
                     socket.on("mippy/ask").pipe(
+                        stream.doWhenLive(),
                         concatMap(async question => {
                             if (question.image) {
                                 const filename = `${randomString(20)}.jpg`;
                                 const data = Buffer.from(question.image, "binary");
                                 return {
                                     text: question.text,
-                                    image: {
-                                        filename,
-                                        data
-                                    }
+                                    image: screenshotRepository.add(filename, data)
                                 }
                             }
                             return {
@@ -108,7 +111,7 @@ export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds, 
                             }
                         })
                     ).subscribe(question => {
-                        const image = question.image ? [screenshotRepository.add(question.image.filename, question.image.data)] : undefined;
+                        const image = question.image ? [question.image] : undefined;
                         mippy.ask("question", {
                             question: question.text,
                             user: userName
@@ -156,7 +159,6 @@ export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds, 
                     );
 
                     feedData$.subscribe()*/
-
 
                     return feed$.pipe(
                         map(feed => feed != null),

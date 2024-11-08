@@ -2,7 +2,8 @@ import { ChatCompletionTool } from "openai/resources/index.mjs";
 import { FunctionParameters } from "openai/resources/shared.mjs";
 import { Observable, map } from "rxjs";
 import { ObservableMap } from "shared/rx";
-import { MippyChatGPTConfig } from "../../config";
+import { ToolCall } from "../chat-gpt-brain";
+import { ToolPrompt } from "../mippy-brain";
 
 function toolFunction<Parameters extends FunctionParameters>(title: string, description: string, parameters: Parameters): ChatCompletionTool {
     return {
@@ -135,22 +136,82 @@ const toolsSchema: ChatCompletionTool[] = [
     })
 ];
 
-export class ChatGPTTools {
-    tools = new ObservableMap<string, string>();
+type ToolRoles = ("admin" | "chat" | "moderator")[];
 
-    constructor(config: MippyChatGPTConfig) {
-        this.tools.setBatch(config.systemPrompt.tools);
+type ChatGPTTool<Arguments> = {
+    id: string,
+    tool: ChatCompletionTool,
+    prompt: string,
+    roles: ToolRoles,
+    callback: ToolInvokation<Arguments>
+}
+
+type ToolInvokation<Arguments> = (tool: ToolCall<Arguments>) => Promise<string | undefined>
+
+export class ChatGPTTools {
+    tools = new ObservableMap<string, ChatGPTTool<any>>();
+    stream$: Observable<ToolCall<any>>;
+    toolResponse: (prompt: ToolPrompt) => void;
+
+    constructor(stream$: Observable<ToolCall<any>>, toolResponse: (prompt: ToolPrompt) => void) {
+        this.stream$ = stream$;
+        this.toolResponse = toolResponse;
     }
 
     getSchema(): Observable<ChatCompletionTool[]> {
-        return this.tools.entries$.pipe(
-            map(tools => toolsSchema.filter(tool => !!tools[tool.function.name])),
-        )
+        return this.tools.values$.pipe(
+            map(tools => tools.map(tool => tool.tool))
+        );
     }
 
     getSystemPrompt(): Observable<string> {
         return this.tools.entries$.pipe(
-            map(tools => Object.keys(tools).map(key => `## ${key}\n${tools[key]}`).join("\n\n"))
+            map(tools =>
+                Object.keys(tools)
+                    .filter(key => tools[key].prompt == "")
+                    .map(key => `## ${key}\n${tools[key].prompt}`)
+                    .join("\n\n")
+            )
         )
+    }
+
+    handle(toolCall: ToolCall<any>): Promise<string | undefined> {
+        const tool = this.tools.data.get(toolCall.function.name);
+        if (tool) {
+            return tool.callback(toolCall);
+        }
+        return Promise.resolve("");
+    }
+
+    observe(obj: {
+        unregister: () => void
+    }) {
+        return new Observable<void>(subscriber => {
+            return () => obj.unregister();
+        })
+    }
+
+    register<Arguments>(id: string, description: string, parameters: FunctionParameters | undefined, prompt: string, roles: ToolRoles, callback: ToolInvokation<Arguments>) {
+        this.tools.set(id, {
+            id,
+            roles,
+            prompt,
+            tool: {
+                function: {
+                    name: id,
+                    description,
+                    parameters,
+                    strict: parameters !== undefined
+                },
+                type: "function"
+            },
+            callback
+        })
+
+        return {
+            unregister: () => {
+                this.tools.delete(id);
+            }
+        }
     }
 }

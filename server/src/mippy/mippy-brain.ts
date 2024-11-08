@@ -10,7 +10,7 @@ export interface MippyBrain {
 
 type BasePrompt = {
     text: string,
-    source?: "chat" | "admin",
+    source?: "chat" | "admin" | "moderator",
     store?: boolean,
     allowTools?: boolean,
     image?: string[],
@@ -27,10 +27,19 @@ type SystemPrompt = BasePrompt & {
     role: "system"
 }
 
-export type Prompt = UserPrompt | SystemPrompt;
+export type ToolPrompt = BasePrompt & {
+    role: "tool",
+    toolCallId: string,
+}
+
+export type Prompt = UserPrompt | SystemPrompt | ToolPrompt;
 
 export function isUserPrompt(prompt: Prompt): prompt is UserPrompt {
     return prompt.role == "user" || prompt.role === undefined
+}
+
+export function isToolPrompt(prompt: Prompt): prompt is ToolPrompt {
+    return prompt.role == "tool";
 }
 
 export type PartialPrompt = Omit<UserPrompt, "text"> | Omit<SystemPrompt, "text">;
@@ -42,10 +51,11 @@ export type MippyMessage = {
 }
 
 export type MippyPrompts = {
-    generic: {},
+    generic: { text: string },
     wothSetCount: { count: number, word: string, user: string },
     wothSetWord: { word: string, user: string },
     question: { question: string, user: string },
+    setTitle: { title: string },
     setCategory: { category: string, viewers: string },
     newFollower: { user: string },
     newSubscriber: { user: string },

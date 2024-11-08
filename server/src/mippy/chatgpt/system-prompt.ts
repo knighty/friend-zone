@@ -23,13 +23,13 @@ export function getSystemPrompt$(config: MippyChatGPTConfig, users: Users, tools
 }
 
 export function getSystem$(config: MippyChatGPTConfig, tools: ChatGPTTools, prompt$: Observable<string>) {
-    return combineLatest([prompt$, tools.getSchema()]).pipe(
-        map(([systemPrompt, toolsSchema]) => ({
+    return combineLatest([prompt$, tools.tools.values$]).pipe(
+        map(([systemPrompt, tools]) => ({
             message: {
                 role: "system",
                 content: systemPrompt
             } as const,
-            toolsSchema: toolsSchema
+            tools: tools
         }))
     )
 }

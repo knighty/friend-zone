@@ -4,6 +4,7 @@ import { log } from "shared/logger";
 import { InferObservable } from "shared/rx";
 import { ObservableEventProvider, serverSocket } from "shared/websocket/server";
 import ExternalFeeds from "../data/external-feeds";
+import { Stream } from "../data/stream";
 import { Mippy } from "../mippy/mippy";
 import { WebsocketEvent } from "./socket";
 
@@ -11,7 +12,7 @@ type Events<T extends Record<string, (d: any) => void>> = {
     [K in keyof T]: Parameters<T[K]>[0]
 }
 
-export function configSocket(events: WebsocketEvent[], feeds: ExternalFeeds, sayGoodbye: Subject<void>, mippy: Mippy) {
+export function configSocket(events: WebsocketEvent[], feeds: ExternalFeeds, sayGoodbye: Subject<void>, mippy: Mippy, stream: Stream) {
     function observableReceiver<T extends Subject<any>, U extends InferObservable<T>>(subject: T) {
         return (data: U) => subject.next(data);
     }
@@ -21,6 +22,7 @@ export function configSocket(events: WebsocketEvent[], feeds: ExternalFeeds, say
         "config/feedSize": observableReceiver(feeds.feedSize$),
         "config/feedLayout": observableReceiver(feeds.feedLayout$),
         "config/feedCount": observableReceiver(feeds.feedCount$),
+        "config/isLive": observableReceiver(stream.isLive$)
     };
     type Receivers = typeof receivers;
     type E = Events<Receivers>;
@@ -41,7 +43,9 @@ export function configSocket(events: WebsocketEvent[], feeds: ExternalFeeds, say
                     a[stream.type] = stream.data
                     return a;
                 }, {} as Record<string, Observable<any>>)
-            ));
+            ), {
+                url: req.url
+            });
 
             function hook<Key extends keyof Receivers>(key: Key) {
                 // This is some really bad abuse of lack of type inference

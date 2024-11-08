@@ -1,4 +1,5 @@
 import { distinct, EMPTY, filter, map, switchMap, withLatestFrom } from "rxjs";
+import { Stream } from "../../../data/stream";
 import TwitchChat from "../../../data/twitch-chat";
 import { MippyPluginConfig, MippyPluginConfigDefinition, MippyPluginDefinition } from "../plugins";
 
@@ -22,7 +23,7 @@ const pluginConfig = {
     }
 } satisfies MippyPluginConfigDefinition;
 
-export function chatPlugin(twitchChat: TwitchChat): MippyPluginDefinition {
+export function chatPlugin(twitchChat: TwitchChat, stream: Stream): MippyPluginDefinition {
     return {
         name: "Twitch Chat",
         permissions: ["sendMessage"],
@@ -33,7 +34,7 @@ export function chatPlugin(twitchChat: TwitchChat): MippyPluginDefinition {
                 map(str => str.map(str => str.toLowerCase().trim()))
             )
 
-            mode$.pipe(
+            stream.whenLive(mode$).pipe(
                 switchMap(mode => {
                     switch (mode) {
                         case "everyone":

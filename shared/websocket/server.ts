@@ -1,3 +1,4 @@
+import { green } from "kolorist";
 import { BehaviorSubject, endWith, ignoreElements, Observable, shareReplay, Subject, takeUntil } from "rxjs";
 import { WebSocket } from "ws";
 import { logger } from "../logger";
@@ -5,9 +6,10 @@ import { GenericSocket, Socket, socket } from "./socket";
 
 type Options = {
     pingFrequency?: number
+    url?: string
 }
 
-const defaultOptions: Required<Options> = {
+const defaultOptions: Options = {
     pingFrequency: 30 * 1000
 }
 
@@ -35,22 +37,23 @@ export class ObservableEventProvider implements EventProvider {
 const log = logger("web-socket-server");
 
 export function serverSocket<T extends Socket>(ws: WebSocket, eventProvider: EventProvider, opts?: Options) {
-    const options: Required<Options> = {
+    const options: Options = {
         ...defaultOptions,
         ...opts
     };
 
     const disconnected$ = new Subject<void>();
+    const urlString = options.url ? green(options.url) : ``;
 
     const clientConnection$ = new Observable<GenericSocket>(subscriber => {
-        log.info("Socket bound");
+        log.info(`Socket bound - ${urlString}`);
         subscriber.next(ws);
         const errorHandler = (e: any) => {
             log.error("Socket error");
             subscriber.error(e);
         }
         const closeHandler = (e: any) => {
-            log.info("Socket closed");
+            log.info(`Socket closed - ${urlString}`);
             disconnected$.next();
             subscriber.complete();
         }

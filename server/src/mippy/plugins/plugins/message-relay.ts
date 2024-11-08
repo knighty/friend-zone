@@ -1,9 +1,8 @@
 import { green } from "kolorist";
-import { EMPTY, from, switchMap, withLatestFrom } from "rxjs";
+import { EMPTY, switchMap, withLatestFrom } from "rxjs";
 import { logger } from "shared/logger";
 import { truncateString, wordCount } from "shared/text-utils";
-import { sendChatMessage } from "../../../data/twitch/api";
-import { UserAuthTokenSource } from "../../../data/twitch/auth-tokens";
+import { TwitchMessageSender } from "../../../data/twitch/message-sender";
 import { catchAndLog } from "../../../utils";
 import { ChatGPTMippyBrain } from "../../chat-gpt-brain";
 import { MippyPluginConfig, MippyPluginConfigDefinition, MippyPluginDefinition } from "../plugins";
@@ -28,7 +27,7 @@ const pluginConfig = {
     }
 } satisfies MippyPluginConfigDefinition;
 
-export function relayMessagesToTwitchPlugin(broadcasterId: string, botId: string, botToken: UserAuthTokenSource): MippyPluginDefinition {
+export function relayMessagesToTwitchPlugin(messageSender: TwitchMessageSender): MippyPluginDefinition {
     return {
         name: "Twitch Chat Message Relay",
         permissions: ["sendMessage"],
@@ -51,8 +50,9 @@ export function relayMessagesToTwitchPlugin(broadcasterId: string, botId: string
                         }
                         const text = truncateString(message, maxLength);
                         log.info(`Sending twitch chat message with ${green(wordCount(text))} words`);
-                        return from(sendChatMessage(botToken, broadcasterId, botId, text)).pipe(catchAndLog());
+                        return messageSender(text);
                     }),
+                    catchAndLog()
                 ).subscribe()
 
                 return {

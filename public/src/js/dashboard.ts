@@ -1,7 +1,8 @@
-import { debounceTime, map, merge, shareReplay, startWith, Subject, switchMap } from "rxjs";
+import { debounceTime, map, merge, shareReplay } from "rxjs";
 import { fromAjax } from "rxjs/internal/ajax/ajax";
 import { dom, observeScopedEvent, populateChildren } from "shared/dom";
 import { sortChildren } from "shared/dom/sort-children";
+import { refreshable } from "shared/rx";
 import { createElement } from "shared/utils";
 import { connectBrowserSocket } from "shared/websocket/browser";
 import { ObservableEventProvider } from "shared/websocket/event-provider";
@@ -11,7 +12,8 @@ const socket = connectBrowserSocket<{
         feedCount: number,
         feedSize: number,
         slideshowFrequency: number,
-        feedLayout: string
+        feedLayout: string,
+        isLive: boolean,
     }
 }>(document.body.dataset.socketUrl, new ObservableEventProvider({}));
 socket.isConnected$.subscribe(isConnected => document.body.classList.toggle("connected", isConnected));
@@ -72,25 +74,25 @@ class Dashboard extends HTMLElement {
             slideshowFrequency: HTMLInputElement,
             sayGoodbye: HTMLButtonElement,
             mippy: HTMLElement,
+            isLive: HTMLInputElement
         });
 
-        const refreshRedemptions$ = new Subject<void>();
-        const redemptions = refreshRedemptions$.pipe(
-            startWith(undefined),
-            switchMap(() => fromAjax<{
+        let [redemptions$, refreshRedemptions] = refreshable(
+            fromAjax<{
                 enabled: Record<string, string>,
                 disabled: Record<string, string>
             }>({
                 method: "GET",
                 url: "/data/redemptions"
-            })),
-            map(response => {
-                const values = response.response;
-                values.enabled[""] = "None"
-                return values;
-            }),
-            shareReplay(1)
-        )
+            }).pipe(
+                map(response => {
+                    const values = response.response;
+                    values.enabled[""] = "None"
+                    return values;
+                })
+            )
+        );
+        redemptions$ = redemptions$.pipe(shareReplay(1));
 
         dom.elementEvent(elements.get("feedLayout"), "input").subscribe(element => {
             socket.send("config/feedLayout", element.value);
@@ -112,10 +114,15 @@ class Dashboard extends HTMLElement {
             socket.send("sayGoodbye", null);
         });
 
+        dom.elementEvent(elements.get("isLive"), "input").subscribe(element => {
+            socket.send("config/isLive", element.checked);
+        });
+
         socket.on("feedCount").subscribe(count => elements.get("feedCount").value = count.toString());
         socket.on("feedSize").subscribe(count => elements.get("feedSize").value = count.toString());
         socket.on("slideshowFrequency").subscribe(count => elements.get("slideshowFrequency").value = count.toString());
         socket.on("feedLayout").subscribe(layout => elements.get("feedLayout").value = layout);
+        socket.on("isLive").subscribe(live => elements.get("isLive").checked = live);
 
         const mippyElement = elements.get("mippy");
         const configElement = dom.query(".plugin-config", HTMLElement, this);
@@ -189,8 +196,8 @@ class Dashboard extends HTMLElement {
                                 const select = dom.select({}, [enabledGroup, disabledGroup]);
                                 let firstId = true;
                                 const button = createElement("button", { classes: ["button"] }, "⟳");
-                                button.addEventListener("click", () => refreshRedemptions$.next());
-                                redemptions.subscribe(redemptions => {
+                                button.addEventListener("click", () => refreshRedemptions());
+                                redemptions$.subscribe(redemptions => {
                                     const value = firstId ? plugin.values[key] : select.value;
                                     firstId = false;
                                     populateChildren(

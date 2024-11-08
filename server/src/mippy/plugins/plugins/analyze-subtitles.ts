@@ -1,4 +1,3 @@
-import { concatMap, filter, merge, withLatestFrom } from "rxjs";
 import { logger } from "shared/logger";
 import { SubtitlesLog } from "../../../data/subtitles/logs";
 import { ChatGPTMippyBrain } from "../../chat-gpt-brain";
@@ -25,11 +24,13 @@ export function analyzeSubtitlesPlugin(subtitlesLog: SubtitlesLog): MippyPluginD
         config: pluginConfig,
         init: async (mippy, config: MippyPluginConfig<typeof pluginConfig>) => {
             if (mippy.brain instanceof ChatGPTMippyBrain) {
-                const sub = merge(
-                    mippy.brain.observeTool("action").pipe(
-                        filter(action => action.action == "analyze subtitles")
-                    ),
-                    mippy.brain.observeTool("analyzeSubtitles")
+                /*const sub = merge(
+                    mippy.brain.tools.observe("analyzeSubtitles", "Analyze Subtitles", {
+                        type: "object",
+                        additionalProperties: false,
+                        properties: {},
+                        required: []
+                    }, "", ["admin"])
                 ).pipe(
                     withLatestFrom(config.observe("numWordsSaid")),
                     concatMap(async ([args, numWordsSaid]) => {
@@ -42,11 +43,11 @@ export function analyzeSubtitlesPlugin(subtitlesLog: SubtitlesLog): MippyPluginD
                             userWordsSaid: analysis.userWordsSaid.map(item => `${item.user}: ${item.count} words`).join(", "),
                         })
                     }),
-                ).subscribe()
+                ).subscribe()*/
 
                 return {
                     disable() {
-                        sub.unsubscribe();
+                        //sub.unsubscribe();
                     },
                 }
             }

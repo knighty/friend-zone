@@ -118,7 +118,7 @@ export function twitchSocket(authTokenSource: UserAuthTokenSource, url = "wss://
             map<MessageEvent, SocketMessage<SessionWelcome>>(event => JSON.parse(event.data)),
             filter(message => message.metadata.message_type == "session_welcome"),
             map(message => message.payload),
-            tap(payload => log.info(`Received welcome from twitch socket. Session ID:${green(payload.session.id)}`)),
+            tap(payload => log.info(`Received welcome from twitch socket. Session ID: ${green(payload.session.id)}`)),
             map(payload => ({
                 sessionId: payload.session.id,
                 client: client
@@ -134,25 +134,34 @@ export function twitchSocket(authTokenSource: UserAuthTokenSource, url = "wss://
         share()
     );
 
+    const eventSubs = new Map<string, Observable<any>>();
+
     function on<Payload, Condition>(type: string, condition: Condition, version = "2") {
-        return session$.pipe(
-            switchMapComplete(session => observeEventSub(authTokenSource, {
-                type,
-                version,
-                transport: {
-                    method: "websocket",
-                    session_id: session.sessionId
-                },
-                condition
-            })),
-            catchError(e => {
-                log.error(e);
-                return EMPTY;
-            }),
-            switchMapComplete(() => messages$),
-            filter(message => message.metadata.subscription_type == type),
-            map(message => message.payload as Payload)
-        )
+        const key = `${type}_${version}_${JSON.stringify(condition)}`;
+        if (eventSubs.has(key)) {
+            return eventSubs.get(key) as Observable<Payload>;
+        } else {
+            eventSubs.set(key, session$.pipe(
+                switchMapComplete(session => observeEventSub(authTokenSource, {
+                    type,
+                    version,
+                    transport: {
+                        method: "websocket",
+                        session_id: session.sessionId
+                    },
+                    condition
+                })),
+                catchError(e => {
+                    log.error(e);
+                    return EMPTY;
+                }),
+                share(),
+                switchMapComplete(() => messages$),
+                filter(message => message.metadata.subscription_type == type),
+                map(message => message.payload as Payload)
+            ));
+            return eventSubs.get(key) as Observable<Payload>;
+        }
     }
 
     return {

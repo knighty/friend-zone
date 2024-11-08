@@ -5,9 +5,9 @@ import { green } from "kolorist";
 import path from "path";
 import { logger } from "shared/logger";
 import { httpReadableStream } from "shared/network";
+import { randomString } from "shared/text-utils";
 import { Config } from "../../../config";
 import Users from "../../../data/users";
-import { randomString } from "../../../utils";
 import { ChatGPTMippyBrain } from "../../chat-gpt-brain";
 import { MippyPluginDefinition } from "../plugins";
 
@@ -31,19 +31,40 @@ async function imageToFile(buffer: Buffer) {
 
 export class ScreenshotRepository {
     screenshots = new Map<string, Buffer>();
+    urlBuilder: (path: string) => string;
+
+    constructor(urlBuilder: (path: string) => string) {
+        this.urlBuilder = urlBuilder;
+    }
 
     add(filename: string, image: Buffer) {
         this.screenshots.set(filename, image);
         setTimeout(() => {
             this.screenshots.delete(filename);
         }, 10 * 60 * 1000)
-        return `http://51.191.172.95:3000/mippy/plugins/screenshot/images/${filename}`
+        return this.urlBuilder(`/mippy/plugins/screenshot/images/${filename}`);
     }
 
     get(filename: string) {
         return this.screenshots.get(filename);
     }
+
+    async serve(fastify: FastifyInstance) {
+        fastify.register(fastifyCaching, {
+            expiresIn: 86400,
+            privacy: fastifyCaching.privacy.PUBLIC
+        })
+
+        fastify.get<{
+            Params: {
+                filename: string
+            }
+        }>("/images/:filename", async (req, res) => {
+            return this.get(req.params.filename);
+        });
+    }
 }
+
 const log = logger("screenshot-plugin");
 export function screenshotPlugin(fastify: FastifyInstance, config: Config, users: Users, screenshotRepository: ScreenshotRepository): MippyPluginDefinition {
     return {
@@ -66,23 +87,10 @@ export function screenshotPlugin(fastify: FastifyInstance, config: Config, users
                         return EMPTY;
                     })
                 ).subscribe(filename => {
-                    mippy.ask("generic", {}, { role: "user", image: [`http://51.191.172.95:3000/mippy/plugins/screenshot/images/${filename}`], store: false, source: "admin" })
+                    mippy.ask("generic", {}, { role: "user", image: [`/mippy/plugins/screenshot/images/${filename}`], store: false, source: "admin" })
                 })*/
 
-                fastify.register(async (fastify: FastifyInstance) => {
-                    fastify.register(fastifyCaching, {
-                        expiresIn: 86400,
-                        privacy: fastifyCaching.privacy.PUBLIC
-                    })
-
-                    fastify.get<{
-                        Params: {
-                            filename: string
-                        }
-                    }>("/images/:filename", async (req, res) => {
-                        return screenshotRepository.get(req.params.filename);
-                    });
-                }, { prefix: "mippy/plugins/screenshot" })
+                fastify.register(async (fastify: FastifyInstance) => screenshotRepository.serve(fastify), { prefix: "mippy/plugins/screenshot" })
 
                 return {
                     disable() {

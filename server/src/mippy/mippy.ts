@@ -1,6 +1,8 @@
-import { first, map, merge, of, Subject } from "rxjs";
+import { green } from "kolorist";
+import { BehaviorSubject, first, map, merge, of, Subject } from "rxjs";
 import { logger } from 'shared/logger';
-import { ObservableMap } from "shared/rx";
+import { ObservableArray, ObservableMap } from "shared/rx";
+import { executionTimer } from "shared/utils";
 import { MippyConfig } from "../config";
 import { MippyBrain, MippyPrompts, PartialPrompt } from "./mippy-brain";
 import { MippyPermissions, MippyPlugin, MippyPluginConfig, MippyPluginDefinition } from "./plugins/plugins";
@@ -33,6 +35,8 @@ export class Mippy {
     audioId = 0;
     permissions: MippyPermissions[];
     config: MippyConfig;
+    isLive = new BehaviorSubject(false);
+    customPrompts = new ObservableArray<string>();
 
     constructor(brain: MippyBrain, config: MippyConfig, permissions: MippyPermissions[]) {
         this.brain = brain;
@@ -99,15 +103,21 @@ export class Mippy {
                 }
             }
             if (hasPermission) {
-                log.info(`Initialising plugin: ${plugin.name}...`);
-                const config = new MippyPluginConfig(pluginId, plugin.config ?? {});
-                const p = await plugin.init(this, config);
-                this.plugins[pluginId] = {
-                    name: plugin.name,
-                    config: config
-                }
-                if (p) {
-                    this.loadedPlugins[pluginId] = p;
+                try {
+                    const timer = executionTimer();
+                    const config = new MippyPluginConfig(pluginId, plugin.config ?? {});
+                    const p = await plugin.init(this, config);
+                    log.info(`Initialised plugin ${green(plugin.name)} in ${green(timer.end())}`);
+                    this.plugins[pluginId] = {
+                        name: plugin.name,
+                        config: config
+                    }
+                    if (p) {
+                        this.loadedPlugins[pluginId] = p;
+                    }
+                } catch (e: unknown) {
+                    log.error(`Error initialising plugin ${green(plugin.name)}`);
+                    throw new Error("Error initialising plugin", { cause: e });
                 }
             }
         }
@@ -120,6 +130,15 @@ export class Mippy {
             }
         }
         throw new Error("Plugin does not exist");
+    }
+
+    addCustomPrompt(prompt: string) {
+        this.customPrompts.add(prompt);
+        return {
+            remove: () => {
+                this.customPrompts.remove(prompt);
+            }
+        }
     }
 
     /*getPlugin<T extends new (...args: any[]) => T>(t: T) {

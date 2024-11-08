@@ -53,7 +53,7 @@ export async function endPrediction(authToken: UserAuthTokenSource, broadcasterI
         broadcaster_id: broadcasterId,
         id: id,
         status: status,
-        winningOutcomeId: winningOutcomeId,
+        winning_outcome_id: winningOutcomeId,
     });
     if (response.data[0]) {
         return response.data[0];

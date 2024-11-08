@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { Subject } from "rxjs";
-import { MippyHistoryMessage } from "./message";
+import { MippyHistoryMessage, MippyHistoryMessageTool } from "./message";
 
 export class MippyHistory {
     updated$ = new Subject<MippyHistory>();
@@ -50,8 +50,20 @@ export class MippyHistory {
         throw new Error("Invalid role provided");
     }
 
-    async addMessage(message: MippyHistoryMessage, summarizer: null | ((messages: MippyHistoryMessage[]) => Promise<string>)) {
+    createToolResponse(content: string, toolCallId: string): MippyHistoryMessageTool {
+        return {
+            role: "tool",
+            tool_call_id: toolCallId,
+            content: content
+        };
+    }
+
+    async addMessage(message: MippyHistoryMessage) {
         this.messages.push(message);
+        this.updated$.next(this);
+    }
+
+    async summarize(summarizer: null | ((messages: MippyHistoryMessage[]) => Promise<string>)) {
         if (summarizer != null && this.messages.length > this.maxMessages) {
             const summaryCount = Math.floor(this.maxMessages / 2);
             const summariseMessages = this.messages.slice(0, summaryCount);
@@ -59,7 +71,6 @@ export class MippyHistory {
             this.summaries.push(summaryMessage);
             this.messages = this.messages.slice(summaryCount);
         }
-        this.updated$.next(this);
     }
 
     createHistorySummarizer(client: OpenAI) {

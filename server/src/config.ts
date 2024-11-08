@@ -27,26 +27,27 @@ export type MippyChatGPTConfig = MippyBaseConfig & {
     },
     permissions: MippyPermissions[],
     prompts: Partial<{
+        adBreak: string,
+        askMippy: string,
+        cheer: string,
         generic: string,
-        wothSetWord: string,
-        wothSetCount: string,
-        question: string,
-        setCategory: string,
+        highlightedMessage: string,
         newFollower: string,
         newSubscriber: string,
-        cheer: string,
-        resubscribe: string,
-        adBreak: string,
-        setEmojiOnly: string,
-        askMippy: string,
         pollEnd: string,
         predictionEnd: string,
-        highlightedMessage: string,
-        subtitlesAnalysis: string,
-        suggestWordOfTheHour: string,
-        scheduleAnnounce: string,
+        question: string,
+        resubscribe: string,
         sayGoodbye: string,
         sayHi: string
+        scheduleAnnounce: string,
+        setCategory: string,
+        setEmojiOnly: string,
+        setTitle: string,
+        subtitlesAnalysis: string,
+        suggestWordOfTheHour: string,
+        wothSetCount: string,
+        wothSetWord: string,
     }>
 }
 
@@ -85,6 +86,7 @@ export type MippyConfig = (MippyDisabledConfig | MippyChatGPTConfig | MippyDumbC
 
 export type Config = {
     port: number,
+    publicUrl: string,
     staticCaching: boolean,
     accessLogging: boolean,
     auth: {
@@ -146,6 +148,7 @@ Default Config
 */
 const defaultConfig: Config = {
     port: 3000,
+    publicUrl: "",
     staticCaching: true,
     accessLogging: true,
     openai: {

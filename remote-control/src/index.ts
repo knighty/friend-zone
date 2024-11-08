@@ -225,7 +225,9 @@ fastifyApp.register(async (fastify: FastifyInstance) => {
                     return w;
                 })
             )
-        }));
+        }), {
+            url: req.url
+        });
 
         const configMessage = <ConfigValue>(config: string): Observable<ConfigValue> => socket.on("config").pipe(
             filterMap(message => message.key == config, message => message.value)

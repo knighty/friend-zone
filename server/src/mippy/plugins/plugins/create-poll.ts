@@ -1,8 +1,8 @@
-import { exhaustMap, from, tap, throttleTime } from "rxjs";
+import { Observable } from "rxjs";
 import { logger } from "shared/logger";
+import { Stream } from "../../../data/stream";
 import { createPoll } from "../../../data/twitch/api";
 import { UserAuthTokenSource } from "../../../data/twitch/auth-tokens";
-import { catchAndLog } from "../../../utils";
 import { ChatGPTMippyBrain } from "../../chat-gpt-brain";
 import { MippyPluginDefinition } from "../plugins";
 
@@ -20,23 +20,51 @@ export type CreatePollPluginOptions = {
     throttle?: number
 }
 
-export function createPollPlugin(userToken: UserAuthTokenSource, broadcasterId: string, options: CreatePollPluginOptions): MippyPluginDefinition {
+export function createPollPlugin(userToken: UserAuthTokenSource, broadcasterId: string, stream: Stream, options: CreatePollPluginOptions): MippyPluginDefinition {
     return {
         name: "Create Poll",
         permissions: ["createPoll"],
         init: async mippy => {
             if (mippy.brain instanceof ChatGPTMippyBrain) {
-                const sub = mippy.brain.observeTool("createPoll").pipe(
-                    throttleTime(options.throttle ?? 60000),
-                    exhaustMap(args => {
-                        mippy.say(`I just set up a poll titled "${args.title}" for ${durationToSpeech(args.duration)}`);
+                const brain = mippy.brain;
+                const tool$ = new Observable(subscriber => {
+                    const registration = brain.tools.register<{
+                        title: string,
+                        options: string[],
+                        duration: number
+                    }>("createPoll", "Creates a poll. Call this when you think a poll would be interesting for the chat to answer.", {
+                        type: "object",
+                        additionalProperties: false,
+                        properties: {
+                            title: {
+                                description: "The title of the poll",
+                                type: "string"
+                            },
+                            options: {
+                                type: "array",
+                                description: "The list of options for the poll",
+                                items: {
+                                    type: "string"
+                                }
+                            },
+                            duration: {
+                                type: "number",
+                                description: "The duration of the poll in seconds. Default is 180 seconds",
+                            }
+                        },
+                        required: ["title", "options", "duration"]
+                    }, "", ["admin", "moderator"], async tool => {
+                        const args = tool.function.arguments;
                         log.info(`Creating a poll (${args.duration} seconds): \n${args.title} \n${args.options.map((option, i) => `${i}. ${option}`).join("\n")}`);
-                        return from(createPoll(userToken, broadcasterId, args.title, args.options, args.duration)).pipe(
-                            tap(result => log.info("Successfully set up poll")),
-                            catchAndLog()
-                        );
-                    })
-                ).subscribe();
+                        const poll = await createPoll(userToken, broadcasterId, args.title, args.options, args.duration);
+                        log.info(`Successfully set up poll`);
+                        return `A poll was setup titled "${poll.title}" for ${durationToSpeech(poll.duration)}`;
+                    });
+
+                    return () => registration.unregister();
+                })
+
+                const sub = stream.whenLive(tool$).subscribe();
 
                 return {
                     disable() {

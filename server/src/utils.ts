@@ -1,14 +1,8 @@
-import crypto from 'crypto';
 import { FastifyRequest } from 'fastify';
 import fs from "fs";
 import path from 'path';
 import { catchError, EMPTY, firstValueFrom, map, Observable, share, shareReplay, tap, timestamp } from 'rxjs';
 import { log } from 'shared/logger';
-
-export function randomString(length: number, encode: BufferEncoding = "hex") {
-    const rb = crypto.randomBytes(length);
-    return rb.toString(encode);
-}
 
 //https://stackoverflow.com/a/54957061
 export function createCachedSource<T>(

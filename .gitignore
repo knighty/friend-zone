@@ -8,3 +8,6 @@ dist
 /twitch.json
 /config
 /public/downloads
+/faster-whisper-large-v3-turbo-ct2
+/data
+/server.log

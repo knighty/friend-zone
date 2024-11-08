@@ -3,6 +3,7 @@ import { filter, merge, Observable, shareReplay, switchMap, tap } from "rxjs";
 import { logger } from "shared/logger";
 import { ObservableMap } from "shared/rx";
 import config, { isDiscordConfig } from "../config";
+import { catchAndLog } from "../utils";
 
 type DiscordUser = string;
 const log = logger("discord-voice-status");
@@ -25,7 +26,10 @@ const client$ = (new Observable<RPC.Client>(subscriber => {
         throw new Error("Invalid Discord config");
     }
     return () => client.destroy();
-})).pipe(shareReplay(1))
+})).pipe(
+    catchAndLog(),
+    shareReplay(1)
+)
 
 namespace Events {
     export type Speaking = { channel_id: string, user_id: string };

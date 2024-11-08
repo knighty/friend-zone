@@ -11,6 +11,21 @@ export type ChatSendResponse = {
     };
 };
 
+export type ChatSettingsResponse = {
+    broadcaster_id: string,
+    slow_mode: boolean,
+    slow_mode_wait_time: null,
+    follower_mode: boolean,
+    follower_mode_duration: number,
+    subscriber_mode: boolean,
+    emote_mode: boolean,
+    unique_chat_mode: boolean,
+    non_moderator_chat_delay: boolean,
+    non_moderator_chat_delay_duration: number
+}
+
+const maxLength = 500;
+
 export async function sendChatMessage(authToken: AuthTokenSource, broadcasterId: string, senderId: string, message: string): Promise<ChatSendResponse> {
     const response = await twitchRequest<JSONResponse<ChatSendResponse>>({
         method: "POST",
@@ -18,7 +33,7 @@ export async function sendChatMessage(authToken: AuthTokenSource, broadcasterId:
     }, authToken, {
         broadcaster_id: broadcasterId,
         sender_id: senderId,
-        message: message
+        message: message.substring(0, maxLength)
     });
     if (response.data[0]) {
         const data = response.data[0];
@@ -31,4 +46,19 @@ export async function sendChatMessage(authToken: AuthTokenSource, broadcasterId:
         return data;
     }
     throw new Error("Failed to send message");
+};
+
+export async function getChatSettings(authToken: AuthTokenSource, broadcasterId: string): Promise<ChatSettingsResponse> {
+    const response = await twitchRequest<JSONResponse<ChatSettingsResponse>>({
+        method: "GET",
+        path: `/helix/chat/settings`,
+        params: {
+            broadcaster_id: broadcasterId
+        }
+    }, authToken);
+    if (response.data[0]) {
+        const data = response.data[0];
+        return data;
+    }
+    throw new Error("Failed to get chat settings");
 };

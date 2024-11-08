@@ -1,16 +1,10 @@
-import { distinctUntilChanged, EMPTY, filter, from, map, Observable, switchMap } from "rxjs";
+import { distinctUntilChanged, EMPTY, filter, map, Observable, switchMap } from "rxjs";
+import { Stream } from "../../../data/stream";
 import { StreamEventWatcher } from "../../../data/stream-event-watcher";
-import { getCategoryStreamsInfo } from "../../../data/twitch/api";
 import { UserAuthTokenSource } from "../../../data/twitch/auth-tokens";
 import { MippyPluginConfig, MippyPluginConfigDefinition, MippyPluginDefinition } from "../plugins";
 
 const eventConfig = {
-    channelUpdate: {
-        name: "Channel Updates",
-        description: "Channel updates for example, eg: game changes",
-        type: "boolean",
-        default: false as boolean
-    },
     subscriptions: {
         name: "Subscriptions",
         description: "Subscribes and resubscribe messages",
@@ -20,12 +14,6 @@ const eventConfig = {
     follows: {
         name: "Follows",
         description: "When a user follows the channel",
-        type: "boolean",
-        default: false
-    },
-    chatSettings: {
-        name: "Chat Settings",
-        description: "Changes to chat settings, eg: emoji only mode",
         type: "boolean",
         default: false
     },
@@ -65,7 +53,7 @@ function append<In extends Record<string, any>, Out extends Record<string, any>,
     );
 }
 
-export function streamEventsPlugin(authToken: UserAuthTokenSource, broadcasterId: string, streamEventWatcher: StreamEventWatcher): MippyPluginDefinition {
+export function streamEventsPlugin(authToken: UserAuthTokenSource, broadcasterId: string, streamEventWatcher: StreamEventWatcher, stream: Stream): MippyPluginDefinition {
     return {
         name: "Stream Events",
         permissions: ["sendMessage"],
@@ -74,23 +62,11 @@ export function streamEventsPlugin(authToken: UserAuthTokenSource, broadcasterId
             const broadcaster = { broadcaster_user_id: broadcasterId };
 
             function event<T>(key: keyof typeof eventConfig, observable: Observable<T>) {
-                return config.observe(key).pipe(
+                return stream.whenLive(config.observe(key)).pipe(
                     distinctUntilChanged(),
                     switchMap(v => v ? observable : EMPTY)
                 )
             }
-
-            event("channelUpdate",
-                streamEventWatcher.onEvent("channel.update", broadcaster, "2").pipe(
-                    switchMap(event => from(getCategoryStreamsInfo(authToken, event.category_id)).pipe(
-                        map(data => ({ ...data, ...event }))
-                    )),
-                    //switchMap(append(event => from(getCategoryStreamsInfo(authToken, event.category_id)))),
-                    distinctUntilChanged((a, b) => a.category_id == b.category_id),
-                )
-            ).subscribe(event => {
-                mippy.ask("setCategory", { category: event.category_name, viewers: event.viewers.toString() }, { allowTools: false });
-            });
 
             event("follows", streamEventWatcher.onEvent("channel.follow", {
                 broadcaster_user_id: broadcasterId,
@@ -115,22 +91,10 @@ export function streamEventsPlugin(authToken: UserAuthTokenSource, broadcasterId
                 mippy.ask("adBreak", { duration: e.duration_seconds }, { allowTools: false });
             });
 
-            event("chatSettings", streamEventWatcher.onEvent("channel.chat_settings.update", {
-                broadcaster_user_id: broadcasterId,
-                user_id: broadcasterId
-            })).pipe(
-                map(e => e.emote_mode),
-                distinctUntilChanged(),
-            ).subscribe(emojiOnly => {
-                mippy.ask("setEmojiOnly", { emojiOnly: emojiOnly }, { allowTools: false });
-            });
-
             event("pollsAndPredictions", streamEventWatcher.onEvent("channel.poll.end", broadcaster)).pipe(
                 filter(e => e.status == "completed")
             ).subscribe(e => {
-                const won = e.choices.reduce((max, choice) => {
-                    return choice.votes > max.votes ? choice : max
-                }, e.choices[0]);
+                const won = e.choices.reduce((max, choice) => choice.votes > max.votes ? choice : max);
                 mippy.ask("pollEnd", {
                     title: e.title,
                     won: won.title,
@@ -143,21 +107,16 @@ export function streamEventsPlugin(authToken: UserAuthTokenSource, broadcasterId
                 if (winningOutcome == null)
                     return;
 
-                const losingOutcomes = e.outcomes.filter(outcome => outcome.id != winningOutcome.id);
-                const topWinner = winningOutcome.top_predictors.reduce((winner: null | { user_name: string, channel_points_won: number }, predictor) => {
-                    if (winner == null || predictor.channel_points_won > winner.channel_points_won) {
-                        return predictor;
-                    }
-                    return winner;
-                }, null);
-                const topLoser = losingOutcomes.reduce((loser: null | { user_name: string, channel_points_used: number }, outcome) => {
-                    outcome.top_predictors.forEach(predictor => {
-                        if (loser == null || predictor.channel_points_used > loser.channel_points_used) {
-                            loser = predictor;
-                        }
-                    })
-                    return loser;
-                }, null);
+                const topWinner = winningOutcome.top_predictors.length == 0 ? null : winningOutcome.top_predictors
+                    .reduce((winner, predictor) => predictor.channel_points_won > winner.channel_points_won ? predictor : winner);
+
+                const losers = e.outcomes
+                    .filter(outcome => outcome.id != winningOutcome.id)
+                    .flatMap(outcome => outcome.top_predictors);
+                const topLoser = losers.length == 0 ? null : losers.reduce(
+                    (loser, predictor) => predictor.channel_points_used > loser.channel_points_used ? predictor : loser
+                );
+
                 const pointsUsed = e.outcomes.reduce((points, outcome) => points + outcome.channel_points, 0);
                 const winnerString = topWinner != null ? `The biggest winner was ${topWinner.user_name} who won ${topWinner.channel_points_won}.` : ``;
                 const loserString = topLoser != null ? `The biggest loser was ${topLoser.user_name} who lost ${topLoser.channel_points_used}.` : ``;

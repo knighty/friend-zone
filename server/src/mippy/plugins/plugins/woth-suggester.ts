@@ -1,5 +1,5 @@
 import { green } from "kolorist";
-import { EMPTY, interval, merge, partition, switchMap, tap, withLatestFrom } from "rxjs";
+import { EMPTY, interval, switchMap, tap, withLatestFrom } from "rxjs";
 import { logger } from "shared/logger";
 import { arrayRandom } from "shared/utils";
 import { SubtitlesLog } from "../../../data/subtitles/logs";
@@ -33,23 +33,41 @@ const log = logger("woth-suggester-plugin");
 const useChatGptToPick = false;
 export function wothSuggesterPlugin(subtitlesLog: SubtitlesLog, wordOfTheHour: WordOfTheHour): MippyPluginDefinition {
     const init = async (mippy: Mippy, config: MippyPluginConfig<typeof pluginConfig>) => {
-        let canRequest = true;
         if (mippy.brain instanceof ChatGPTMippyBrain) {
-            const [word$, empty$] = partition(mippy.brain.observeTool("suggestWordOfTheHour"), args => args.word != "");
-
-            const suggest$ = merge(
-                empty$,
-                config.observe("automatedFrequency").pipe(
-                    switchMap(automatedTimer => {
-                        if (automatedTimer > 0) {
-                            log.info(`Automated word chosen ${green("enabled")} - Changing every ${green(automatedTimer)} minutes`);
-                            return interval(automatedTimer * 1000 * 60);
+            const tool$ = mippy.brain.tools.register<{
+                word: string
+            }>(
+                "suggestWordOfTheHour",
+                "Function to call to change the word of the hour. Use when you're asked to set the word of the hour",
+                {
+                    type: "object",
+                    additionalProperties: false,
+                    properties: {
+                        word: {
+                            description: "The word to use. Provide an empty string if you're not sure what to set",
+                            type: "string"
                         }
-                        log.info(`Automated word choosing ${green("disabled")}`);
-                        return EMPTY;
-                    })
-                )
-            ).pipe(
+                    },
+                    required: ["word"]
+                },
+                "",
+                ["admin", "moderator"],
+                async tool => {
+                    log.info(`Setting word of the hour to "${tool.function.arguments.word}" from Mippy`);
+                    wordOfTheHour.setWord(tool.function.arguments.word, "Mippy");
+                    return `Word of the hour has been set to ${tool.function.arguments.word}`
+                }
+            )
+
+            const suggest$ = config.observe("automatedFrequency").pipe(
+                switchMap(automatedTimer => {
+                    if (automatedTimer > 0) {
+                        log.info(`Automated word chosen ${green("enabled")} - Changing every ${green(automatedTimer)} minutes`);
+                        return interval(automatedTimer * 1000 * 60);
+                    }
+                    log.info(`Automated word choosing ${green("disabled")}`);
+                    return EMPTY;
+                }),
                 withLatestFrom(config.observe("suggestedWordCount")),
                 switchMap(([a, words]) => subtitlesLog.analyzeLogs({
                     wordCounts: words
@@ -68,20 +86,10 @@ export function wothSuggesterPlugin(subtitlesLog: SubtitlesLog, wordOfTheHour: W
                         wordOfTheHour.setWord(arrayRandom(analysis.mostSaidWords)?.word ?? null, "Mippy");
                     }
                 })
-            )
-
-            const set$ = word$.pipe(
-                tap(args => {
-                    log.info(`Setting word of the hour to "${args.word}" from Mippy`);
-                    wordOfTheHour.setWord(args.word, "Mippy");
-                })
-            );
-
-            const sub = merge(suggest$, set$).subscribe();
+            ).subscribe();
 
             return {
                 disable() {
-                    sub.unsubscribe();
                 },
             }
         }

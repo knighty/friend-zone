@@ -5,7 +5,7 @@ import { filterMap } from "../../rx";
  * An observable version of a Map with subjcts for events
  */
 export class ObservableMap<Key, Value> {
-    private data = new Map<Key, Value>();
+    public data = new Map<Key, Value>();
     private set$ = new Subject<void>();
     private deleted$ = new Subject<void>();
     private updated$ = new Subject<void>();
