@@ -1,3 +1,4 @@
+import { green } from "kolorist";
 import { from, tap } from "rxjs";
 import { observeLifecycle } from "shared/rx";
 import { awaitResult } from "shared/utils";
@@ -64,6 +65,7 @@ export async function eventSub<Condition extends EventSub<any>>(authToken: AuthT
         method: "POST",
         path: `/helix/eventsub/subscriptions`,
     }, authToken, payload);
+    twitchLog.info(`Subscribed to ${green(payload.type)}`);
     return response;
 };
 

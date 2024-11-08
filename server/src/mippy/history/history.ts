@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { Subject } from "rxjs";
-import { MippyHistoryMessage, MippyHistoryMessageTool } from "./message";
+import { MippyHistoryMessage, MippyHistoryMessageAssistant, MippyHistoryMessageTool } from "./message";
 
 export class MippyHistory {
     updated$ = new Subject<MippyHistory>();
@@ -58,7 +58,7 @@ export class MippyHistory {
         };
     }
 
-    async addMessage(message: MippyHistoryMessage) {
+    addMessage(message: MippyHistoryMessage) {
         this.messages.push(message);
         this.updated$.next(this);
     }
@@ -66,10 +66,30 @@ export class MippyHistory {
     async summarize(summarizer: null | ((messages: MippyHistoryMessage[]) => Promise<string>)) {
         if (summarizer != null && this.messages.length > this.maxMessages) {
             const summaryCount = Math.floor(this.maxMessages / 2);
-            const summariseMessages = this.messages.slice(0, summaryCount);
+
+            // Get the first summaryCount messages
+            let summariseMessages = this.messages.slice(0, summaryCount);
+
+            // Find the last assistant message that was a tool call
+            const lastToolCall = summariseMessages.findLast(message => message.role == "assistant" && message.tool_calls !== undefined);
+
+            // Find the last index of a tool response for that tool call
+            if (lastToolCall) {
+                const maxId = ((lastToolCall as MippyHistoryMessageAssistant).tool_calls?.reduce((max, call) => {
+                    const index = this.messages.findIndex(message => message.role == "tool" && message.tool_call_id == call.id);
+                    return Math.max(index, max);
+                }, 0) ?? 0) + 1;
+
+                // If the last tool usage was greater than the length of the summarise array then we need to extend it
+                if (maxId > summariseMessages.length) {
+                    summariseMessages = this.messages.slice(0, maxId);
+                }
+            }
+
+            // Summarise and trim the array
             const summaryMessage = this.create("assistant", await summarizer(summariseMessages));
             this.summaries.push(summaryMessage);
-            this.messages = this.messages.slice(summaryCount);
+            this.messages = this.messages.slice(summariseMessages.length);
         }
     }
 
@@ -78,7 +98,7 @@ export class MippyHistory {
             const params: OpenAI.Chat.ChatCompletionCreateParams = {
                 messages: [
                     ...messages,
-                    this.create("user", "Summarise a factual list of the important parts of the chat up until as succinctly as possible"),
+                    this.create("user", "Summarise a factual list of the important parts of the chat up until now as succinctly as possible"),
                 ],
                 model: "gpt-4o-mini",
             };

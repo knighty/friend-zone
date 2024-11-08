@@ -1,3 +1,4 @@
+import { green } from "kolorist";
 import { ChatCompletionTool } from "openai/resources/index.mjs";
 import { FunctionParameters } from "openai/resources/shared.mjs";
 import { Observable, map } from "rxjs";
@@ -139,7 +140,7 @@ const toolsSchema: ChatCompletionTool[] = [
 type ToolRoles = ("admin" | "chat" | "moderator")[];
 
 type ChatGPTTool<Arguments> = {
-    id: string,
+    name: string,
     tool: ChatCompletionTool,
     prompt: string,
     roles: ToolRoles,
@@ -183,34 +184,41 @@ export class ChatGPTTools {
         return Promise.resolve("");
     }
 
-    observe(obj: {
-        unregister: () => void
-    }) {
-        return new Observable<void>(subscriber => {
-            return () => obj.unregister();
+    observe<Arguments = {}>(name: string, description: string, parameters: Record<string, unknown> | undefined, prompt: string, roles: ToolRoles, callback: ToolInvokation<Arguments>) {
+        return new Observable<ToolCall<Arguments>>(subscriber => {
+            const reg = this.register(name, description, parameters, prompt, roles, async (tool: ToolCall<Arguments>) => {
+                const r = await callback(tool);
+                subscriber.next(tool);
+                return r;
+            });
+            return () => reg.unregister();
         })
     }
 
-    register<Arguments>(id: string, description: string, parameters: FunctionParameters | undefined, prompt: string, roles: ToolRoles, callback: ToolInvokation<Arguments>) {
-        this.tools.set(id, {
-            id,
-            roles,
-            prompt,
-            tool: {
-                function: {
-                    name: id,
-                    description,
-                    parameters,
-                    strict: parameters !== undefined
-                },
-                type: "function"
+    register<Arguments>(name: string, description: string, parameters: Record<string, unknown> | undefined, prompt: string, roles: ToolRoles, callback: ToolInvokation<Arguments>) {
+        if (this.tools.data.has(name)) {
+            throw new Error(`A tool has already been registered with the name ${green(name)}`)
+        }
+        const tool = {
+            function: {
+                name: name,
+                description,
+                parameters: parameters !== undefined ? {
+                    type: "object",
+                    additionalProperties: false,
+                    properties: parameters,
+                    required: Object.keys(parameters)
+                } : undefined,
+                strict: parameters !== undefined
             },
-            callback
-        })
+            type: "function" as const
+        };
+
+        this.tools.set(name, { name, roles, prompt, tool, callback })
 
         return {
             unregister: () => {
-                this.tools.delete(id);
+                this.tools.delete(name);
             }
         }
     }

@@ -37,18 +37,13 @@ export function wothSuggesterPlugin(subtitlesLog: SubtitlesLog, wordOfTheHour: W
             const tool$ = mippy.brain.tools.register<{
                 word: string
             }>(
-                "suggestWordOfTheHour",
+                "set_word_of_the_hour",
                 "Function to call to change the word of the hour. Use when you're asked to set the word of the hour",
                 {
-                    type: "object",
-                    additionalProperties: false,
-                    properties: {
-                        word: {
-                            description: "The word to use. Provide an empty string if you're not sure what to set",
-                            type: "string"
-                        }
-                    },
-                    required: ["word"]
+                    word: {
+                        description: "The word to use. Provide an empty string if you're not sure what to set",
+                        type: "string"
+                    }
                 },
                 "",
                 ["admin", "moderator"],

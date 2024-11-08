@@ -32,10 +32,10 @@ export function createPollPlugin(userToken: UserAuthTokenSource, broadcasterId: 
                         title: string,
                         options: string[],
                         duration: number
-                    }>("createPoll", "Creates a poll. Call this when you think a poll would be interesting for the chat to answer.", {
-                        type: "object",
-                        additionalProperties: false,
-                        properties: {
+                    }>(
+                        "createPoll",
+                        "Creates a poll. Call this when you think a poll would be interesting for the chat to answer.",
+                        {
                             title: {
                                 description: "The title of the poll",
                                 type: "string"
@@ -52,14 +52,20 @@ export function createPollPlugin(userToken: UserAuthTokenSource, broadcasterId: 
                                 description: "The duration of the poll in seconds. Default is 180 seconds",
                             }
                         },
-                        required: ["title", "options", "duration"]
-                    }, "", ["admin", "moderator"], async tool => {
-                        const args = tool.function.arguments;
-                        log.info(`Creating a poll (${args.duration} seconds): \n${args.title} \n${args.options.map((option, i) => `${i}. ${option}`).join("\n")}`);
-                        const poll = await createPoll(userToken, broadcasterId, args.title, args.options, args.duration);
-                        log.info(`Successfully set up poll`);
-                        return `A poll was setup titled "${poll.title}" for ${durationToSpeech(poll.duration)}`;
-                    });
+                        "",
+                        ["admin", "moderator"],
+                        async tool => {
+                            const args = tool.function.arguments;
+                            log.info(`Creating a poll (${args.duration} seconds): \n${args.title} \n${args.options.map((option, i) => `${i}. ${option}`).join("\n")}`);
+                            try {
+                                const poll = await createPoll(userToken, broadcasterId, args.title, args.options, args.duration);
+                                log.info(`Successfully set up poll`);
+                                return `A poll was setup titled "${poll.title}" for ${durationToSpeech(poll.duration)}`;
+                            } catch (e) {
+                                return `Failed to set up the poll`;
+                            }
+                        }
+                    );
 
                     return () => registration.unregister();
                 })

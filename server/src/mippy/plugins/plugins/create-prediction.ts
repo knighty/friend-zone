@@ -1,12 +1,13 @@
 import { green } from "kolorist";
-import { Observable, switchMap } from "rxjs";
+import { EMPTY, filter, merge, Observable, switchMap, take, takeUntil, withLatestFrom } from "rxjs";
 import { logger } from "shared/logger";
+import { awaitResult } from "shared/utils";
 import { Stream } from "../../../data/stream";
 import { createPrediction, endPrediction } from "../../../data/twitch/api";
 import { UserAuthTokenSource } from "../../../data/twitch/auth-tokens";
 import { TwitchMessageSender } from "../../../data/twitch/message-sender";
 import { ChatGPTMippyBrain } from "../../chat-gpt-brain";
-import { MippyPluginDefinition } from "../plugins";
+import { MippyPluginConfig, MippyPluginConfigDefinition, MippyPluginDefinition } from "../plugins";
 
 function durationToSpeech(duration: number) {
     if (duration >= 60) {
@@ -28,11 +29,21 @@ type Prediction = {
     outcomes: { title: string, id: string }[]
 }
 
+const pluginConfig = {
+    canEnd: {
+        name: "Can End Predictions",
+        description: "Whether predictions can be resolved/cancelled",
+        type: "boolean",
+        default: true as boolean,
+    }
+} satisfies MippyPluginConfigDefinition
+
 export function createPredictionPlugin(userToken: UserAuthTokenSource, broadcasterId: string, messageSender: TwitchMessageSender, stream: Stream, options: CreatePredictionPluginOptions): MippyPluginDefinition {
     return {
         name: "Create Prediction",
         permissions: ["createPrediction"],
-        init: async mippy => {
+        config: pluginConfig,
+        init: async (mippy, config: MippyPluginConfig<typeof pluginConfig>) => {
             if (mippy.brain instanceof ChatGPTMippyBrain) {
                 const brain = mippy.brain;
 
@@ -41,10 +52,9 @@ export function createPredictionPlugin(userToken: UserAuthTokenSource, broadcast
                         title: string,
                         options: string[],
                         duration: number
-                    }>("createPrediction", "Creates a prediction. Call this when the user asks you to create a prediction", {
-                        type: "object",
-                        additionalProperties: false,
-                        properties: {
+                    }>("create_prediction",
+                        "Creates a prediction. Call this when the user asks you to create a prediction",
+                        {
                             title: {
                                 description: "The title of the prediction",
                                 type: "string"
@@ -61,23 +71,17 @@ export function createPredictionPlugin(userToken: UserAuthTokenSource, broadcast
                                 description: "The duration of the prediction in seconds. Default is 180 seconds",
                             }
                         },
-                        required: ["title", "options", "duration"]
-                    }, "", ["admin", "moderator"], async (tool) => {
-                        const args = tool.function.arguments;
-                        const message = `${args.title}\n${args.options.map((option, i) => `${i + 1}. ${option}`).join("\n")}`;
-                        log.info(message);
-                        //await messageSender(message);
-                        subscriber.next({
-                            id: "test",
-                            title: args.title,
-                            outcomes: args.options.map(outcome => ({
-                                id: "bleh",
-                                title: outcome
-                            }))
-                        });
-                        return "Prediction was set up";
-                        try {
-                            const prediction = await createPrediction(userToken, broadcasterId, args.title, args.options, args.duration)
+                        "",
+                        ["admin", "moderator"],
+                        async (tool) => {
+                            const args = tool.function.arguments;
+                            const message = `${args.title}\n${args.options.map((option, i) => `${i + 1}. ${option}`).join("\n")}`;
+                            log.info(message);
+                            const [error, prediction] = await awaitResult(createPrediction(userToken, broadcasterId, args.title, args.options, args.duration));
+                            if (error) {
+                                log.error(error);
+                                return `Failed to set up the prediction`;
+                            }
                             subscriber.next({
                                 id: prediction.id,
                                 title: prediction.title,
@@ -87,66 +91,65 @@ export function createPredictionPlugin(userToken: UserAuthTokenSource, broadcast
                                 }))
                             });
                             return "Prediction was set up";
-                        } catch (e) {
-                            return "Unable to set up prediction";
                         }
-                    });
+                    );
                 }).pipe(
-                    switchMap(prediction => {
-                        return new Observable(subscriber => {
+                    withLatestFrom(config.observe("canEnd")),
+                    switchMap(([prediction, canEnd]) => {
+                        if (!canEnd) {
+                            return EMPTY;
+                        }
+                        return merge(
                             // End tool
-                            const endTool = brain.tools.register<{
+                            brain.tools.observe<{
                                 option: string
                             }>(
-                                "endPrediction",
+                                "end_prediction",
                                 "Ends a prediction. Call this when the user asks you to end a prediction with a winning option. If you're at all unsure about which option won, you can ask for clarification",
                                 {
-                                    type: "object",
-                                    additionalProperties: false,
-                                    properties: {
-                                        option: {
-                                            description: "Which option won the prediction",
-                                            type: "string",
-                                            enum: prediction.outcomes.map(outcome => outcome.title)
-                                        }
-                                    },
-                                    required: ["option"]
+                                    option: {
+                                        description: "Which option won the prediction",
+                                        type: "string",
+                                        enum: prediction.outcomes.map(outcome => outcome.title)
+                                    }
                                 },
                                 "",
                                 ["admin", "moderator"],
                                 async tool => {
                                     const outcome = prediction.outcomes.find(outcome => outcome.title == tool.function.arguments.option);
-                                    subscriber.complete();
-                                    if (outcome) {
-                                        log.info(`Resolved the prediction with ${green(outcome.title)} as the winner`)
-                                        await endPrediction(userToken, broadcasterId, prediction.id, "RESOLVED", outcome.id);
-                                        return "Prediction ended";
+                                    if (!outcome) {
+                                        return `None of the outcomes match ${tool.function.arguments.option}`;
                                     }
-                                    return "Failed to end the prediction";
+                                    log.info(`Resolved the prediction with ${green(outcome.title)} as the winner`)
+                                    const [error] = await awaitResult(endPrediction(userToken, broadcasterId, prediction.id, "RESOLVED", outcome.id));
+                                    if (error) {
+                                        log.error(error);
+                                        return "Couldn't end the prediction for some reason";
+                                    }
+                                    return "Prediction ended";
                                 }
-                            )
+                            ),
 
                             // Cancel tool
-                            const cancelTool = brain.tools.register<{
-                                option: string
-                            }>(
-                                "cancelPrediction",
+                            brain.tools.observe(
+                                "cancel_prediction",
                                 "Cancels a prediction. Call this when the user asks you to cancel a prediction",
                                 undefined,
                                 "",
                                 ["admin", "moderator"],
                                 async tool => {
-                                    await endPrediction(userToken, broadcasterId, prediction.id, "CANCELED");
-                                    subscriber.complete();
+                                    const [error] = await awaitResult(endPrediction(userToken, broadcasterId, prediction.id, "CANCELED"));
+                                    if (error) {
+                                        log.error(error);
+                                        return "Couldn't cancel the prediction for some reason";
+                                    }
                                     return "Cancelled prediction";
                                 }
-                            );
-
-                            return () => {
-                                endTool.unregister();
-                                cancelTool.unregister();
-                            }
-                        })
+                            )
+                        ).pipe(
+                            take(1),
+                            takeUntil(config.observe("canEnd").pipe(filter(canEnd => canEnd == false)))
+                        )
                     })
                 ).subscribe();
 

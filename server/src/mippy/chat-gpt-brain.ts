@@ -4,7 +4,7 @@ import { ChatCompletionMessageToolCall, CompletionUsage } from 'openai/resources
 import { catchError, concat, concatMap, debounceTime, EMPTY, exhaustMap, filter, first, from, map, mergeMap, Observable, of, share, startWith, Subject, switchMap, takeWhile, throttleTime, timer, withLatestFrom } from "rxjs";
 import { logger } from "shared/logger";
 import { truncateString } from 'shared/text-utils';
-import { executionTimer, objectRandom } from 'shared/utils';
+import { awaitResult, executionTimer, objectRandom } from 'shared/utils';
 import { isMippyChatGPT, MippyChatGPTConfig } from "../config";
 import Users from '../data/users';
 import { getSystem$, getSystemPrompt$ } from './chatgpt/system-prompt';
@@ -194,11 +194,12 @@ export class ChatGPTMippyBrain implements MippyBrain {
                 // Prompt ChatGPT and get a response stream
                 let safety = 0;
                 while (true) {
+                    const toolsSchema = tools.map(tool => tool.tool);
                     const stream = await client.chat.completions.create({
                         messages,
                         model: "gpt-4o-mini",
-                        tool_choice: "auto",
-                        tools: tools.map(tool => tool.tool),
+                        tool_choice: toolsSchema.length > 0 ? "auto" : undefined,
+                        tools: toolsSchema.length == 0 ? undefined : toolsSchema,
                         stream: true,
                         stream_options: {
                             include_usage: true
@@ -225,7 +226,7 @@ export class ChatGPTMippyBrain implements MippyBrain {
 
                     // Store response
                     if (store) {
-                        await history.addMessage(promptMessage);
+                        history.addMessage(promptMessage);
                         messages.push(promptMessage);
                     }
 
@@ -254,12 +255,13 @@ export class ChatGPTMippyBrain implements MippyBrain {
 
                         // Go through each tool and get a response
                         for (let toolCall of tools) {
-                            try {
-                                const toolResponse = await this.tools.handle(toolCall);
-                                toolMessages.push(history.createToolResponse(toolResponse ?? "", toolCall.id));
-                            } catch (e) {
-                                log.error(e);
+                            const [error, toolResponse] = await awaitResult(this.tools.handle(toolCall));
+                            if (error) {
+                                log.error(error);
+                                continue;
                             }
+                            log.info(`Tool response: ${green(toolResponse ?? "")}`)
+                            toolMessages.push(history.createToolResponse(toolResponse ?? "", toolCall.id));
                         }
                     }
 
@@ -272,16 +274,16 @@ export class ChatGPTMippyBrain implements MippyBrain {
                     }
 
                     // Add the assistant message and any tool messages
-                    await history.addMessage(assistantMessage);
+                    history.addMessage(assistantMessage);
                     messages.push(assistantMessage);
                     for (let message of toolMessages) {
-                        await history.addMessage(message);
+                        history.addMessage(message);
                         messages.push(message);
                     }
 
                     // If any of those tool messages have content then we should respond to them
                     const hasToolResponses = toolMessages.some(message => message.content != "");
-                    if (hasToolResponses || safety++ > 10) {
+                    if (!hasToolResponses || safety++ > 10) {
                         break;
                     }
                 }

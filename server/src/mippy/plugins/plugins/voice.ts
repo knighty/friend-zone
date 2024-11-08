@@ -1,5 +1,5 @@
 import { FastifyInstance } from "fastify";
-import { BehaviorSubject, EMPTY, Observable, Subject, concatMap, ignoreElements, map, merge, of, reduce, share, switchMap, tap, timeout, timer, withLatestFrom } from "rxjs";
+import { BehaviorSubject, EMPTY, Observable, Subject, ignoreElements, map, merge, of, reduce, share, switchMap, tap, timeout, timer, withLatestFrom } from "rxjs";
 import { logger } from "shared/logger";
 import { concatMapPriority, tapFirst } from "shared/rx";
 import { StreamSynthesisResult, streamSynthesizeVoice } from "../../../data/tts/synthesize-stream";
@@ -113,7 +113,7 @@ export function mippyVoicePlugin(fastify: FastifyInstance, socketHost: string, o
 
             const message$ = merge(mippy.brain.receivePartials(), manualMessage$);
 
-            const relayMessage$ = new Subject<{ duration: number, text: string }>();
+            const relayMessage$ = new Subject<string>();
 
             const streamEvent$ = message$.pipe(
                 withLatestFrom(selectedVoice$),
@@ -143,7 +143,7 @@ export function mippyVoicePlugin(fastify: FastifyInstance, socketHost: string, o
                                         switchMap(() => {
                                             // Send the message to the relay (to post on twitch) then wait a few more seconds
                                             // for some breathing room
-                                            relayMessage$.next(m);
+                                            relayMessage$.next(m.text);
                                             return timer(3 * 1000);
                                         }),
                                         ignoreElements(),
@@ -180,11 +180,7 @@ export function mippyVoicePlugin(fastify: FastifyInstance, socketHost: string, o
             }, { prefix: "/mippy/plugins/voice" })
 
             return {
-                relayMessage$: relayMessage$.pipe(
-                    concatMap(m => timer(m.duration * 1000).pipe(
-                        map(() => m.text)
-                    ))
-                ),
+                relayMessage$: relayMessage$,
                 setVoice(voice) {
 
                 },

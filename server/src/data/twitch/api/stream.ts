@@ -82,8 +82,5 @@ export async function setChannelInformation(authToken: AuthTokenSource, broadcas
         }
     }, authToken, info);
 
-    return response.data.reduce((state, stream) => {
-        state.viewers += stream.viewer_count;
-        return state;
-    }, { viewers: 0 });
+    return true;
 }

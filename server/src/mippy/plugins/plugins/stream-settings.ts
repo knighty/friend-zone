@@ -1,6 +1,7 @@
 import { green } from "kolorist";
 import { EMPTY, merge, switchMap } from "rxjs";
 import { logger } from "shared/logger";
+import { awaitResult } from "shared/utils";
 import { searchCategories, setChannelInformation } from "../../../data/twitch/api/stream";
 import { AuthTokenSource } from "../../../data/twitch/auth-tokens";
 import { ChatGPTMippyBrain } from "../../chat-gpt-brain";
@@ -39,51 +40,44 @@ export function streamSettingsPlugin(authToken: AuthTokenSource, broadcasterId: 
                 const sub =
                     merge(
                         config.observe("setTitle").pipe(
-                            switchMap(enabled => enabled ? brain.tools.observe(brain.tools.register<{
+                            switchMap(enabled => enabled ? brain.tools.observe<{
                                 title: string
                             }>(
-                                "setTitle",
-                                "Set the title of the stream. Use when you're asked to set the title of the stream or when you think it'd be funny to change it. When you use this function tell the chat what you did.",
+                                "set_title",
+                                "Set the title of the stream. Use when you're asked to set the title of the stream or when you think it'd be funny to change it.",
                                 {
-                                    type: "object",
-                                    additionalProperties: false,
-                                    properties: {
-                                        title: {
-                                            description: "String to set the stream title to",
-                                            type: "string"
-                                        }
-                                    },
-                                    required: ["title"]
+                                    title: {
+                                        description: "String to set the stream title to",
+                                        type: "string"
+                                    }
                                 },
                                 "",
                                 ["admin", "moderator"],
                                 async tool => {
                                     const title = `Friend Zone: ${tool.function.arguments.title}`;
                                     log.info(`Set the title to ${green(title)}`);
-                                    return `Successfully changed title to ${title}`;
-                                    await setChannelInformation(authToken, broadcasterId, {
+                                    const [error] = await awaitResult(setChannelInformation(authToken, broadcasterId, {
                                         title: title
-                                    })
+                                    }));
+                                    if (error) {
+                                        log.error(error);
+                                        return `Error setting title ${error.message ?? ""}`
+                                    }
+                                    return `Successfully changed title to ${title}`;
                                 }
-                            )
                             ) : EMPTY)),
 
                         config.observe("setCategory").pipe(
-                            switchMap(enabled => enabled ? brain.tools.observe(brain.tools.register<{
+                            switchMap(enabled => enabled ? brain.tools.observe<{
                                 category: string
                             }>(
-                                "setCategory",
+                                "set_category",
                                 "Set the category of the stream. Use when you're specifically asked to set the category of the stream",
                                 {
-                                    type: "object",
-                                    additionalProperties: false,
-                                    properties: {
-                                        category: {
-                                            description: "Category to set the stream to",
-                                            type: "string"
-                                        }
-                                    },
-                                    required: ["category"]
+                                    category: {
+                                        description: "Category to set the stream to",
+                                        type: "string"
+                                    }
                                 },
                                 "",
                                 ["admin", "moderator"],
@@ -91,15 +85,19 @@ export function streamSettingsPlugin(authToken: AuthTokenSource, broadcasterId: 
                                     const categories = await searchCategories(authToken, tool.function.arguments.category);
                                     if (categories.length > 0) {
                                         log.info(`Set the category to ${green(categories[0].name)}`)
-                                        return `Successfully changed category to ${categories[0].name}`;
-                                        await setChannelInformation(authToken, broadcasterId, {
+                                        const [error] = await awaitResult(setChannelInformation(authToken, broadcasterId, {
                                             game_id: categories[0].id
-                                        })
+                                        }))
+                                        if (error) {
+                                            log.error(error);
+                                            return `Failed to set category: ${error.message ?? ""}`;
+                                        }
+                                        return `Successfully changed category to ${categories[0].name}`;
                                     } else {
-                                        mippy.ask("generic", { text: "No categories were found with that name. Ask for clarification" }, { store: false })
+                                        return "No categories were found with that name. Ask for clarification";
                                     }
                                 }
-                            )) : EMPTY),
+                            ) : EMPTY),
                         )
                     ).subscribe()
 
