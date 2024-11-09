@@ -1,4 +1,4 @@
-import { EMPTY, of, shareReplay } from "rxjs";
+import { debounceTime, EMPTY, of, shareReplay } from "rxjs";
 import { switchMapComplete } from "shared/rx";
 import { connectBrowserSocket } from "shared/websocket/browser";
 import { ObservableEventProvider } from "shared/websocket/event-provider";
@@ -63,6 +63,10 @@ export const socketData = {
     user$: socket.on("users").pipe(shareReplay(1)),
     voice$: socket.on("voice").pipe(shareReplay(1)),
     woth$: socket.on("woth").pipe(shareReplay(1)),
+    feed$: socket.on("feed").pipe(
+        debounceTime(100),
+        shareReplay(1),
+    )
 }
 
 export function getUser(id: string) {

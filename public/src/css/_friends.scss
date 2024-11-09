@@ -32,6 +32,10 @@ x-friend {
     --light-border: #45f1f0;
     --stroke-width: 1;
 
+    &:not(.visible) {
+        display: none;
+    }
+
     &.speaking {
         --background-fill: #009688;
         --dark-border: #001a18;

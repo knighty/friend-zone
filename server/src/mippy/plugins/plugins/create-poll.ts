@@ -62,6 +62,7 @@ export function createPollPlugin(userToken: UserAuthTokenSource, broadcasterId: 
                                 log.info(`Successfully set up poll`);
                                 return `A poll was setup titled "${poll.title}" for ${durationToSpeech(poll.duration)}`;
                             } catch (e) {
+                                log.error(e);
                                 return `Failed to set up the poll`;
                             }
                         }

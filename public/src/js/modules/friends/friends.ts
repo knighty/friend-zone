@@ -1,10 +1,11 @@
-import { distinctUntilChanged, filter, map, of, scan, share } from "rxjs";
+import { combineLatestWith, distinctUntilChanged, map, of, scan, share, tap } from "rxjs";
 import { socket, socketData } from "../../socket";
 import { FriendElement } from "./friend";
 
 export default class FriendsModule extends HTMLElement {
     connectedCallback() {
         const subtitles$ = socket.on("subtitles").pipe(share());
+        const feeds$ = socketData.feed$;
 
         const friendList = document.querySelector(".friend-list");
 
@@ -23,10 +24,10 @@ export default class FriendsModule extends HTMLElement {
                             map(woth => (woth.counts[userId] ?? 0).toString()),
                             distinctUntilChanged()
                         ));
-                        element.bindData("subtitles", subtitles$.pipe(
+                        /*element.bindData("subtitles", subtitles$.pipe(
                             filter(subtitle => subtitle.userId == userId),
                             map(subtitle => ({ id: subtitle.subtitleId, text: subtitle.text }))
-                        ));
+                        ));*/
                         element.bindData("voice", socketData.voice$.pipe(
                             map(users => !!users[user.discordId]),
                             distinctUntilChanged(),
@@ -47,7 +48,13 @@ export default class FriendsModule extends HTMLElement {
                     .sort((a, b) => a.sort - b.sort)
                     .forEach(e => friendList.appendChild(e.element));
                 return newElements;
-            }, [] as HTMLElement[])
+            }, [] as HTMLElement[]),
+            combineLatestWith(feeds$),
+            tap(([elements, feeds]) => {
+                for (let element of elements) {
+                    element.classList.toggle("visible", feeds.find(feed => feed.user == element.dataset.person) === undefined);
+                }
+            })
         ).subscribe();
     }
 }
