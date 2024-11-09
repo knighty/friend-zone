@@ -39,6 +39,7 @@ export class FriendElement extends CustomElement<{
     setup() {
         this.innerHTML = template;
         this.element("subtitles").bindData("subtitles", this.registerHandler("subtitles"));
+        this.classList.add("visible");
     }
 
     connect() {
