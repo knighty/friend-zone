@@ -34,7 +34,7 @@ export function createPollPlugin(userToken: UserAuthTokenSource, broadcasterId: 
                         duration: number
                     }>(
                         "createPoll",
-                        "Creates a poll. Call this when you think a poll would be interesting for the chat to answer.",
+                        "Creates a poll. Call this when you're asked to make a poll or when you have a question you want the chat to answer.",
                         {
                             title: {
                                 description: "The title of the poll",
@@ -49,7 +49,7 @@ export function createPollPlugin(userToken: UserAuthTokenSource, broadcasterId: 
                             },
                             duration: {
                                 type: "number",
-                                description: "The duration of the poll in seconds. Default is 180 seconds",
+                                description: "The duration of the poll in seconds. Default is 30 seconds",
                             }
                         },
                         "",

@@ -225,9 +225,8 @@ export class ChatGPTMippyBrain implements MippyBrain {
                     log.info(`Response (${green(response.finishedReason ?? "")}) (${green(timeTaken)} - ${green(tokens)} tokens)${toolsUsedLog}: ${green(text)}`);
 
                     // Store response
-                    if (store) {
+                    if (store && safety == 0) {
                         history.addMessage(promptMessage);
-                        messages.push(promptMessage);
                     }
 
                     // Tools

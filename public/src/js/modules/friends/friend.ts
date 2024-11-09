@@ -10,8 +10,8 @@ const template = `<div class="user">
 	<use xlink:href="#path2" fill="none" stroke="#8333da" style="stroke-width: var(--stroke-width); transition: stroke-width: 0.2s;" stroke-linejoin="round" stroke-linecap="round"></use>
 	<use xlink:href="#path" style="fill: var(--background-fill); transition: fill 0.2s;"></use>
 	<use xlink:href="#path" fill="none" style="stroke:var(--dark-border); transition: stroke 0.2s;" stroke-width="0.6" stroke-linejoin="round" stroke-linecap="round"></use>
-	<use xlink:href="#path" fill="none" style="stroke:var(--light-border); transition: stroke 0.2s;" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="82">
-		<animate attributeName="stroke-dashoffset" values="0;164" dur="8s" repeatCount="indefinite" />
+	<use xlink:href="#path" fill="none" style="stroke:var(--light-border); transition: stroke 0.2s; stroke-dashoffset: -72%;" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="82">
+		<!--<animate attributeName="stroke-dashoffset" values="0;164" dur="8s" repeatCount="indefinite" />-->
 	</use>
 </svg>
     <span class="name" data-element="name"></span>
