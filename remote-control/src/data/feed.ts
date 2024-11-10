@@ -8,7 +8,7 @@ type Feed = {
 
 export class FeedSettings {
     feed$ = new BehaviorSubject<Feed | null>(null);
-    active$ = new BehaviorSubject(false);
+    active$ = new BehaviorSubject(true);
 
     constructor() {
 

@@ -1,4 +1,4 @@
-import { concatMap, distinctUntilChanged, EMPTY, filter, fromEvent, ignoreElements, interval, map, merge, scan, share, startWith, switchMap, takeUntil, tap } from 'rxjs';
+import { concatMap, connectable, distinctUntilChanged, EMPTY, filter, fromEvent, ignoreElements, interval, map, merge, scan, share, startWith, switchMap, takeUntil, tap } from 'rxjs';
 import { dom } from 'shared/dom';
 import { CustomElement } from "shared/html/custom-element";
 import { debounceState, drain, mapTruncateString, renderLoop$, sampleEvery, tapFirst, toggleClass } from 'shared/rx';
@@ -123,22 +123,13 @@ export class MippyModule extends CustomElement<{
             subtitleElement.scrollTo(0, subtitleElement.scrollHeight);
         }
 
-        /*
-        (audioOnly ? speechEvent$.pipe(
-            groupBy(frame => frame.id, {
-                duration: group => group.pipe(filter(frame => isSpeechEndFrame(frame))),
-            }),
-            concatMap(frames => frames.pipe(
-                filter(frame => isSpeechDataFrame(frame)),
-                first(),
-                switchMap(speech => playAudio(speech.id, speech.message.text.length / 15)),
-            )),
-            share()
-        ) : */
+        const skip$ = connectable(socket.on("mippySpeechSkip"));
+        skip$.connect();
 
         const playing$ = speechEvent$.pipe(
             drain(frame => frame.id, frame => isSpeechEndFrame(frame)),
             concatMap(frames$ => {
+                let id = "";
                 const play$ = fromEvent(audio, "canplay").pipe(
                     tap(() => audio.play()),
                     ignoreElements()
@@ -146,7 +137,10 @@ export class MippyModule extends CustomElement<{
 
                 const text$ = frames$.pipe(
                     filter(frame => isSpeechDataFrame(frame)),
-                    tapFirst(frame => audio.src = `/mippy/plugins/voice/audio/${frame.id}`),
+                    tapFirst(frame => {
+                        id = frame.id;
+                        audio.src = `/mippy/plugins/voice/audio/${frame.id}`;
+                    }),
                     scan((a, c) => ({ text: a.text + c.message.text, duration: c.audio.duration }), { text: "", duration: 0 }),
                     sampleEvery(interval(100)),
                     mapTruncateString(
@@ -158,6 +152,9 @@ export class MippyModule extends CustomElement<{
                 return merge(text$, play$).pipe(
                     takeUntil(fromEvent(audio, "ended").pipe(
                         filter(() => audio.duration != Infinity && !Number.isNaN(audio.duration) && audio.currentTime >= audio.duration - 0.1),
+                    )),
+                    takeUntil(skip$.pipe(
+                        filter(skip => skip.id == id)
                     )),
                     tap(updateSubtitles),
                 );

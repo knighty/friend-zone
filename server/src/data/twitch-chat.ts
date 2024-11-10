@@ -21,12 +21,14 @@ type Command = {
     arguments: any[]
 }
 
+const filteredUsers = ["mippybot", "nightbot"];
+
 export class TwitchChatLog {
     messages$: Observable<string[]>;
 
     constructor(twitchChat: TwitchChat) {
         this.messages$ = twitchChat.observeMessages().pipe(
-            filter(message => message.user.toLowerCase() != "mippybot"),
+            filter(message => !filteredUsers.includes(message.user.toLowerCase())),
             scan((state, message) => {
                 state.push(`${message.user}: ${message.text}`);
                 return state;

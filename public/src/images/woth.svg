@@ -8,7 +8,7 @@
 		<animate attributeName="stroke-dashoffset" values="0;240" dur="10s" repeatCount="indefinite" />
 	</use>
 	<use xlink:href="#path" fill="none" stroke="#32a8a8" stroke-width="0.6" stroke-linejoin="round" stroke-linecap="round"></use>
-	<use xlink:href="#path" fill="none" stroke="#45f1f0" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="120" stroke-dashoffset="240">
-		<animate attributeName="stroke-dashoffset" values="0;240" dur="10s" repeatCount="indefinite" />
+	<use xlink:href="#path" fill="none" stroke="#45f1f0" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="120" stroke-dashoffset="160%">
+		<!--<animate attributeName="stroke-dashoffset" values="0;240" dur="10s" repeatCount="indefinite" />-->
 	</use>
 </svg>

@@ -106,7 +106,7 @@ const mippySay$ = new Subject<string>();
 const focus$ = focusFeed(config);
 const feedSettings = new FeedSettings();
 const subtitlesEnabled$ = new BehaviorSubject(config.subtitlesEnabled);
-const sendAsksEnabled$ = new BehaviorSubject(false);
+const sendAsksEnabled$ = new BehaviorSubject(true);
 const sendScreenEnabled$ = new BehaviorSubject(false);
 
 const ask$ = askMippy$.pipe(

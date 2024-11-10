@@ -83,10 +83,10 @@ export default class WordOfTheHour {
         );
     }
 
-    setWord(word: string | null, user?: string) {
+    setWord(word: string | null, user?: string, announce = true) {
         this.word$.next(word);
         log.info(`Set to "${word}"`);
-        if (word != null)
+        if (word != null && announce)
             this.mippy.ask("wothSetWord", { user: user ?? "chat", word }, { allowTools: false });
     }
 

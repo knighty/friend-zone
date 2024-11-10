@@ -48,7 +48,7 @@ export async function httpsRequest<T>(options: Options, body?: any): Promise<Res
     const encoding: BufferEncoding = "utf8";
     const headers = (body !== undefined ? {
         'Content-Type': json ? 'application/json' : 'application/octet-stream',
-        'Content-Length': Buffer.byteLength(body)
+        'Content-Length': Buffer.byteLength(body, encoding)
     } : {})
 
     for (let param in params) {

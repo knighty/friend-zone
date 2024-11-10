@@ -1,6 +1,6 @@
 import { distinct, EMPTY, filter, map, switchMap, withLatestFrom } from "rxjs";
 import { log } from "shared/logger";
-import { awaitResult } from "shared/utils";
+import { awaitResult, shuffle } from "shared/utils";
 import { Stream } from "../../../data/stream";
 import TwitchChat from "../../../data/twitch-chat";
 import { getChatMembers } from "../../../data/twitch/api/chat";
@@ -41,7 +41,7 @@ export function chatPlugin(twitchChat: TwitchChat, stream: Stream, authToken: Au
 
             if (mippy.brain instanceof ChatGPTMippyBrain) {
                 mippy.brain.tools.register(
-                    "get_chat_users",
+                    "get_users_in_chat",
                     "Gets a list of the users in the stream chat",
                     undefined,
                     "",
@@ -52,7 +52,8 @@ export function chatPlugin(twitchChat: TwitchChat, stream: Stream, authToken: Au
                             log.error(error);
                             return "There was an error geting the list of chatters";
                         }
-                        return `# Chat Members:\n${users.map(user => user.user_name).join("\n")}`;
+                        shuffle(users);
+                        return `# Chat Members:\n${users.slice(0, 10).map(user => user.user_name).join("\n")}`;
                     }
                 )
             }

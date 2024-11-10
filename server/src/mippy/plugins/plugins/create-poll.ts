@@ -1,5 +1,6 @@
 import { Observable } from "rxjs";
 import { logger } from "shared/logger";
+import { awaitResult } from "shared/utils";
 import { Stream } from "../../../data/stream";
 import { createPoll } from "../../../data/twitch/api";
 import { UserAuthTokenSource } from "../../../data/twitch/auth-tokens";
@@ -33,7 +34,7 @@ export function createPollPlugin(userToken: UserAuthTokenSource, broadcasterId: 
                         options: string[],
                         duration: number
                     }>(
-                        "createPoll",
+                        "create_poll",
                         "Creates a poll. Call this when you're asked to make a poll or when you have a question you want the chat to answer.",
                         {
                             title: {
@@ -56,15 +57,14 @@ export function createPollPlugin(userToken: UserAuthTokenSource, broadcasterId: 
                         ["admin", "moderator"],
                         async tool => {
                             const args = tool.function.arguments;
-                            log.info(`Creating a poll (${args.duration} seconds): \n${args.title} \n${args.options.map((option, i) => `${i}. ${option}`).join("\n")}`);
-                            try {
-                                const poll = await createPoll(userToken, broadcasterId, args.title, args.options, args.duration);
-                                log.info(`Successfully set up poll`);
-                                return `A poll was setup titled "${poll.title}" for ${durationToSpeech(poll.duration)}`;
-                            } catch (e) {
-                                log.error(e);
+                            log.info(`Creating a poll (${args.duration} seconds): \n${args.title} \n${args.options.map((option, i) => `${i + 1}. ${option}`).join("\n")}`);
+                            const [error, poll] = await awaitResult(createPoll(userToken, broadcasterId, args.title, args.options, args.duration));
+                            if (error) {
+                                log.error(error);
                                 return `Failed to set up the poll`;
                             }
+                            log.info(`Successfully set up poll`);
+                            return `A poll was setup titled "${poll.title}" for ${durationToSpeech(poll.duration)}`;
                         }
                     );
 

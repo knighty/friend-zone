@@ -4,8 +4,9 @@ import ExternalFeeds from "./external-feeds";
 import { sentences } from "./sentences";
 import Subtitles from "./subtitles";
 import Users, { User } from "./users";
+import WordOfTheHour from "./word-of-the-hour";
 
-export default function mockUsers(mockUsers: (User & { feed: string | null })[], users: Users, feeds: ExternalFeeds, discordVoiceState: DiscordVoiceState, subtitles: Subtitles) {
+export default function mockUsers(mockUsers: (User & { feed: string | null })[], users: Users, feeds: ExternalFeeds, discordVoiceState: DiscordVoiceState, subtitles: Subtitles, wordOfTheHour: WordOfTheHour) {
     const subscriptions = new Subscriptions();
     for (let user of mockUsers) {
         const id = user.name.toLowerCase();
@@ -38,6 +39,7 @@ export default function mockUsers(mockUsers: (User & { feed: string | null })[],
             }
         }));
         subscriptions.add(randomInterval(2000, 7000).subscribe(i => subtitles.handle(name.toLowerCase(), i, "final", sentences[Math.floor(sentences.length * Math.random())])))
+        subscriptions.add(randomInterval(2000, 7000).subscribe(i => wordOfTheHour.incrementUserCount(id)));
     }
 
     return {

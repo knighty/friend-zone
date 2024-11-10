@@ -22,9 +22,9 @@ export function concatMapPriority<T, R>(
     function getNext() {
         queue.sort((a, b) => {
             if (a.priority == b.priority) {
-                return a.id - b.id;
+                return b.id - a.id;
             }
-            return a.priority - b.priority;
+            return b.priority - a.priority;
         });
         const last = queue.pop();
         if (last == undefined)

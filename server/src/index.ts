@@ -168,7 +168,7 @@ const stream = new Stream();
 
 // Mocks
 if (config.mockUsers) {
-    const mocks = mockUsers(config.mockUsers, users, feeds, discordVoiceState, subtitles);
+    const mocks = mockUsers(config.mockUsers, users, feeds, discordVoiceState, subtitles, wordOfTheHour);
 }
 
 // Discord

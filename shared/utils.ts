@@ -55,6 +55,7 @@ export function createElement<T extends HTMLElement>(type: string, params?: Part
 }
 
 // Maths
+export { clamp } from "./maths";
 export { curves } from "./utils/curves";
 
 // Types
@@ -79,4 +80,5 @@ export { findPrevious } from "./utils/find-previous";
 export { groupArray } from "./utils/group-array";
 export { groupByKey } from "./utils/group-by-key";
 export { orderedGroupArray } from "./utils/ordered-group-array";
+export { shuffle } from "./utils/shuffle";
 

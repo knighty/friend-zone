@@ -41,16 +41,34 @@ export function wothSuggesterPlugin(subtitlesLog: SubtitlesLog, wordOfTheHour: W
                 "Function to call to change the word of the hour. Use when you're asked to set the word of the hour",
                 {
                     word: {
-                        description: "The word to use. Provide an empty string if you're not sure what to set",
+                        description: "The word to use. Provide an empty string if you're asked to disable word of the hour",
                         type: "string"
                     }
                 },
                 "",
                 ["admin", "moderator"],
                 async tool => {
-                    log.info(`Setting word of the hour to "${tool.function.arguments.word}" from Mippy`);
-                    wordOfTheHour.setWord(tool.function.arguments.word, "Mippy");
-                    return `Word of the hour has been set to ${tool.function.arguments.word}`
+                    const word = tool.function.arguments.word;
+                    log.info(`Setting word of the hour to "${word}" from Mippy`);
+                    wordOfTheHour.setWord(word, "Mippy", false);
+                    if (word != "") {
+                        return `Word of the hour has been set to ${word}`
+                    } else {
+                        return "Word of the hour has been disabled";
+                    }
+                }
+            )
+
+            const wothTool$ = mippy.brain.tools.register<{
+                word: string
+            }>(
+                "get_word_of_the_hour_counts",
+                "Gets a list of how many times the word of the hour has been said",
+                undefined,
+                "",
+                ["admin", "moderator"],
+                async tool => {
+                    return Array.from(wordOfTheHour.counts.data.entries()).map(([user, count]) => `${user}: ${count}`).join("\n");
                 }
             )
 

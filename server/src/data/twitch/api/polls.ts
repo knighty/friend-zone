@@ -1,3 +1,4 @@
+import { clamp } from "shared/utils";
 import { twitchRequest } from "../api";
 import { AuthTokenSource } from "../auth-tokens";
 import { JSONResponse } from "./request";
@@ -25,7 +26,6 @@ export type PollResponse = {
 };
 
 export async function createPoll(authToken: AuthTokenSource, broadcasterId: string, title: string, choices: string[], duration = 60): Promise<PollResponse> {
-    duration = Math.max(Math.min(600, duration), 60);
     const response = await twitchRequest<JSONResponse<PollResponse>>({
         method: "POST",
         path: `/helix/polls`,
@@ -33,7 +33,7 @@ export async function createPoll(authToken: AuthTokenSource, broadcasterId: stri
         broadcaster_id: broadcasterId,
         title,
         choices: choices.map(choice => ({ title: choice })),
-        duration,
+        duration: clamp(duration, 30, 600),
     });
     if (response.data[0]) {
         return response.data[0];

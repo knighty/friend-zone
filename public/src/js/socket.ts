@@ -44,6 +44,9 @@ export type SocketEvents = {
         id: string,
         finished: true
     },
+    mippySpeechSkip: {
+        id: string
+    },
     mippyHistory: [
         string,
         {
