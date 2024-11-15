@@ -3,13 +3,7 @@ import { sortChildren } from "shared/dom/sort-children";
 import { toggleClass } from "shared/rx";
 import { connectBrowserSocket } from "shared/websocket/browser";
 
-const socket = connectBrowserSocket<{
-    Events: {
-        connectionStatus: boolean
-        config: { key: string, value: any }
-        windows: Record<string, string>
-    }
-}>(`${document.location.protocol == "https:" ? "wss:" : "ws:"}//${document.location.host}/websocket`);
+const socket = connectBrowserSocket(`${document.location.protocol == "https:" ? "wss:" : "ws:"}//${document.location.host}/websocket`);
 socket.isConnected$.subscribe(isConnected => document.body.classList.toggle("connected", isConnected));
 
 observeScopedEvent<HTMLInputElement, "input">(document, "input", "input[data-config]").subscribe(([event, element]) => {
@@ -53,7 +47,7 @@ fromDomEvent(dom.id("mippySayButton"), "click").subscribe(e => {
 })
 
 const windowsElement = document.querySelector<HTMLSelectElement>("#windows");
-socket.on("windows").subscribe(windows => {
+socket.on<Record<string, string>>("windows").subscribe(windows => {
     populateChildren<string, HTMLOptionElement>(
         windowsElement,
         Object.keys(windows).sort((a, b) => a.localeCompare(b)),
@@ -68,9 +62,9 @@ fromElementEvent(dom.id("windows", HTMLSelectElement), "input").subscribe(select
     socket.send("mippy/window", select.value);
 })
 
-socket.on("connectionStatus").subscribe(toggleClass(dom.query(".server-connection-status"), "connected"));
+socket.on<boolean>("connectionStatus").subscribe(toggleClass(dom.query(".server-connection-status"), "connected"));
 
-socket.on("config").subscribe(data => {
+socket.on<{ key: string, value: any }>("config").subscribe(data => {
     switch (data.key) {
         case "feed": {
             dom.id("feedUrl", HTMLInputElement).value = data.value?.url ?? "";

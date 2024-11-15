@@ -1,6 +1,6 @@
 import { debounceTime, scan, shareReplay, switchMap, tap } from "rxjs";
 import { CustomElement } from "shared/html/custom-element";
-import { socket, socketData } from "../../socket";
+import { socket, SocketData, socketData } from "../../socket";
 import FeedContainer from "./container";
 
 const audioEnabled = false;
@@ -32,10 +32,10 @@ export default class FeedsModule extends CustomElement<{
     Elements: {}
 }> {
     setup() {
-        this.bindData("position", socket.on("feedPosition"));
-        this.bindData("size", socket.on("feedSize"));
-        this.bindData("layout", socket.on("feedLayout"));
-        this.bindData("count", socket.on("feedCount"));
+        this.bindData("position", socket.on<SocketData.FeedPosition>("feedPosition"));
+        this.bindData("size", socket.on<SocketData.FeedSize>("feedSize"));
+        this.bindData("layout", socket.on<SocketData.FeedLayout>("feedLayout"));
+        this.bindData("count", socket.on<SocketData.FeedCount>("feedCount"));
         this.bindData("feeds", socketData.feed$);
     }
 

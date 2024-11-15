@@ -126,7 +126,7 @@ export function createPredictionPlugin(userToken: UserAuthTokenSource, broadcast
                                         log.error(error);
                                         return "Couldn't end the prediction for some reason";
                                     }
-                                    return "Prediction ended";
+                                    return;
                                 }
                             ),
 

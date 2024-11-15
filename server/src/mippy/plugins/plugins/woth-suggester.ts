@@ -50,7 +50,7 @@ export function wothSuggesterPlugin(subtitlesLog: SubtitlesLog, wordOfTheHour: W
                 async tool => {
                     const word = tool.function.arguments.word;
                     log.info(`Setting word of the hour to "${word}" from Mippy`);
-                    wordOfTheHour.setWord(word, "Mippy", false);
+                    wordOfTheHour.setWord(word == "" ? null : word, "Mippy", false);
                     if (word != "") {
                         return `Word of the hour has been set to ${word}`
                     } else {

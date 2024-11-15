@@ -1,61 +1,39 @@
 import OpenAI from "openai";
 import { Subject } from "rxjs";
-import { MippyHistoryMessage, MippyHistoryMessageAssistant, MippyHistoryMessageTool } from "./message";
+import { log } from "shared/logger";
+import { awaitResult } from "shared/utils";
+import { createAssistantMessage, MippyHistoryMessage, MippyHistoryMessageAssistant } from "./message";
+
+export function createHistorySummarizer(client: OpenAI) {
+    return async (messages: MippyHistoryMessage[]) => {
+        const params: OpenAI.Chat.ChatCompletionCreateParams = {
+            messages: [
+                ...messages,
+                {
+                    role: "user",
+                    content: "Summarise a factual list of the important parts of the chat up until now as succinctly as possible"
+                }
+            ],
+            model: "gpt-4o-mini",
+        };
+        const [error, m] = await awaitResult(client.chat.completions.create(params));
+        if (error) {
+            log.error(error);
+            throw new Error("Error summarising messages", { cause: error });
+        } else {
+            return m.choices[0].message.content ?? "";
+        }
+    };
+}
 
 export class MippyHistory {
     updated$ = new Subject<MippyHistory>();
-    maxMessages = 100;
+    maxMessages: number;
     summaries: MippyHistoryMessage[] = [];
     messages: MippyHistoryMessage[] = [];
 
-    create<Role extends "user" | "assistant" | "system">(role: Role, content: string, name?: string, images?: string[]): MippyHistoryMessage {
-        switch (role) {
-            case "user": {
-                return {
-                    role: "user",
-                    name: name,
-                    content: images ? [
-                        {
-                            type: "text",
-                            text: content
-                        },
-                        ...images.map(image => ({
-                            image_url: {
-                                url: image,
-                                detail: "low"
-                            },
-                            type: 'image_url'
-                        } as const))
-                    ] : content
-                };
-            }
-
-            case "system": {
-                return {
-                    role: "system",
-                    name: name,
-                    content: content
-                };
-            }
-
-            case "assistant": {
-                return {
-                    role: "assistant",
-                    name: name,
-                    content: content
-                };
-            }
-        }
-
-        throw new Error("Invalid role provided");
-    }
-
-    createToolResponse(content: string, toolCallId: string): MippyHistoryMessageTool {
-        return {
-            role: "tool",
-            tool_call_id: toolCallId,
-            content: content
-        };
+    constructor(maxMessages: number = 100) {
+        this.maxMessages = maxMessages;
     }
 
     addMessage(message: MippyHistoryMessage) {
@@ -63,8 +41,8 @@ export class MippyHistory {
         this.updated$.next(this);
     }
 
-    async summarize(summarizer: null | ((messages: MippyHistoryMessage[]) => Promise<string>)) {
-        if (summarizer != null && this.messages.length > this.maxMessages) {
+    async summarize(summarizer: ((messages: MippyHistoryMessage[]) => Promise<string>)) {
+        if (this.messages.length > this.maxMessages) {
             const summaryCount = Math.floor(this.maxMessages / 2);
 
             // Get the first summaryCount messages
@@ -87,23 +65,12 @@ export class MippyHistory {
             }
 
             // Summarise and trim the array
-            const summaryMessage = this.create("assistant", await summarizer(summariseMessages));
-            this.summaries.push(summaryMessage);
-            this.messages = this.messages.slice(summariseMessages.length);
+            const [error, summary] = await awaitResult(summarizer(summariseMessages));
+            if (!error) {
+                const summaryMessage = createAssistantMessage(summary);
+                this.summaries.push(summaryMessage);
+                this.messages = this.messages.slice(summariseMessages.length);
+            }
         }
-    }
-
-    createHistorySummarizer(client: OpenAI) {
-        return async (messages: MippyHistoryMessage[]) => {
-            const params: OpenAI.Chat.ChatCompletionCreateParams = {
-                messages: [
-                    ...messages,
-                    this.create("user", "Summarise a factual list of the important parts of the chat up until now as succinctly as possible"),
-                ],
-                model: "gpt-4o-mini",
-            };
-            const m = await client.chat.completions.create(params);
-            return m.choices[0].message.content ?? "";
-        };
     }
 }

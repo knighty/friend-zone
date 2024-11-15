@@ -39,7 +39,7 @@ export default function mockUsers(mockUsers: (User & { feed: string | null })[],
             }
         }));
         subscriptions.add(randomInterval(2000, 7000).subscribe(i => subtitles.handle(name.toLowerCase(), i, "final", sentences[Math.floor(sentences.length * Math.random())])))
-        subscriptions.add(randomInterval(2000, 7000).subscribe(i => wordOfTheHour.incrementUserCount(id)));
+        //subscriptions.add(randomInterval(2000, 7000).subscribe(i => wordOfTheHour.incrementUserCount(id)));
     }
 
     return {

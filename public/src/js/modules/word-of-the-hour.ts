@@ -1,6 +1,6 @@
 import { map } from "rxjs";
 import { CustomElement } from "shared/html/custom-element";
-import { socket } from "../socket";
+import { socket, SocketData } from "../socket";
 
 namespace Message {
     export type Woth = {
@@ -18,7 +18,7 @@ export default class WordOfTheHourModule extends CustomElement<{
     }
 }> {
     setup() {
-        this.bindData("woth", socket.on("woth").pipe(
+        this.bindData("woth", socket.on<SocketData.Woth>("woth").pipe(
             map(woth => woth.word),
         ));
     }

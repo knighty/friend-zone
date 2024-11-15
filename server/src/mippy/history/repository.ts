@@ -14,13 +14,15 @@ type HistorySchema = {
 
 export class MippyHistoryRepository {
     filePath: string;
+    factory: () => MippyHistory;
 
-    constructor(filePath: string) {
+    constructor(filePath: string, factory: () => MippyHistory) {
         this.filePath = filePath;
+        this.factory = factory;
     }
 
     async getHistory(): Promise<MippyHistory> {
-        const history = new MippyHistory();
+        const history = this.factory();
         try {
             const loadTimer = executionTimer();
             await fs.access(this.filePath);

@@ -12,6 +12,7 @@ export type Config = {
         enabled: boolean,
         focus: string[],
         active: string[],
+        mippySkip: string[],
     },
     user: string,
     userName: string,

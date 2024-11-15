@@ -2,7 +2,7 @@ import { green } from "kolorist";
 import { BehaviorSubject, endWith, ignoreElements, Observable, shareReplay, Subject, takeUntil } from "rxjs";
 import { WebSocket } from "ws";
 import { logger } from "../logger";
-import { GenericSocket, Socket, socket } from "./socket";
+import { GenericSocket, socket } from "./socket";
 
 type Options = {
     pingFrequency?: number
@@ -36,7 +36,7 @@ export class ObservableEventProvider implements EventProvider {
 
 const log = logger("web-socket-server");
 
-export function serverSocket<T extends Socket>(ws: WebSocket, eventProvider: EventProvider, opts?: Options) {
+export function serverSocket(ws: WebSocket, eventProvider: EventProvider, opts?: Options) {
     const options: Options = {
         ...defaultOptions,
         ...opts
@@ -71,7 +71,7 @@ export function serverSocket<T extends Socket>(ws: WebSocket, eventProvider: Eve
     const isConnected$ = new BehaviorSubject(false);
     const client$ = clientConnection$;
 
-    const s = socket<T>(client$, eventProvider);
+    const s = socket(client$, eventProvider);
 
     return {
         ...s,

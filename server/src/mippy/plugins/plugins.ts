@@ -135,7 +135,7 @@ export class MippyPluginConfig<Definition extends MippyPluginConfigDefinition> {
         return this.update$.pipe(
             filter(updatedKey => key == updatedKey),
             startWith(key),
-            map(key => this.values[key] as Definition[Key]["default"])
+            map(this.get.bind(this))
         );
     }
 }

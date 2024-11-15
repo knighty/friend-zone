@@ -2,7 +2,7 @@ import { BehaviorSubject, catchError, EMPTY, Observable, shareReplay, Subject, t
 import { logger } from "../logger";
 import { retryWithBackoff } from "../rx/operators/retry-with-backoff";
 import { EventProvider } from "./event-provider";
-import { GenericSocket, Socket, socket } from "./socket";
+import { GenericSocket, socket } from "./socket";
 
 type Options = {
     retry?: boolean,
@@ -11,7 +11,7 @@ type Options = {
 }
 
 export function connectGenericClient(socketFactory: (url: string) => GenericSocket) {
-    return function <T extends Socket>(url: string, eventProvider?: EventProvider, opts?: Options) {
+    return function (url: string, eventProvider?: EventProvider, opts?: Options) {
         const options: Required<Options> = {
             retry: true,
             retryBase: 1.5,
@@ -67,7 +67,7 @@ export function connectGenericClient(socketFactory: (url: string) => GenericSock
             shareReplay(1),
         )
 
-        const s = socket<T>(client$, eventProvider);
+        const s = socket(client$, eventProvider);
 
         function disconnect() {
             disconnect$.next();

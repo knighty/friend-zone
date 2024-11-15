@@ -12,7 +12,6 @@ type SocketMessage<D> = {
 }
 
 export type Socket = {
-    Events: Record<string, any>;
 }
 
 export type GenericSocket = {
@@ -23,8 +22,7 @@ export type GenericSocket = {
 }
 
 const log = logger("web-socket-server");
-export function socket<T extends Socket>(client$: Observable<GenericSocket>, eventProvider?: EventProvider) {
-    type Messages = T["Events"];
+export function socket(client$: Observable<GenericSocket>, eventProvider?: EventProvider) {
     type AddCallback<T> = readonly [T, (data: any) => void];
 
     const sendMessages$ = new Subject<SocketMessage<any>>();
@@ -36,7 +34,7 @@ export function socket<T extends Socket>(client$: Observable<GenericSocket>, eve
     const subscriptions = subscriptionHandler();
     let messageId = 1;
 
-    function on<Key extends keyof Messages, Callback extends boolean = false>(type: Key, callback?: Callback) {
+    function on<Message, Callback extends boolean = false>(type: string, callback?: Callback) {
         const cb = (id: number, data: any) => {
             sendMessages$.next({ data, id });
         };
@@ -52,7 +50,7 @@ export function socket<T extends Socket>(client$: Observable<GenericSocket>, eve
                 ),
                 finalize(() => socketSubscription.unsubscribe()),
             ).subscribe(m => subscriber.next(m))
-        }) as Callback extends true ? Observable<AddCallback<Messages[Key]>> : Observable<Messages[Key]>
+        }) as Callback extends true ? Observable<AddCallback<Message>> : Observable<Message>
     }
 
     function send(type: string, data: any): void;
@@ -108,7 +106,7 @@ export function socket<T extends Socket>(client$: Observable<GenericSocket>, eve
             const messages$ = sendMessages$.pipe(
                 tap(message => client.send(JSON.stringify(message)))
             )
-            const events$ = on("subscribe").pipe(
+            const events$ = on<string[]>("subscribe").pipe(
                 eventSubs(eventProvider)
             );
             const subscriptions$ = subscriptions.subscriptions$.pipe(

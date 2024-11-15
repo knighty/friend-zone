@@ -3,24 +3,28 @@ import { switchMapComplete } from "shared/rx";
 import { connectBrowserSocket } from "shared/websocket/browser";
 import { ObservableEventProvider } from "shared/websocket/event-provider";
 
-export type SocketEvents = {
-    woth: {
+export namespace SocketData {
+    export type Woth = {
         counts: Record<string, number>,
         word: string
     }
-    voice: Record<string, boolean>
-    subtitles: {
+
+    export type Voice = Record<string, boolean>
+
+    export type Subtitles = {
         subtitleId: number,
         text: string,
         userId: string
     }
-    users: Record<string, {
+
+    export type Users = Record<string, {
         id: string,
         name: string,
         discordId: string,
         sortKey: number
     }>
-    feed: {
+
+    export type Feed = {
         user: string,
         focused: string,
         active: boolean,
@@ -28,11 +32,16 @@ export type SocketEvents = {
         aspectRatio: string,
         sourceAspectRatio: string,
     }[]
-    feedPosition: [number, number]
-    feedSize: number
-    feedCount: number
-    feedLayout: "row" | "column",
-    mippySpeech: {
+
+    export type FeedPosition = [number, number]
+
+    export type FeedSize = number
+
+    export type FeedCount = number
+
+    export type FeedLayout = "row" | "column"
+
+    export type MippySpeech = {
         id: string,
         audio: {
             duration: number,
@@ -43,30 +52,31 @@ export type SocketEvents = {
     } | {
         id: string,
         finished: true
-    },
-    mippySpeechSkip: {
+    }
+
+    export type MippySpeechSkip = {
         id: string
-    },
-    mippyHistory: [
+    }
+
+    export type MippyHistory = [
         string,
         {
             text: string,
             id: string,
             duration: number
         }
-    ],
-    ticker: string
+    ]
+
+    export type Ticker = string
 };
 
-export const socket = connectBrowserSocket<{
-    Events: SocketEvents
-}>(document.body.dataset.socketUrl, new ObservableEventProvider({}));
+export const socket = connectBrowserSocket(document.body.dataset.socketUrl, new ObservableEventProvider({}));
 
 export const socketData = {
-    user$: socket.on("users").pipe(shareReplay(1)),
-    voice$: socket.on("voice").pipe(shareReplay(1)),
-    woth$: socket.on("woth").pipe(shareReplay(1)),
-    feed$: socket.on("feed").pipe(
+    user$: socket.on<SocketData.Users>("users").pipe(shareReplay(1)),
+    voice$: socket.on<SocketData.Voice>("voice").pipe(shareReplay(1)),
+    woth$: socket.on<SocketData.Woth>("woth").pipe(shareReplay(1)),
+    feed$: socket.on<SocketData.Feed>("feed").pipe(
         debounceTime(100),
         shareReplay(1),
     )

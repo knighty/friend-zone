@@ -1,3 +1,4 @@
+import { clamp } from "shared/maths";
 import { twitchRequest } from "../api";
 import { UserAuthTokenSource } from "../auth-tokens";
 import { JSONResponse } from "./request";
@@ -27,7 +28,7 @@ export type PredictionResponse = {
 };
 
 export async function createPrediction(authToken: UserAuthTokenSource, broadcasterId: string, title: string, outcomes: string[], duration = 60): Promise<PredictionResponse> {
-    duration = Math.max(Math.min(600, duration), 60);
+    duration = clamp(duration, 60, 600);
     const response = await twitchRequest<JSONResponse<PredictionResponse>>({
         method: "POST",
         path: `/helix/predictions`,

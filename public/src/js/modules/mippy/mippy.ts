@@ -1,9 +1,10 @@
-import { concatMap, connectable, distinctUntilChanged, EMPTY, filter, fromEvent, ignoreElements, interval, map, merge, scan, share, startWith, switchMap, takeUntil, tap } from 'rxjs';
+import { concatMap, distinctUntilChanged, EMPTY, filter, fromEvent, ignoreElements, interval, map, merge, scan, share, startWith, switchMap, takeUntil, tap } from 'rxjs';
 import { dom } from 'shared/dom';
 import { CustomElement } from "shared/html/custom-element";
-import { debounceState, drain, mapTruncateString, renderLoop$, sampleEvery, tapFirst, toggleClass } from 'shared/rx';
+import { log } from 'shared/logger';
+import { connectableSource, debounceState, drain, mapTruncateString, renderLoop$, sampleEvery, tapFirst, toggleClass } from 'shared/rx';
 import { truncateString } from "shared/text-utils";
-import { socket } from '../../socket';
+import { socket, SocketData } from '../../socket';
 import { AudioNodeCollection, LowPassNode, ReverbEffectNode } from './audio-effects';
 import { FrequencyGraph } from './frequency-graph';
 
@@ -59,7 +60,7 @@ export class MippyModule extends CustomElement<{
     setup() {
         this.innerHTML = template;
 
-        this.bindData("speech", socket.on("mippySpeech").pipe(
+        this.bindData("speech", socket.on<SocketData.MippySpeech>("mippySpeech").pipe(
             distinctUntilChanged()
         ));
     }
@@ -123,8 +124,7 @@ export class MippyModule extends CustomElement<{
             subtitleElement.scrollTo(0, subtitleElement.scrollHeight);
         }
 
-        const skip$ = connectable(socket.on("mippySpeechSkip"));
-        skip$.connect();
+        const [skip$] = connectableSource(socket.on<SocketData.MippySpeechSkip>("mippySpeechSkip"));
 
         const playing$ = speechEvent$.pipe(
             drain(frame => frame.id, frame => isSpeechEndFrame(frame)),
@@ -154,7 +154,9 @@ export class MippyModule extends CustomElement<{
                         filter(() => audio.duration != Infinity && !Number.isNaN(audio.duration) && audio.currentTime >= audio.duration - 0.1),
                     )),
                     takeUntil(skip$.pipe(
-                        filter(skip => skip.id == id)
+                        filter(skip => skip.id == id),
+                        tap(() => log.info("Skipped")),
+                        tap(() => audio.pause())
                     )),
                     tap(updateSubtitles),
                 );

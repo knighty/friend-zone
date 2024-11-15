@@ -29,16 +29,7 @@ export function configSocket(events: WebsocketEvent[], feeds: ExternalFeeds, say
 
     return async (fastify: FastifyInstance, options: {}) => {
         fastify.get('/websocket', { websocket: true }, (ws, req) => {
-            let socket = serverSocket<{
-                Events: E & {
-                    sayGoodbye: null,
-                    "mippy/plugin/config": {
-                        plugin: string,
-                        item: string,
-                        value: any
-                    }
-                }
-            }>(ws, new ObservableEventProvider(
+            let socket = serverSocket(ws, new ObservableEventProvider(
                 events.reduce((a, stream) => {
                     a[stream.type] = stream.data
                     return a;
@@ -51,18 +42,22 @@ export function configSocket(events: WebsocketEvent[], feeds: ExternalFeeds, say
                 // This is some really bad abuse of lack of type inference
                 // Not sure how to improve this
                 const receiver = receivers[key] as (data: E[Key]) => void;
-                socket.on(key).subscribe(receiver);
+                socket.on<E[Key]>(key).subscribe(receiver);
             }
             for (let key in receivers) {
                 const k = key as keyof Receivers;
                 hook(k);
             }
 
-            socket.on("sayGoodbye").subscribe(() => {
+            socket.on<void>("sayGoodbye").subscribe(() => {
                 sayGoodbye.next();
             })
 
-            socket.on("mippy/plugin/config").subscribe(data => {
+            socket.on<{
+                plugin: string,
+                item: string,
+                value: any
+            }>("mippy/plugin/config").subscribe(data => {
                 const plugin = mippy.plugins[data.plugin];
                 if (!plugin) {
                     log.error(`Tried to set value of plugin ${data.plugin} but it doesn't exist. Possibly not loaded`);

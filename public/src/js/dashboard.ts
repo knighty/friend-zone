@@ -6,16 +6,9 @@ import { refreshable } from "shared/rx";
 import { createElement } from "shared/utils";
 import { connectBrowserSocket } from "shared/websocket/browser";
 import { ObservableEventProvider } from "shared/websocket/event-provider";
+import { SocketData } from "./socket";
 
-const socket = connectBrowserSocket<{
-    Events: {
-        feedCount: number,
-        feedSize: number,
-        slideshowFrequency: number,
-        feedLayout: string,
-        isLive: boolean,
-    }
-}>(document.body.dataset.socketUrl, new ObservableEventProvider({}));
+const socket = connectBrowserSocket(document.body.dataset.socketUrl, new ObservableEventProvider({}));
 socket.isConnected$.subscribe(isConnected => document.body.classList.toggle("connected", isConnected));
 
 type MippyPluginConfigItemBase<T, Type extends string> = {
@@ -118,11 +111,11 @@ class Dashboard extends HTMLElement {
             socket.send("config/isLive", element.checked);
         });
 
-        socket.on("feedCount").subscribe(count => elements.get("feedCount").value = count.toString());
-        socket.on("feedSize").subscribe(count => elements.get("feedSize").value = count.toString());
-        socket.on("slideshowFrequency").subscribe(count => elements.get("slideshowFrequency").value = count.toString());
-        socket.on("feedLayout").subscribe(layout => elements.get("feedLayout").value = layout);
-        socket.on("isLive").subscribe(live => elements.get("isLive").checked = live);
+        socket.on<SocketData.FeedCount>("feedCount").subscribe(count => elements.get("feedCount").value = count.toString());
+        socket.on<SocketData.FeedSize>("feedSize").subscribe(count => elements.get("feedSize").value = count.toString());
+        socket.on<number>("slideshowFrequency").subscribe(count => elements.get("slideshowFrequency").value = count.toString());
+        socket.on<SocketData.FeedLayout>("feedLayout").subscribe(layout => elements.get("feedLayout").value = layout);
+        socket.on<boolean>("isLive").subscribe(live => elements.get("isLive").checked = live);
 
         const mippyElement = elements.get("mippy");
         const configElement = dom.query(".plugin-config", HTMLElement, this);

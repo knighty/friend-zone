@@ -1,7 +1,7 @@
 import { concat, defer, merge, switchMap, tap } from "rxjs";
 import { CustomElement } from "shared/html/custom-element";
 import { animation, curves } from "shared/utils";
-import { socket } from "../socket";
+import { socket, SocketData } from "../socket";
 
 export class TickerModule extends CustomElement<{
     Data: {
@@ -13,7 +13,7 @@ export class TickerModule extends CustomElement<{
 }> {
     setup(): void {
         this.innerHTML = `<div class="container"><span data-element="text" class="text"></span></div>`
-        this.bindData("ticker", socket.on("ticker"));
+        this.bindData("ticker", socket.on<SocketData.Ticker>("ticker"));
     }
 
     connect(): void {

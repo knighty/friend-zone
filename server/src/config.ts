@@ -14,7 +14,8 @@ export type MippyChatGPTConfig = MippyBaseConfig & {
     enabled: true,
     brain: "chatgpt",
     history: {
-        file: string
+        file: string,
+        maxMessages: number
     },
     systemPrompt: {
         prompt: string,
@@ -128,7 +129,7 @@ export function isMippyChatGPT(config: MippyConfig): config is MippyChatGPTConfi
         && config.brain == "chatgpt"
         && checkProps(config, ["permissions", "prompts", "systemPrompt", "filter", "history"])
         && checkProps(config.systemPrompt, ["personality", "prompt"])
-        && checkProps(config.history, ["file"]);
+        && checkProps(config.history, ["file", "maxMessages"]);
 }
 
 export function isMippyDumb(config: MippyConfig): config is MippyDumbConfig {

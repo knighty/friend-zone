@@ -40,6 +40,11 @@ namespace Messages {
     export type Screen = {
         data: string;
     }
+
+    export type AskMippy = {
+        text: string,
+        image?: string
+    }
 }
 
 const downloadDir = path.join(__dirname, `../../../public/downloads/images/`);
@@ -51,51 +56,57 @@ async function imageToFile(buffer: Buffer) {
     return filename;
 }
 
+type RemoteControlPlugin = {
+    onRegisterUser?: (socket: ReturnType<typeof serverSocket>, userId: string, userName: string) => void
+};
+
+const o: RemoteControlPlugin = {
+    onRegisterUser(socket) {
+        socket.on("user")
+    },
+}
+
+const plugins: RemoteControlPlugin[] = [];
+
+export function addRemoteControlPlugin(plugin: RemoteControlPlugin) {
+    plugins.push(plugin);
+}
+
 export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds, users: Users, mippy: Mippy, screenshotRepository: ScreenshotRepository, stream: Stream) => async (fastify: FastifyInstance, options: {}) => {
     fastify.get('/remote-control/websocket', { websocket: true }, (ws, req) => {
-        let socket = serverSocket<{
-            Events: {
-                "user": Messages.User,
-                "subtitles": Messages.Subtitles,
-                "feed/focus": void,
-                "feed/unfocus": void,
-                "feed/register": Messages.RegisterFeed,
-                "mippy/ask": {
-                    text: string,
-                    image?: string
-                },
-                "mippy/say": string,
-                "screen": Messages.Screen
-            }
-        }>(ws, new ObservableEventProvider({
+        let socket = serverSocket(ws, new ObservableEventProvider({
             subtitles: of({ enabled: true })
         }), {
             url: req.url
         });
 
-        socket.on("user", true).pipe(
+        socket.on<Messages.User, true>("user", true).pipe(
             take(1),
             switchMap(([user, callback]) => {
                 return new Observable(subscriber => {
                     const userId = user.id;
                     const userName = user.name;
-                    const feed$ = socket.on("feed/register").pipe(shareReplay(1));
+                    const feed$ = socket.on<Messages.RegisterFeed>("feed/register").pipe(shareReplay(1));
                     const feedFocused$ = merge(
-                        socket.on("feed/focus").pipe(map(() => true)),
-                        socket.on("feed/unfocus").pipe(map(() => false)),
+                        socket.on<void>("feed/focus").pipe(map(() => true)),
+                        socket.on<void>("feed/unfocus").pipe(map(() => false)),
                     ).pipe(shareReplay(1));
 
                     log.info(`${green(user.name)} registered`);
                     const userRegistration = users.register(userId, user);
                     callback({ message: `You were successfully registered with id ${userId}` })
 
-                    socket.on("subtitles").pipe(
+                    for (let plugin of plugins) {
+                        plugin.onRegisterUser?.(socket, userId, userName);
+                    }
+
+                    socket.on<Messages.Subtitles>("subtitles").pipe(
                         stream.doWhenLive()
                     ).subscribe(data => {
                         subtitles.handle(userId, data.id, data.type, data.text);
                     });
 
-                    socket.on("mippy/ask").pipe(
+                    socket.on<Messages.AskMippy>("mippy/ask").pipe(
                         stream.doWhenLive(),
                         concatMap(async question => {
                             if (question.image) {
@@ -123,7 +134,7 @@ export const remoteControlSocket = (subtitles: Subtitles, feeds: ExternalFeeds, 
                         });
                     })
 
-                    socket.on("mippy/say").subscribe(message => mippy.say(message))
+                    socket.on<string>("mippy/say").subscribe(message => mippy.say(message))
 
                     let i = 0;
                     const screenGrabsSubscription = users.requestScreenGrab$.pipe(

@@ -14,19 +14,21 @@ import { Config } from "./config";
 import { FeedSettings } from './data/feed';
 import { focusFeed } from './data/focus';
 import { observeSubtitles } from './data/subtitles';
+import { hotkey } from './hotkeys';
 import { getManifestPath } from './manifest';
 import { initSocket } from "./socket";
 
 /*
 Config
 */
-const config: Config = {
+const defaultConfig = {
     userSortKey: 0,
     userPrompt: "",
     hotkeys: {
         enabled: true,
         focus: ["Left Control", "Left Alt", "F"],
         active: ["Left Control", "Left Alt", "D"],
+        mippySkip: ["Left Control", "Left Alt", "S"],
     },
     socket: "ws://127.0.0.1:3000/remote-control/websocket",
     whisper: {
@@ -38,6 +40,9 @@ const config: Config = {
     },
     subtitlesEnabled: true,
     subtitles: "off",
+}
+const config: Config = {
+    ...defaultConfig,
     ...require(path.join(__dirname, "../../remote-control-config.js"))
 };
 
@@ -87,11 +92,6 @@ const selectedWindow$ = combineLatest(windows$, selectedWindowId$).pipe(
     })
 );
 
-type AskMippy = {
-    text: string,
-    image?: string
-}
-
 const user = {
     id: config.user,
     name: config.userName,
@@ -102,38 +102,48 @@ const user = {
 const subtitles$ = new Subject<{ id: number, text: string }>();
 const finalSubtitles$ = new Subject<{ id: number, text: string }>();
 const askMippy$ = new Subject<string>();
+const askMippyToSkip$ = new Subject<void>();
+const skip$ = merge(
+    askMippyToSkip$,
+    config.hotkeys.enabled ? hotkey(config.hotkeys.mippySkip) : EMPTY
+);
 const mippySay$ = new Subject<string>();
 const focus$ = focusFeed(config);
 const feedSettings = new FeedSettings();
 const subtitlesEnabled$ = new BehaviorSubject(config.subtitlesEnabled);
 const sendAsksEnabled$ = new BehaviorSubject(true);
 const sendScreenEnabled$ = new BehaviorSubject(false);
+const screenCapture$ = sendScreenEnabled$.pipe(switchMap(enabled => enabled ? selectedWindow$ : of(null)));
 
 const ask$ = askMippy$.pipe(
-    withLatestFrom(sendScreenEnabled$.pipe(switchMap(enabled => enabled ? selectedWindow$ : of(null)))),
+    withLatestFrom(screenCapture$),
     concatMap(async ([text, source]) => {
         if (source == null) {
             return { text }
         }
-        console.log("sending screen");
-        let image = await source.captureImage();
-        const img = sharp(image.toPngSync());
-        let data = await img.resize(1024, 1024, { fit: 'inside' }).jpeg().toBuffer()
-
-        return {
-            text: text,
-            image: data.toString("binary")
+        try {
+            const capture = await source.captureImage();
+            const png = sharp(await capture.toPng());
+            const data = await png.resize(1024, 1024, { fit: 'inside' }).jpeg().toBuffer()
+            return {
+                text: text,
+                image: data.toString("binary")
+            }
+        } catch (e) {
+            log.error(e);
+            return { text }
         }
     })
 )
 const remoteControl = initSocket(config.socket, {
-    user: of(user),
-    subtitles: subtitles$,
+    "user": of(user),
+    "subtitles": subtitles$,
     "feed/register": feedSettings.active$.pipe(active => active ? feedSettings.feed$ : of(null)),
     "feed/focus": focus$.pipe(filter(focus => focus == true)),
     "feed/unfocus": focus$.pipe(filter(focus => focus == false)),
     "mippy/ask": ask$,
     "mippy/say": mippySay$,
+    "mippy/skip": skip$,
 }, selectedWindow$);
 
 combineLatest([remoteControl.subtitlesEnabled$, subtitlesEnabled$]).pipe(
@@ -154,16 +164,39 @@ combineLatest([remoteControl.subtitlesEnabled$, subtitlesEnabled$]).pipe(
     })
 ).subscribe();
 
-sendAsksEnabled$.pipe(
-    switchMap(enabled => enabled ? finalSubtitles$ : EMPTY)
-).subscribe(sub => {
-    const regex = /(?:[\.\?]|^)(?:.{0,10})(?:mippy|mipi|mippie)[,!](.*)/i
-    const match = sub.text.match(regex);
-    if (match) {
-        const q = match[1];
-        askMippy$.next(q);
+type AskHandler = (text: string) => Promise<boolean>;
+const askHandlers: AskHandler[] = [
+    async text => {
+        const skipRegex = /skip(?:.{0,20})/i;
+        const match = text.match(skipRegex);
+        if (match) {
+            askMippyToSkip$.next();
+        }
+        return !!match;
+    },
+    async text => {
+        askMippy$.next(text);
+        return true;
     }
-})
+];
+
+sendAsksEnabled$.pipe(
+    switchMap(enabled => enabled ? finalSubtitles$ : EMPTY),
+    switchMap(async sub => {
+        const regex = /(?:[\.\?]|^)(?:.{0,10})(?:mippy|mipi|mippie|miffi|miffie)[,!](.*)/i
+        const match = sub.text.match(regex);
+        if (match) {
+            const q = match[1].trim();
+
+            for (let handler of askHandlers) {
+                const result = await handler(q);
+                if (result) {
+                    break;
+                }
+            }
+        }
+    })
+).subscribe()
 
 /*
 Fastify Setup
@@ -201,18 +234,14 @@ Routes
 // Config socket
 fastifyApp.register(async (fastify: FastifyInstance) => {
     fastify.get('/websocket', { websocket: true }, (ws, req) => {
-        const socket = serverSocket<{
-            Events: {
-                config: { key: string, value: any },
-                "mippy/ask": string,
-                "mippy/say": string,
-                "mippy/window": string
-            }
-        }>(ws, new ObservableEventProvider({
+        const mapConfig = <In>(key: string) => map<In, { key: string, value: In }>(value => ({ key, value }))
+        const socket = serverSocket(ws, new ObservableEventProvider({
             config: merge(
-                feedSettings.feed$.pipe(map(feed => ({ key: "feed", value: feed }))),
-                feedSettings.active$.pipe(map(active => ({ key: "feedActive", value: active }))),
-                subtitlesEnabled$.pipe(map(enabled => ({ key: "subtitlesEnabled", value: enabled }))),
+                feedSettings.feed$.pipe(mapConfig("feed")),
+                feedSettings.active$.pipe(mapConfig("feedActive")),
+                subtitlesEnabled$.pipe(mapConfig("subtitlesEnabled")),
+                sendAsksEnabled$.pipe(mapConfig("sendAsksEnabled")),
+                sendScreenEnabled$.pipe(mapConfig("sendScreenEnabled")),
             ),
             connectionStatus: remoteControl.isConnected$,
             windows: windows$.pipe(
@@ -229,7 +258,7 @@ fastifyApp.register(async (fastify: FastifyInstance) => {
             url: req.url
         });
 
-        const configMessage = <ConfigValue>(config: string): Observable<ConfigValue> => socket.on("config").pipe(
+        const configMessage = <ConfigValue>(config: string): Observable<ConfigValue> => socket.on<{ key: string, value: any }>("config").pipe(
             filterMap(message => message.key == config, message => message.value)
         );
 
@@ -244,17 +273,17 @@ fastifyApp.register(async (fastify: FastifyInstance) => {
         configMessage<boolean>("sendAsksEnabled").subscribe(enabled => sendAsksEnabled$.next(enabled));
         configMessage<boolean>("sendScreenEnabled").subscribe(enabled => sendScreenEnabled$.next(enabled));
 
-        socket.on("mippy/ask").subscribe(question => {
+        socket.on<string>("mippy/ask").subscribe(question => {
             log.info(`Ask question: ${question}`, "mippy");
             askMippy$.next(question);
         });
 
-        socket.on("mippy/say").subscribe(message => {
+        socket.on<string>("mippy/say").subscribe(message => {
             log.info(`Mippy Say: ${message}`, "mippy");
             mippySay$.next(message);
         });
 
-        socket.on("mippy/window").subscribe(message => {
+        socket.on<string>("mippy/window").subscribe(message => {
             selectedWindowId$.next(message);
         });
     })

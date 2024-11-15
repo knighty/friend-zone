@@ -34,6 +34,7 @@ import WordOfTheHour from './data/word-of-the-hour';
 import { MissingError } from './errors';
 import { ChatGPTMippyBrain } from './mippy/chat-gpt-brain';
 import { DumbMippyBrain } from './mippy/dumb-brain';
+import { MippyHistory } from './mippy/history/history';
 import { MippyHistoryRepository } from './mippy/history/repository';
 import { Mippy } from './mippy/mippy';
 import { MippyBrain } from './mippy/mippy-brain';
@@ -137,8 +138,9 @@ const users = new Users();
 let permissions: MippyPermission[] = [];
 function getBrain(): MippyBrain {
     if (isMippyChatGPT(config.mippy)) {
+        const historyConfig = config.mippy.history;
         permissions = config.mippy.permissions;
-        const mippyHistoryRepository = new MippyHistoryRepository(path.join(__dirname, "../../", config.mippy.history.file));
+        const mippyHistoryRepository = new MippyHistoryRepository(path.join(__dirname, "../../", historyConfig.file), () => new MippyHistory(historyConfig.maxMessages));
         if (!config.openai.key) {
             throw new Error("No OpenAI key provided");
         }

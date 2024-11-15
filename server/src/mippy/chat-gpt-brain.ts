@@ -9,8 +9,8 @@ import { isMippyChatGPT, MippyChatGPTConfig } from "../config";
 import Users from '../data/users';
 import { getSystem$, getSystemPrompt$ } from './chatgpt/system-prompt';
 import { ChatGPTTools } from './chatgpt/tools';
-import { MippyHistory } from "./history/history";
-import { MippyHistoryMessage, MippyHistoryMessageAssistant, MippyHistoryMessageTool } from './history/message';
+import { createHistorySummarizer, MippyHistory } from "./history/history";
+import { createSystemMessage, createToolMessage, createUserMessage, MippyHistoryMessage, MippyHistoryMessageAssistant, MippyHistoryMessageTool } from './history/message';
 import { MippyHistoryRepository } from './history/repository';
 import { isToolPrompt, isUserPrompt, MippyBrain, MippyMessage, MippyPrompts, PartialPrompt, Prompt } from "./mippy-brain";
 
@@ -155,24 +155,22 @@ export class ChatGPTMippyBrain implements MippyBrain {
         const system$ = getSystem$(config, this.tools, systemPrompt$);
 
         const history$ = from(messageRepository.getHistory()).pipe(share())
-        const summarizer$ = history$.pipe(
-            map(history => history.createHistorySummarizer(client))
-        );
+        const summarizer = createHistorySummarizer(client);
 
         this.hookHistoryPersistence(history$);
 
         this.prompt$.pipe(
-            withLatestFrom(system$, history$, summarizer$, character$),
-            concatMap(async ([prompt, system, history, summarizer, character]) => {
+            withLatestFrom(system$, history$, character$),
+            concatMap(async ([prompt, system, history, character]) => {
                 // Init
                 const chatGptTimer = executionTimer();
                 let promptMessage: MippyHistoryMessage;
                 if (isToolPrompt(prompt)) {
-                    promptMessage = history.createToolResponse(prompt.text, prompt.toolCallId);
+                    promptMessage = createToolMessage(prompt.text, prompt.toolCallId);
                 } else {
                     promptMessage = isUserPrompt(prompt) ?
-                        history.create("user", prompt.text, prompt.name, prompt.image) :
-                        history.create("system", prompt.text);
+                        createUserMessage(prompt.text, prompt.name, prompt.image) :
+                        createSystemMessage(prompt.text);
                 }
                 const store = prompt.store ?? true;
                 const allowTools = prompt.allowTools ?? true;
@@ -181,7 +179,7 @@ export class ChatGPTMippyBrain implements MippyBrain {
                 // Logging
                 log.info(`${green(truncateString(prompt.text, 200, true, true))}\nHistory: ${green(history.messages.length)} messages. ${tools.length > 0 ? `\nTools: ${tools.map(tool => green(tool.tool.function.name)).join(", ")}` : ``}`);
 
-                const summaryMessage = history.create("system", `# Summaries
+                const summaryMessage = createSystemMessage(`# Summaries
                     ${history.summaries.map(summary => summary.content).join("\n")}`)
 
                 const messages = [
@@ -260,7 +258,7 @@ export class ChatGPTMippyBrain implements MippyBrain {
                                 continue;
                             }
                             log.info(`Tool response: ${green(toolResponse ?? "")}`)
-                            toolMessages.push(history.createToolResponse(toolResponse ?? "", toolCall.id));
+                            toolMessages.push(createToolMessage(toolResponse ?? "", toolCall.id));
                         }
                     }
 

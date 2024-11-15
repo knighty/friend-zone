@@ -7,12 +7,7 @@ import { ObservableEventProvider } from "shared/websocket/event-provider";
 
 const log = logger("remote-control");
 export function initSocket(url: string, data: Record<string, Observable<any>>, window$: Observable<Window | Monitor>) {
-    const socket = connectClient<{
-        Events: {
-            subtitles: { enabled: boolean },
-            getScreen: {}
-        }
-    }>(url, new ObservableEventProvider(data));
+    const socket = connectClient(url, new ObservableEventProvider(data));
 
     /*socket.connected$.pipe(
         switchMap(() => socket.send<{ message: string }>("user", { id, name, discordId, sortKey }, true)),
@@ -22,7 +17,7 @@ export function initSocket(url: string, data: Record<string, Observable<any>>, w
     const subtitlesEnabled$ = socket.isConnected$.pipe(
         switchMap(connected => {
             if (connected) {
-                return socket.on("subtitles").pipe(
+                return socket.on<{ enabled: boolean }>("subtitles").pipe(
                     map(e => e.enabled),
                     startWith(false)
                 );
@@ -31,7 +26,7 @@ export function initSocket(url: string, data: Record<string, Observable<any>>, w
         })
     );
 
-    socket.on("getScreen", true).pipe(
+    socket.on<void, true>("getScreen", true).pipe(
         withLatestFrom(window$),
         concatMap(async ([[num, callback], window]) => {
             let monitor = Monitor.fromPoint(100, 100);

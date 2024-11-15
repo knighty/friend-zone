@@ -21,7 +21,7 @@ const client$ = (new Observable<RPC.Client>(subscriber => {
             clientSecret: config.discord.clientSecret,
             redirectUri: config.discord.redirectUri,
             scopes: ['rpc']
-        });
+        }).catch(e => subscriber.error(e));
     } else {
         throw new Error("Invalid Discord config");
     }

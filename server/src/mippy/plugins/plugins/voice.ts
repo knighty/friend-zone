@@ -1,10 +1,12 @@
 import { FastifyInstance } from "fastify";
+import { green } from "kolorist";
 import { BehaviorSubject, EMPTY, Observable, Subject, ignoreElements, map, merge, of, reduce, share, switchMap, tap, timeout, timer, withLatestFrom } from "rxjs";
 import { logger } from "shared/logger";
-import { concatMapPriority, tapFirst } from "shared/rx";
+import { concatMapPriority, connectableSource, tapFirst } from "shared/rx";
 import { StreamSynthesisResult, streamSynthesizeVoice } from "../../../data/tts/synthesize-stream";
 import ejsLayout from "../../../layout";
 import { AudioRepository, AudioStream } from "../../../plugins/audio-socket";
+import { addRemoteControlPlugin } from "../../../plugins/remote-control-socket";
 import { socket } from "../../../plugins/socket";
 import { initTtsRouter } from "../../../routes/tts";
 import { getManifestPath } from "../../../utils";
@@ -160,6 +162,23 @@ export function mippyVoicePlugin(fastify: FastifyInstance, socketHost: string, o
                 share()
             );
 
+            const [skipEvent$, skipEventSubscription] = connectableSource(new Observable(subscriber => {
+                addRemoteControlPlugin({
+                    onRegisterUser(socket, userId, userName) {
+                        socket.on<void>("mippy/skip").subscribe(() => {
+                            log.info(`Mippy skipped by ${green(userName)}`)
+                            subscriber.next();
+                        })
+                    },
+                })
+            }));
+
+            const skip$ = skipEvent$.pipe(
+                withLatestFrom(streamEvent$),
+                map(([skip, event]) => ({ id: event.id })),
+                share()
+            )
+
             fastify.register(async (fastify: FastifyInstance) => {
                 fastify.addHook('onRequest', ejsLayout("stream-modules/stream-module", async (req, res) => ({
                     style: await getManifestPath("main.css"),
@@ -171,10 +190,16 @@ export function mippyVoicePlugin(fastify: FastifyInstance, socketHost: string, o
                     return res.viewAsync(`stream-modules/mippy`, {})
                 })
 
-                fastify.register(socket([{
-                    type: "mippySpeech",
-                    data: streamEvent$
-                }]));
+                fastify.register(socket([
+                    {
+                        type: "mippySpeech",
+                        data: streamEvent$
+                    },
+                    {
+                        type: "mippySpeechSkip",
+                        data: skip$
+                    }
+                ]));
 
                 fastify.register(initTtsRouter(audioRepository), { prefix: "/audio" });
             }, { prefix: "/mippy/plugins/voice" })
